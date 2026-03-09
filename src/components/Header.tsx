@@ -148,7 +148,7 @@ const Header = () => {
           )}
             <Link to="/about" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 text-sm text-foreground hover:bg-secondary rounded-md">About</Link>
             <Link to="/contact" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 text-sm text-foreground hover:bg-secondary rounded-md">Contact</Link>
-            <Link to="/support" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 text-sm text-foreground hover:bg-secondary rounded-md">Support</Link>
+            
           </nav>
         </div>
       }
