@@ -77,16 +77,6 @@ const ProductDetails = () => {
           <h1 className="font-display text-xl sm:text-2xl md:text-3xl font-bold">{product.title}</h1>
           <p className="text-muted-foreground text-sm sm:text-base mt-2">{product.subtitle}</p>
 
-          {/* Rating */}
-          <div className="flex items-center gap-2 mt-3">
-            <div className="flex gap-0.5">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating) ? 'fill-gold text-gold' : 'text-muted'}`} />
-              ))}
-            </div>
-            <span className="text-sm font-medium">{product.rating}</span>
-            <span className="text-xs sm:text-sm text-muted-foreground">({product.reviewCount} отзывов)</span>
-          </div>
 
           {/* Price */}
           <div className="flex items-baseline gap-3 mt-4">
