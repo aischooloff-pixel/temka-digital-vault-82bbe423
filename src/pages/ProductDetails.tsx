@@ -1,15 +1,15 @@
 import { useParams, Link } from 'react-router-dom';
-import { Star, Zap, Clock, Shield, ShoppingCart, CheckCircle2, ChevronRight, ArrowLeft, MessageCircle } from 'lucide-react';
+import { Zap, Clock, Shield, ShoppingCart, CheckCircle2, ChevronRight, ArrowLeft, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ProductCard from '@/components/ProductCard';
-import { getProductById, getReviewsByProductId, products, reviews } from '@/data/products';
+import { getProductById, products } from '@/data/products';
 import { useStore } from '@/contexts/StoreContext';
 import { useState } from 'react';
 
 const ProductDetails = () => {
   const { id } = useParams<{ id: string }>();
   const product = getProductById(id || '');
-  const productReviews = getReviewsByProductId(id || '');
+  
   const { addToCart } = useStore();
   const [activeTab, setActiveTab] = useState('description');
 
@@ -26,7 +26,7 @@ const ProductDetails = () => {
 
   const discount = product.oldPrice ? Math.round((1 - product.price / product.oldPrice) * 100) : 0;
   const similar = products.filter(p => p.category === product.category && p.id !== product.id).slice(0, 4);
-  const allReviews = productReviews.length > 0 ? productReviews : reviews.slice(0, 3);
+  
 
   return (
     <div className="container-main mx-auto px-4 py-6 sm:py-8">
@@ -77,16 +77,6 @@ const ProductDetails = () => {
           <h1 className="font-display text-xl sm:text-2xl md:text-3xl font-bold">{product.title}</h1>
           <p className="text-muted-foreground text-sm sm:text-base mt-2">{product.subtitle}</p>
 
-          {/* Rating */}
-          <div className="flex items-center gap-2 mt-3">
-            <div className="flex gap-0.5">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating) ? 'fill-gold text-gold' : 'text-muted'}`} />
-              ))}
-            </div>
-            <span className="text-sm font-medium">{product.rating}</span>
-            <span className="text-xs sm:text-sm text-muted-foreground">({product.reviewCount} отзывов)</span>
-          </div>
 
           {/* Price */}
           <div className="flex items-baseline gap-3 mt-4">
@@ -132,7 +122,6 @@ const ProductDetails = () => {
           {[
             { id: 'description', label: 'Описание' },
             { id: 'specifications', label: 'Характеристики' },
-            { id: 'reviews', label: `Отзывы (${product.reviewCount})` },
           ].map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === tab.id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
@@ -174,30 +163,6 @@ const ProductDetails = () => {
           </div>
         )}
 
-        {activeTab === 'reviews' && (
-          <div className="max-w-3xl space-y-4">
-            {allReviews.map(review => (
-              <div key={review.id} className="p-4 bg-card border border-border/50 rounded-xl">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center text-sm font-bold">{review.avatar}</div>
-                    <div>
-                      <span className="text-sm font-medium">{review.author}</span>
-                      {review.verified && <span className="text-[10px] text-primary ml-2">✓ Проверен</span>}
-                    </div>
-                  </div>
-                  <span className="text-xs text-muted-foreground">{review.date}</span>
-                </div>
-                <div className="flex gap-0.5 mb-2">
-                  {Array.from({ length: review.rating }).map((_, j) => (
-                    <Star key={j} className="w-3 h-3 fill-gold text-gold" />
-                  ))}
-                </div>
-                <p className="text-xs sm:text-sm text-muted-foreground">{review.text}</p>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Similar Products */}

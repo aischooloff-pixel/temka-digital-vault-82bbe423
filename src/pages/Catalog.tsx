@@ -9,7 +9,6 @@ const sortOptions = [
   { value: 'popular', label: 'По популярности' },
   { value: 'price-asc', label: 'Цена: по возрастанию' },
   { value: 'price-desc', label: 'Цена: по убыванию' },
-  { value: 'rating', label: 'По рейтингу' },
   { value: 'newest', label: 'Новинки' },
 ];
 
@@ -23,7 +22,6 @@ const Catalog = () => {
   const [sortBy, setSortBy] = useState('popular');
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 500]);
   const [deliveryType, setDeliveryType] = useState<string>('');
-  const [minRating, setMinRating] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const filtered = useMemo(() => {
@@ -31,18 +29,18 @@ const Catalog = () => {
     if (search) result = result.filter(p => p.title.toLowerCase().includes(search.toLowerCase()) || p.subtitle.toLowerCase().includes(search.toLowerCase()));
     if (selectedCategory) result = result.filter(p => p.category === selectedCategory);
     if (deliveryType) result = result.filter(p => p.deliveryType === deliveryType);
-    if (minRating) result = result.filter(p => p.rating >= minRating);
+    
     result = result.filter(p => p.price >= priceRange[0] && p.price <= priceRange[1]);
 
     switch (sortBy) {
       case 'price-asc': result.sort((a, b) => a.price - b.price); break;
       case 'price-desc': result.sort((a, b) => b.price - a.price); break;
-      case 'rating': result.sort((a, b) => b.rating - a.rating); break;
+      case 'rating': break;
       case 'newest': result.reverse(); break;
       default: result.sort((a, b) => b.reviewCount - a.reviewCount);
     }
     return result;
-  }, [search, selectedCategory, sortBy, priceRange, deliveryType, minRating]);
+  }, [search, selectedCategory, sortBy, priceRange, deliveryType]);
 
   const clearFilters = () => {
     setSearch('');
@@ -50,7 +48,7 @@ const Catalog = () => {
     setSortBy('popular');
     setPriceRange([0, 500]);
     setDeliveryType('');
-    setMinRating(0);
+    
     setSearchParams({});
   };
 
@@ -147,19 +145,6 @@ const Catalog = () => {
                   <button key={type} onClick={() => setDeliveryType(type)}
                     className={`block w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${deliveryType === type ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}>
                     {type === '' ? 'Все' : type === 'instant' ? '⚡ Мгновенная' : '🕐 Ручная'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Rating */}
-            <div>
-              <h4 className="font-display font-semibold text-sm mb-3">Мин. рейтинг</h4>
-              <div className="space-y-1">
-                {[0, 4, 4.5, 4.8].map(r => (
-                  <button key={r} onClick={() => setMinRating(r)}
-                    className={`block w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${minRating === r ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}>
-                    {r === 0 ? 'Все' : `${r}+ ⭐`}
                   </button>
                 ))}
               </div>
