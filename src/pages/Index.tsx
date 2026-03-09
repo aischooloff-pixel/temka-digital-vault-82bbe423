@@ -1,11 +1,10 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Zap, Shield, Star, ChevronRight, ArrowRight, CheckCircle2, Package, Clock } from 'lucide-react';
+import { Zap, Shield, ChevronRight, ArrowRight, CheckCircle2, Package, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ProductCard from '@/components/ProductCard';
 import ProductCardSkeleton from '@/components/ProductCardSkeleton';
 import { useProducts, useCategories, useProductStats } from '@/hooks/useProducts';
-import { useReviews } from '@/hooks/useProducts';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const fadeIn = {
@@ -16,10 +15,10 @@ const fadeIn = {
 const Index = () => {
   const { data: products, isLoading: productsLoading } = useProducts();
   const { data: categories, isLoading: categoriesLoading } = useCategories();
-  const { data: reviews, isLoading: reviewsLoading } = useReviews();
   const { data: stats } = useProductStats();
 
-  const featuredProducts = products?.filter(p => p.tags.includes('best-seller') || p.tags.includes('hot')).slice(0, 6) || [];
+  const featuredProducts = products?.filter(p => p.is_featured || p.is_popular).slice(0, 6) || [];
+  const newProducts = products?.filter(p => p.is_new).slice(0, 6) || [];
 
   return (
     <div>
@@ -119,71 +118,56 @@ const Index = () => {
       </section>
 
       {/* Featured Products */}
-      <section className="px-4 pb-6">
-        <div className="container-main mx-auto">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display text-lg font-bold">Популярные</h2>
-            <Link to="/catalog" className="text-xs text-primary flex items-center gap-0.5">
-              Все <ChevronRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-          {productsLoading ? (
-            <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="min-w-[220px] sm:min-w-[260px] snap-start shrink-0">
-                  <ProductCardSkeleton />
-                </div>
-              ))}
+      {featuredProducts.length > 0 && (
+        <section className="px-4 pb-6">
+          <div className="container-main mx-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-lg font-bold">Популярные</h2>
+              <Link to="/catalog" className="text-xs text-primary flex items-center gap-0.5">
+                Все <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
-          ) : featuredProducts.length > 0 ? (
+            {productsLoading ? (
+              <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="min-w-[220px] sm:min-w-[260px] snap-start shrink-0">
+                    <ProductCardSkeleton />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
+                {featuredProducts.map(product => (
+                  <div key={product.id} className="min-w-[220px] sm:min-w-[260px] snap-start shrink-0">
+                    <ProductCard product={product} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* New Products */}
+      {newProducts.length > 0 && (
+        <section className="px-4 pb-6">
+          <div className="container-main mx-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-lg font-bold">Новинки</h2>
+              <Link to="/catalog" className="text-xs text-primary flex items-center gap-0.5">
+                Все <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
             <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
-              {featuredProducts.map(product => (
+              {newProducts.map(product => (
                 <div key={product.id} className="min-w-[220px] sm:min-w-[260px] snap-start shrink-0">
                   <ProductCard product={product} />
                 </div>
               ))}
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-8">Товары скоро появятся</p>
-          )}
-        </div>
-      </section>
-
-      {/* Reviews */}
-      <section className="px-4 pb-6 bg-card/20">
-        <div className="container-main mx-auto pt-6">
-          <h2 className="font-display text-lg font-bold mb-4">Отзывы</h2>
-          {reviewsLoading ? (
-            <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x scrollbar-hide">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="min-w-[240px] h-32 rounded-xl shrink-0" />
-              ))}
-            </div>
-          ) : reviews && reviews.length > 0 ? (
-            <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x scrollbar-hide">
-              {reviews.slice(0, 6).map((review) => (
-                <div key={review.id} className="min-w-[240px] p-3 bg-card border border-border/50 rounded-xl snap-start shrink-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-7 h-7 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">{review.avatar}</div>
-                    <div>
-                      <div className="text-xs font-medium">{review.author}</div>
-                      {review.verified && <div className="text-[9px] text-primary flex items-center gap-0.5"><CheckCircle2 className="w-2.5 h-2.5" /> Проверен</div>}
-                    </div>
-                  </div>
-                  <div className="flex gap-0.5 mb-1.5">
-                    {Array.from({ length: review.rating }).map((_, j) => (
-                      <Star key={j} className="w-3 h-3 fill-gold text-gold" />
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground line-clamp-3">{review.text}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-4">Пока нет отзывов</p>
-          )}
-        </div>
-      </section>
+          </div>
+        </section>
+      )}
 
       {/* FAQ Preview */}
       <section className="px-4 py-6">

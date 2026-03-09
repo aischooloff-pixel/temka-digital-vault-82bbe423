@@ -5,19 +5,57 @@ import { useStore } from '@/contexts/StoreContext';
 import ProductCard from '@/components/ProductCard';
 import { useProducts } from '@/hooks/useProducts';
 import { useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 const categoryEmoji: Record<string, string> = {
   'social-media': '📱', 'gaming': '🎮', 'streaming': '🎬', 'software': '🔑',
   'premium': '👑', 'automation': '🤖', 'ai-tools': '🧠', 'services': '⚡',
 };
 
+interface PromoResult {
+  discountType: 'percent' | 'fixed';
+  discountValue: number;
+}
+
 const Cart = () => {
   const { cart, removeFromCart, updateQuantity, cartTotal, clearCart } = useStore();
   const { data: products } = useProducts();
   const [promoCode, setPromoCode] = useState('');
-  const [promoApplied, setPromoApplied] = useState(false);
+  const [promoApplied, setPromoApplied] = useState<PromoResult | null>(null);
+  const [promoError, setPromoError] = useState('');
+  const [promoLoading, setPromoLoading] = useState(false);
 
   const recommended = products?.filter(p => !cart.some(c => c.product.id === p.id)).slice(0, 4) || [];
+
+  const applyPromo = async () => {
+    const code = promoCode.trim().toUpperCase();
+    if (!code) return;
+    setPromoLoading(true);
+    setPromoError('');
+    try {
+      const { data, error } = await supabase
+        .from('promocodes')
+        .select('*')
+        .eq('code', code)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) { setPromoError('Промокод не найден'); setPromoApplied(null); return; }
+      const now = new Date().toISOString();
+      if (data.valid_from && now < data.valid_from) { setPromoError('Промокод ещё не активен'); return; }
+      if (data.valid_until && now > data.valid_until) { setPromoError('Промокод истёк'); return; }
+      if (data.max_uses !== null && data.used_count >= data.max_uses) { setPromoError('Лимит использований исчерпан'); return; }
+      setPromoApplied({
+        discountType: data.discount_type as 'percent' | 'fixed',
+        discountValue: Number(data.discount_value),
+      });
+      setPromoError('');
+    } catch {
+      setPromoError('Ошибка проверки');
+    } finally {
+      setPromoLoading(false);
+    }
+  };
 
   if (cart.length === 0) {
     return (
@@ -30,8 +68,12 @@ const Cart = () => {
     );
   }
 
-  const discount = promoApplied ? cartTotal * 0.1 : 0;
-  const total = cartTotal - discount;
+  const discount = promoApplied
+    ? promoApplied.discountType === 'percent'
+      ? cartTotal * (promoApplied.discountValue / 100)
+      : promoApplied.discountValue
+    : 0;
+  const total = Math.max(0, cartTotal - discount);
 
   return (
     <div className="container-main mx-auto px-4 py-6 sm:py-8">
@@ -43,8 +85,12 @@ const Cart = () => {
             const outOfStock = item.product.stock <= 0;
             return (
               <div key={item.product.id} className={`bg-card border border-border/50 rounded-xl p-3 sm:p-4 flex gap-3 sm:gap-4 ${outOfStock ? 'opacity-60' : ''}`}>
-                <div className="w-16 h-16 sm:w-20 sm:h-20 bg-secondary/50 rounded-lg flex items-center justify-center text-2xl sm:text-3xl shrink-0">
-                  {categoryEmoji[item.product.category_id || ''] || '⚡'}
+                <div className="w-16 h-16 sm:w-20 sm:h-20 bg-secondary/50 rounded-lg flex items-center justify-center text-2xl sm:text-3xl shrink-0 overflow-hidden">
+                  {item.product.image ? (
+                    <img src={item.product.image} alt={item.product.title} className="w-full h-full object-cover" />
+                  ) : (
+                    categoryEmoji[item.product.category_id || ''] || '⚡'
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <Link to={`/product/${item.product.id}`} className="font-display font-semibold text-xs sm:text-sm hover:text-primary transition-colors line-clamp-1">{item.product.title}</Link>
@@ -88,18 +134,29 @@ const Cart = () => {
             <h3 className="font-display font-semibold text-base sm:text-lg">Итого</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-muted-foreground">Подытог</span><span>${cartTotal.toFixed(2)}</span></div>
-              {promoApplied && <div className="flex justify-between text-primary"><span>Промокод (-10%)</span><span>-${discount.toFixed(2)}</span></div>}
+              {promoApplied && (
+                <div className="flex justify-between text-primary">
+                  <span>Промокод ({promoApplied.discountType === 'percent' ? `-${promoApplied.discountValue}%` : `-$${promoApplied.discountValue}`})</span>
+                  <span>-${discount.toFixed(2)}</span>
+                </div>
+              )}
               <div className="border-t border-border/30 pt-2 flex justify-between font-display font-bold text-lg">
                 <span>Итого</span><span>${total.toFixed(2)}</span>
               </div>
             </div>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
-                <input type="text" placeholder="Промокод" value={promoCode} onChange={e => setPromoCode(e.target.value)}
-                  className="w-full h-9 pl-8 pr-3 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                  <input type="text" placeholder="Промокод" value={promoCode} onChange={e => { setPromoCode(e.target.value); setPromoError(''); }}
+                    className="w-full h-9 pl-8 pr-3 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                </div>
+                <Button variant="outline" size="sm" onClick={applyPromo} disabled={promoLoading}>
+                  {promoLoading ? '...' : 'Применить'}
+                </Button>
               </div>
-              <Button variant="outline" size="sm" onClick={() => { if (promoCode.trim()) setPromoApplied(true); }}>Применить</Button>
+              {promoError && <p className="text-xs text-destructive">{promoError}</p>}
+              {promoApplied && <p className="text-xs text-primary">✅ Промокод применён!</p>}
             </div>
             <Link to="/checkout" className="block">
               <Button variant="hero" size="xl" className="w-full">

@@ -42,7 +42,11 @@ const ProductCard = ({ product }: { product: DbProduct }) => {
     <div className={`group relative bg-card border border-border/50 rounded-xl overflow-hidden hover-lift hover:border-primary/30 transition-all duration-300 ${outOfStock ? 'opacity-60' : ''}`}>
       <Link to={`/product/${product.id}`} className="block">
         <div className="relative h-36 sm:h-44 bg-secondary/50 flex items-center justify-center overflow-hidden">
-          <div className="text-4xl sm:text-5xl">{categoryEmoji[product.category_id || ''] || '⚡'}</div>
+          {product.image ? (
+            <img src={product.image} alt={product.title} className="w-full h-full object-cover" />
+          ) : (
+            <div className="text-4xl sm:text-5xl">{categoryEmoji[product.category_id || ''] || '⚡'}</div>
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-card/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
           <div className="absolute top-2 left-2 flex flex-wrap gap-1">
