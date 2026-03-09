@@ -6,6 +6,18 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+async function setWebhook(botToken: string, webhookUrl: string) {
+  const res = await fetch(
+    `https://api.telegram.org/bot${botToken}/setWebhook`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: webhookUrl }),
+    }
+  );
+  return res.json();
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -18,6 +30,17 @@ serve(async (req) => {
         JSON.stringify({ error: "Bot token not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    const url = new URL(req.url);
+
+    // GET ?setup=true → auto-register webhook
+    if (req.method === "GET" && url.searchParams.get("setup") === "true") {
+      const webhookUrl = `${url.origin}/functions/v1/telegram-bot`;
+      const result = await setWebhook(botToken, webhookUrl);
+      return new Response(JSON.stringify({ webhook: webhookUrl, result }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const body = await req.json();
