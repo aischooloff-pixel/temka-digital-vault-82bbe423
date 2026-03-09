@@ -15,7 +15,7 @@ const tabs = [
   { id: 'favorites', label: 'Избранное', icon: Heart },
   
   { id: 'notifications', label: 'Уведомления', icon: Bell },
-  { id: 'settings', label: 'Настройки', icon: Settings },
+  
 ];
 
 const Account = () => {
@@ -154,31 +154,6 @@ const Account = () => {
             </div>
           )}
 
-          {activeTab === 'settings' && (
-            <div className="space-y-4 sm:space-y-6">
-              <div className="bg-card border border-border/50 rounded-xl p-4 sm:p-6">
-                <h3 className="font-display font-semibold mb-4">Настройки профиля</h3>
-                <div className="space-y-4 max-w-md">
-                  <div>
-                    <label className="block text-sm text-muted-foreground mb-1.5">Email</label>
-                    <input type="email" value="user@example.com" readOnly className="w-full h-10 px-4 bg-secondary border border-border rounded-lg text-sm text-foreground" />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-muted-foreground mb-1.5">Telegram</label>
-                    <input type="text" placeholder="@username" className="w-full h-10 px-4 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
-                  </div>
-                  <Button>Сохранить</Button>
-                </div>
-              </div>
-              <div className="bg-card border border-border/50 rounded-xl p-4 sm:p-6">
-                <h3 className="font-display font-semibold mb-4 flex items-center gap-2"><Shield className="w-5 h-5 text-primary" /> Безопасность</h3>
-                <div className="space-y-3 max-w-md">
-                  <Button variant="outline" className="w-full justify-start">Изменить пароль</Button>
-                  <Button variant="outline" className="w-full justify-start">Включить двухфакторную аутентификацию</Button>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
