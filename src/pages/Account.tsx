@@ -1,4 +1,4 @@
-import { Package, Heart, Clock, CheckCircle2, Gift, MessageCircle, ChevronRight } from 'lucide-react';
+import { Package, Clock, CheckCircle2, Gift, MessageCircle, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 
