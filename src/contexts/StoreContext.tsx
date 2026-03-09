@@ -8,13 +8,10 @@ interface CartItem {
 
 interface StoreContextType {
   cart: CartItem[];
-  favorites: string[];
   addToCart: (product: Product) => void;
   removeFromCart: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
-  toggleFavorite: (productId: string) => void;
-  isFavorite: (productId: string) => boolean;
   cartTotal: number;
   cartCount: number;
   searchQuery: string;
