@@ -15,7 +15,7 @@ import Checkout from "./pages/Checkout";
 import OrderSuccess from "./pages/OrderSuccess";
 import OrderFailed from "./pages/OrderFailed";
 import Account from "./pages/Account";
-import Favorites from "./pages/Favorites";
+
 import FAQ from "./pages/FAQ";
 import About from "./pages/About";
 import { Terms, Privacy, Refund } from "./pages/Legal";
@@ -43,7 +43,7 @@ const App = () => (
                 <Route path="/order-success" element={<OrderSuccess />} />
                 <Route path="/order-failed" element={<OrderFailed />} />
                 <Route path="/account" element={<Account />} />
-                <Route path="/favorites" element={<Favorites />} />
+                
                 <Route path="/faq" element={<FAQ />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/terms" element={<Terms />} />

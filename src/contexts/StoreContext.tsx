@@ -8,13 +8,10 @@ interface CartItem {
 
 interface StoreContextType {
   cart: CartItem[];
-  favorites: string[];
   addToCart: (product: Product) => void;
   removeFromCart: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
-  toggleFavorite: (productId: string) => void;
-  isFavorite: (productId: string) => boolean;
   cartTotal: number;
   cartCount: number;
   searchQuery: string;
@@ -25,7 +22,6 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [favorites, setFavorites] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   const addToCart = useCallback((product: Product) => {
@@ -58,21 +54,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const clearCart = useCallback(() => setCart([]), []);
 
-  const toggleFavorite = useCallback((productId: string) => {
-    setFavorites(prev =>
-      prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId]
-    );
-  }, []);
 
-  const isFavorite = useCallback((productId: string) => favorites.includes(productId), [favorites]);
+
 
   const cartTotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
     <StoreContext.Provider value={{
-      cart, favorites, addToCart, removeFromCart, updateQuantity, clearCart,
-      toggleFavorite, isFavorite, cartTotal, cartCount, searchQuery, setSearchQuery,
+      cart, addToCart, removeFromCart, updateQuantity, clearCart,
+      cartTotal, cartCount, searchQuery, setSearchQuery,
     }}>
       {children}
     </StoreContext.Provider>

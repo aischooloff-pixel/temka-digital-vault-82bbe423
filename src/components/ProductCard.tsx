@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Star, Heart, ShoppingCart, Zap, Clock } from 'lucide-react';
+import { Star, ShoppingCart, Zap, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Product } from '@/data/products';
 import { useStore } from '@/contexts/StoreContext';
@@ -21,7 +21,7 @@ const tagColors: Record<string, string> = {
 };
 
 const ProductCard = ({ product }: { product: Product }) => {
-  const { addToCart, toggleFavorite, isFavorite } = useStore();
+  const { addToCart } = useStore();
   const discount = product.oldPrice ? Math.round((1 - product.price / product.oldPrice) * 100) : 0;
 
   return (
@@ -100,14 +100,6 @@ const ProductCard = ({ product }: { product: Product }) => {
             )}
           </div>
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 sm:h-8 sm:w-8"
-              onClick={() => toggleFavorite(product.id)}
-            >
-              <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isFavorite(product.id) ? 'fill-destructive text-destructive' : ''}`} />
-            </Button>
             <Button
               size="sm"
               className="h-7 sm:h-8 text-xs"

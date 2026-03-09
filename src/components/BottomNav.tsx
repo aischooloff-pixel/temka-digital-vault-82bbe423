@@ -1,11 +1,10 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Search, ShoppingCart, User, Heart } from 'lucide-react';
+import { Home, Search, ShoppingCart, User } from 'lucide-react';
 import { useStore } from '@/contexts/StoreContext';
 
 const navItems = [
   { path: '/', icon: Home, label: 'Главная' },
   { path: '/catalog', icon: Search, label: 'Каталог' },
-  { path: '/favorites', icon: Heart, label: 'Избранное' },
   { path: '/cart', icon: ShoppingCart, label: 'Корзина' },
   { path: '/account', icon: User, label: 'Профиль' },
 ];

@@ -1,4 +1,4 @@
-import { Package, Heart, Clock, CheckCircle2, Gift, MessageCircle, ChevronRight } from 'lucide-react';
+import { Package, Clock, CheckCircle2, Gift, MessageCircle, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 
@@ -28,10 +28,9 @@ const Account = () => {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-3 gap-2 mt-4">
+      <div className="grid grid-cols-2 gap-2 mt-4">
         {[
           { label: 'Заказов', value: '3', icon: Package },
-          { label: 'Избранное', value: '5', icon: Heart },
           { label: 'Купоны', value: '1', icon: Gift },
         ].map((s, i) => (
           <div key={i} className="bg-card border border-border/50 rounded-xl p-3 text-center">
@@ -67,15 +66,6 @@ const Account = () => {
           ))}
         </div>
       </div>
-
-      {/* Favorites link */}
-      <Link to="/favorites" className="mt-4 bg-card border border-border/50 rounded-xl p-3 flex items-center justify-between block">
-        <div className="flex items-center gap-2">
-          <Heart className="w-4 h-4 text-primary" />
-          <span className="text-sm font-medium">Избранные товары</span>
-        </div>
-        <ChevronRight className="w-4 h-4 text-muted-foreground" />
-      </Link>
 
       {/* Support */}
       <a href="https://t.me/paveldurov" target="_blank" rel="noopener noreferrer" className="mt-4 block">

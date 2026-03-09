@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router-dom';
-import { Star, Zap, Clock, Shield, Heart, ShoppingCart, CheckCircle2, ChevronRight, ArrowLeft, MessageCircle } from 'lucide-react';
+import { Star, Zap, Clock, Shield, ShoppingCart, CheckCircle2, ChevronRight, ArrowLeft, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ProductCard from '@/components/ProductCard';
 import { getProductById, getReviewsByProductId, products, reviews } from '@/data/products';
@@ -10,7 +10,7 @@ const ProductDetails = () => {
   const { id } = useParams<{ id: string }>();
   const product = getProductById(id || '');
   const productReviews = getReviewsByProductId(id || '');
-  const { addToCart, toggleFavorite, isFavorite } = useStore();
+  const { addToCart } = useStore();
   const [activeTab, setActiveTab] = useState('description');
 
   if (!product) {
@@ -111,9 +111,8 @@ const ProductDetails = () => {
             <Button variant="hero" size="xl" className="flex-1" onClick={() => addToCart(product)}>
               <ShoppingCart className="w-4 h-4 mr-1" /> В корзину
             </Button>
-            <Button variant="hero-outline" size="xl" onClick={() => toggleFavorite(product.id)}>
-              <Heart className={`w-4 h-4 ${isFavorite(product.id) ? 'fill-destructive text-destructive' : ''}`} />
-            </Button>
+
+
           </div>
 
           {/* Quick features */}
