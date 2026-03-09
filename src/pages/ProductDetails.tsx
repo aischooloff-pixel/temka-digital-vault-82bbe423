@@ -122,7 +122,6 @@ const ProductDetails = () => {
           {[
             { id: 'description', label: 'Описание' },
             { id: 'specifications', label: 'Характеристики' },
-            { id: 'reviews', label: `Отзывы (${product.reviewCount})` },
           ].map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === tab.id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
