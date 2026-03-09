@@ -41,7 +41,7 @@ const Catalog = () => {
       default: result.sort((a, b) => b.reviewCount - a.reviewCount);
     }
     return result;
-  }, [search, selectedCategory, sortBy, priceRange, deliveryType, minRating]);
+  }, [search, selectedCategory, sortBy, priceRange, deliveryType]);
 
   const clearFilters = () => {
     setSearch('');
