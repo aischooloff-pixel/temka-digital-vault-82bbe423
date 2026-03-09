@@ -30,7 +30,7 @@ const Catalog = () => {
     if (search) result = result.filter(p => p.title.toLowerCase().includes(search.toLowerCase()) || p.subtitle.toLowerCase().includes(search.toLowerCase()));
     if (selectedCategory) result = result.filter(p => p.category === selectedCategory);
     if (deliveryType) result = result.filter(p => p.deliveryType === deliveryType);
-    if (minRating) result = result.filter(p => p.rating >= minRating);
+    
     result = result.filter(p => p.price >= priceRange[0] && p.price <= priceRange[1]);
 
     switch (sortBy) {
