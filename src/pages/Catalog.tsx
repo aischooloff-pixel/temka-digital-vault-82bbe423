@@ -23,7 +23,6 @@ const Catalog = () => {
   const [sortBy, setSortBy] = useState('popular');
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 500]);
   const [deliveryType, setDeliveryType] = useState<string>('');
-  const [minRating, setMinRating] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const filtered = useMemo(() => {
