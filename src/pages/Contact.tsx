@@ -26,12 +26,12 @@ const Contact = () => {
       </div>
 
       <div className="text-center">
-        <Link to="/support">
+        <a href="https://t.me/paveldurov" target="_blank" rel="noopener noreferrer">
           <Button variant="hero" size="lg">
             <Headphones className="w-4 h-4 mr-2" />
             Поддержка
           </Button>
-        </Link>
+        </a>
       </div>
     </div>
   );
