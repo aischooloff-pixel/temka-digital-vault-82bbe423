@@ -13,7 +13,7 @@ const tabs = [
   { id: 'dashboard', label: 'Обзор', icon: User },
   { id: 'orders', label: 'История заказов', icon: Package },
   { id: 'favorites', label: 'Избранное', icon: Heart },
-  { id: 'support', label: 'Тикеты', icon: Headphones },
+  
   { id: 'notifications', label: 'Уведомления', icon: Bell },
   { id: 'settings', label: 'Настройки', icon: Settings },
 ];
