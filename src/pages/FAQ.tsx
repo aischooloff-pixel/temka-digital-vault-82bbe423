@@ -25,7 +25,7 @@ const faqData = [
     items: [
       { q: 'What payment methods do you accept?', a: 'We accept credit/debit cards (Visa, Mastercard), cryptocurrency (BTC, ETH, USDT), PayPal, and other regional payment methods.' },
       { q: 'Is my payment information secure?', a: 'Yes, all payments are processed through secure, encrypted channels. We never store your full payment details on our servers.' },
-      { q: 'What if my payment fails?', a: 'If your payment fails, try a different payment method or contact your bank. If the amount was charged but the order wasn't created, contact our support team.' },
+      { q: 'What if my payment fails?', a: "If your payment fails, try a different payment method or contact your bank. If the amount was charged but the order wasn't created, contact our support team." },
     ],
   },
   {
