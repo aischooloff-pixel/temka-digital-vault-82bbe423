@@ -22,7 +22,6 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [favorites, setFavorites] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   const addToCart = useCallback((product: Product) => {
