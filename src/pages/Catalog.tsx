@@ -151,17 +151,6 @@ const Catalog = () => {
               </div>
             </div>
 
-            {/* Rating */}
-            <div>
-              <h4 className="font-display font-semibold text-sm mb-3">Мин. рейтинг</h4>
-              <div className="space-y-1">
-                {[0, 4, 4.5, 4.8].map(r => (
-                  <button key={r} onClick={() => setMinRating(r)}
-                    className={`block w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${minRating === r ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}>
-                    {r === 0 ? 'Все' : `${r}+ ⭐`}
-                  </button>
-                ))}
-              </div>
             </div>
 
             <Button variant="outline" size="sm" onClick={() => { clearFilters(); setFiltersOpen(false); }} className="w-full">Сбросить фильтры</Button>
