@@ -1,4 +1,4 @@
-import { Mail, MessageCircle, Clock } from 'lucide-react';
+import { MessageCircle, Clock } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -14,9 +14,7 @@ const Contact = () => {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 max-w-3xl mx-auto mb-8 sm:mb-10">
         {[
-          { icon: Mail, label: 'Email', value: 'support@temka.store' },
           { icon: MessageCircle, label: 'Telegram', value: '@temka_support' },
-          { icon: MessageCircle, label: 'Discord', value: 'TEMKA.STORE' },
           { icon: Clock, label: 'Время ответа', value: '1-2 часа' },
         ].map((c, i) => (
           <div key={i} className="bg-card border border-border/50 rounded-xl p-4 sm:p-5 flex items-center gap-3 sm:gap-4">

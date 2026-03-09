@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Headphones, Send, MessageCircle, Mail, Clock, AlertTriangle, CreditCard, Package, HelpCircle } from 'lucide-react';
+import { Headphones, Send, MessageCircle, Clock, AlertTriangle, CreditCard, Package, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 
@@ -49,8 +49,6 @@ const Support = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-8 sm:mb-10 max-w-3xl mx-auto">
         {[
           { icon: MessageCircle, label: 'Telegram', value: '@temka_support', desc: 'Самый быстрый ответ' },
-          { icon: MessageCircle, label: 'Discord', value: 'TEMKA.STORE', desc: 'Сообщество и поддержка' },
-          { icon: Mail, label: 'Email', value: 'support@temka.store', desc: 'Для сложных вопросов' },
         ].map((ch, i) => (
           <div key={i} className="bg-card border border-border/50 rounded-xl p-4 sm:p-5 text-center">
             <ch.icon className="w-5 h-5 sm:w-6 sm:h-6 text-primary mx-auto mb-2" />
