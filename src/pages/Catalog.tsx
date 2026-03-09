@@ -49,7 +49,7 @@ const Catalog = () => {
     setSortBy('popular');
     setPriceRange([0, 500]);
     setDeliveryType('');
-    setMinRating(0);
+    
     setSearchParams({});
   };
 
