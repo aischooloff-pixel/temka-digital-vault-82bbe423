@@ -67,8 +67,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   return (
     <StoreContext.Provider value={{
-      cart, favorites, addToCart, removeFromCart, updateQuantity, clearCart,
-      toggleFavorite, isFavorite, cartTotal, cartCount, searchQuery, setSearchQuery,
+      cart, addToCart, removeFromCart, updateQuantity, clearCart,
+      cartTotal, cartCount, searchQuery, setSearchQuery,
     }}>
       {children}
     </StoreContext.Provider>

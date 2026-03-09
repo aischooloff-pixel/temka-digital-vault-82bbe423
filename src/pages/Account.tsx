@@ -67,15 +67,6 @@ const Account = () => {
         </div>
       </div>
 
-      {/* Favorites link */}
-      <Link to="/favorites" className="mt-4 bg-card border border-border/50 rounded-xl p-3 flex items-center justify-between block">
-        <div className="flex items-center gap-2">
-          <Heart className="w-4 h-4 text-primary" />
-          <span className="text-sm font-medium">Избранные товары</span>
-        </div>
-        <ChevronRight className="w-4 h-4 text-muted-foreground" />
-      </Link>
-
       {/* Support */}
       <a href="https://t.me/paveldurov" target="_blank" rel="noopener noreferrer" className="mt-4 block">
         <div className="bg-card border border-border/50 rounded-xl p-3 flex items-center justify-between">

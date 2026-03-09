@@ -101,14 +101,6 @@ const ProductCard = ({ product }: { product: Product }) => {
           </div>
           <div className="flex items-center gap-1">
             <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 sm:h-8 sm:w-8"
-              onClick={() => toggleFavorite(product.id)}
-            >
-              <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isFavorite(product.id) ? 'fill-destructive text-destructive' : ''}`} />
-            </Button>
-            <Button
               size="sm"
               className="h-7 sm:h-8 text-xs"
               onClick={() => addToCart(product)}
