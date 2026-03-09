@@ -31,6 +31,9 @@ export interface DbCategory {
   name: string;
   icon: string;
   sort_order: number;
+  is_active: boolean;
+  description: string;
+  slug: string | null;
   created_at: string;
 }
 
