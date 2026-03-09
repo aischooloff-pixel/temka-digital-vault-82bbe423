@@ -9,7 +9,6 @@ const sortOptions = [
   { value: 'popular', label: 'По популярности' },
   { value: 'price-asc', label: 'Цена: по возрастанию' },
   { value: 'price-desc', label: 'Цена: по убыванию' },
-  { value: 'rating', label: 'По рейтингу' },
   { value: 'newest', label: 'Новинки' },
 ];
 
