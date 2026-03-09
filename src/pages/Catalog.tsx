@@ -151,8 +151,6 @@ const Catalog = () => {
               </div>
             </div>
 
-            </div>
-
             <Button variant="outline" size="sm" onClick={() => { clearFilters(); setFiltersOpen(false); }} className="w-full">Сбросить фильтры</Button>
           </div>
         </aside>
