@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.cryptobot-webhook]
 verify_jwt = false
+
+[functions.telegram-bot]
+verify_jwt = false
