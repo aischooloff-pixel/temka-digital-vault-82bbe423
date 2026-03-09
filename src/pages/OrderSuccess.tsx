@@ -1,9 +1,14 @@
-import { Link } from 'react-router-dom';
-import { CheckCircle2, Package, MessageCircle, ShoppingCart } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { CheckCircle2, Package, MessageCircle, ShoppingCart, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useOrders } from '@/hooks/useOrders';
 
 const OrderSuccess = () => {
-  const orderId = `TK-${Date.now().toString(36).toUpperCase()}`;
+  const [searchParams] = useSearchParams();
+  const orderNumber = searchParams.get('order');
+  const { data: orders } = useOrders();
+
+  const order = orders?.find(o => o.order_number === orderNumber);
 
   return (
     <div className="container-main mx-auto px-4 py-12 sm:py-16 text-center max-w-md">
@@ -17,12 +22,28 @@ const OrderSuccess = () => {
         <div className="bg-card border border-border/50 rounded-xl p-4 mt-5 text-left space-y-2.5">
           <div className="flex justify-between text-xs">
             <span className="text-muted-foreground">ID заказа</span>
-            <span className="font-mono font-medium">{orderId}</span>
+            <span className="font-mono font-medium">{orderNumber || '—'}</span>
           </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">Статус</span>
-            <span className="text-primary font-medium flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Ожидание оплаты</span>
-          </div>
+          {order ? (
+            <>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Сумма</span>
+                <span className="font-medium">${Number(order.total_amount).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Статус оплаты</span>
+                <span className="text-warning font-medium flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  {order.payment_status === 'paid' ? 'Оплачен' : 'Ожидание оплаты'}
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">Статус</span>
+              <span className="text-warning font-medium flex items-center gap-1"><Clock className="w-3 h-3" /> Ожидание оплаты</span>
+            </div>
+          )}
           <div className="flex justify-between text-xs">
             <span className="text-muted-foreground">Доставка</span>
             <span className="font-medium">После подтверждения оплаты</span>

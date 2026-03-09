@@ -37,29 +37,36 @@ const Checkout = () => {
     haptic.impact('medium');
 
     try {
-      const orderId = `TK-${Date.now().toString(36).toUpperCase()}`;
+      const orderNumber = `TK-${Date.now().toString(36).toUpperCase()}`;
       const description = cart.map(item => `${item.product.title} ×${item.quantity}`).join(', ');
 
+      // Create order via edge function (which also creates invoice)
       const { data, error: fnError } = await supabase.functions.invoke('create-invoice', {
         body: {
           amount: cartTotal.toFixed(2),
           currency: 'USD',
           description,
-          orderId,
+          orderNumber,
           telegramUserId: user?.id,
+          notes,
+          items: cart.map(item => ({
+            productId: item.product.id,
+            productTitle: item.product.title,
+            productPrice: Number(item.product.price),
+            quantity: item.quantity,
+          })),
         },
       });
 
       if (fnError) throw new Error(fnError.message);
       if (data?.error) throw new Error(data.error);
 
-      // Open invoice in Telegram or redirect to pay URL
       if (isInTelegram && data?.miniAppUrl) {
         openInvoice(data.miniAppUrl, (status) => {
           if (status === 'paid') {
             haptic.notification('success');
             clearCart();
-            navigate('/order-success');
+            navigate(`/order-success?order=${data.orderNumber || orderNumber}`);
           } else if (status === 'failed') {
             haptic.notification('error');
             navigate('/order-failed');
@@ -67,9 +74,8 @@ const Checkout = () => {
         });
       } else if (data?.payUrl) {
         window.open(data.payUrl, '_blank');
-        // Navigate to success page with pending status
         clearCart();
-        navigate('/order-success');
+        navigate(`/order-success?order=${data.orderNumber || orderNumber}`);
       } else {
         throw new Error('Не удалось создать инвойс');
       }
@@ -90,7 +96,6 @@ const Checkout = () => {
       <h1 className="font-display text-xl sm:text-2xl font-bold mb-4">Оформление заказа</h1>
 
       <div className="space-y-3">
-        {/* Telegram account info */}
         <div className="bg-card border border-border/50 rounded-xl p-4">
           <h3 className="font-display font-semibold text-sm mb-2">Ваш аккаунт</h3>
           <div className="flex items-center gap-2">
@@ -106,7 +111,6 @@ const Checkout = () => {
           </div>
         </div>
 
-        {/* Payment */}
         <div className="bg-card border border-border/50 rounded-xl p-4">
           <h3 className="font-display font-semibold text-sm mb-3">Способ оплаты</h3>
           <div className="p-3 rounded-xl border border-primary bg-primary/5 text-center">
@@ -116,14 +120,12 @@ const Checkout = () => {
           </div>
         </div>
 
-        {/* Notes */}
         <div className="bg-card border border-border/50 rounded-xl p-4">
           <h3 className="font-display font-semibold text-sm mb-2">Комментарий к заказу (необязательно)</h3>
           <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Особые пожелания..."
             className="w-full h-20 px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none" />
         </div>
 
-        {/* Agreement */}
         <label className="flex items-start gap-2.5 cursor-pointer">
           <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)}
             className="mt-0.5 w-4 h-4 rounded border-border bg-secondary text-primary focus:ring-primary" />
@@ -134,21 +136,19 @@ const Checkout = () => {
           </span>
         </label>
 
-        {/* Error */}
         {error && (
           <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-3 text-xs text-destructive">
             {error}
           </div>
         )}
 
-        {/* Summary */}
         <div className="bg-card border border-border/50 rounded-xl p-4 space-y-3">
           <h3 className="font-display font-semibold text-sm">Итого заказа</h3>
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {cart.map(item => (
               <div key={item.product.id} className="flex justify-between text-xs">
                 <span className="text-muted-foreground line-clamp-1 flex-1">{item.product.title} ×{item.quantity}</span>
-                <span className="font-medium ml-2">${(item.product.price * item.quantity).toFixed(2)}</span>
+                <span className="font-medium ml-2">${(Number(item.product.price) * item.quantity).toFixed(2)}</span>
               </div>
             ))}
           </div>
@@ -159,7 +159,7 @@ const Checkout = () => {
           <Button variant="hero" size="lg" className="w-full" onClick={handleCheckout}
             disabled={!agreed || processing}>
             {processing ? (
-              <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /> Создание инвойса...</span>
+              <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /> Создание заказа...</span>
             ) : (
               <><Lock className="w-4 h-4 mr-1" /> Оплатить через CryptoBot — ${cartTotal.toFixed(2)}</>
             )}
