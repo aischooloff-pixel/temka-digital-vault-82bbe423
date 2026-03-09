@@ -23,6 +23,7 @@ const tagColors: Record<string, string> = {
 
 const ProductCard = ({ product }: { product: Product }) => {
   const { addToCart } = useStore();
+  const { haptic } = useTelegram();
   const discount = product.oldPrice ? Math.round((1 - product.price / product.oldPrice) * 100) : 0;
 
   return (
