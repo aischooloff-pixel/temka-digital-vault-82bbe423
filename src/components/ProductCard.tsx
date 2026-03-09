@@ -3,6 +3,7 @@ import { ShoppingCart, Zap, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Product } from '@/data/products';
 import { useStore } from '@/contexts/StoreContext';
+import { useTelegram } from '@/contexts/TelegramContext';
 
 const tagLabels: Record<string, string> = {
   'hot': 'ХИТ',
