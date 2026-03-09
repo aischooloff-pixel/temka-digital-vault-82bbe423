@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Headphones, Send, MessageCircle, Mail, Clock, AlertTriangle, CreditCard, Package, HelpCircle } from 'lucide-react';
+import { Headphones, Send, MessageCircle, Clock, AlertTriangle, CreditCard, Package, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 
