@@ -15,7 +15,7 @@ import Checkout from "./pages/Checkout";
 import OrderSuccess from "./pages/OrderSuccess";
 import OrderFailed from "./pages/OrderFailed";
 import Account from "./pages/Account";
-import Favorites from "./pages/Favorites";
+
 import FAQ from "./pages/FAQ";
 import About from "./pages/About";
 import { Terms, Privacy, Refund } from "./pages/Legal";
