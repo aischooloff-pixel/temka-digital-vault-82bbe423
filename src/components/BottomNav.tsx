@@ -27,6 +27,7 @@ const BottomNav = () => {
             <Link
               key={item.path}
               to={item.path}
+              onClick={() => haptic.selection()}
               className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors relative ${
                 isActive ? 'text-primary' : 'text-muted-foreground'
               }`}
