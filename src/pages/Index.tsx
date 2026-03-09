@@ -110,9 +110,11 @@ const Index = () => {
               Все <ChevronRight className="w-4 h-4" />
             </Link>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-4 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
             {featuredProducts.map(product => (
-              <ProductCard key={product.id} product={product} />
+              <div key={product.id} className="min-w-[260px] sm:min-w-[280px] lg:min-w-[300px] snap-start shrink-0">
+                <ProductCard product={product} />
+              </div>
             ))}
           </div>
         </div>
