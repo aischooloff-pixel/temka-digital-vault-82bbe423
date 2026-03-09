@@ -99,7 +99,7 @@ const ProductCard = ({ product }: { product: Product }) => {
             <Button
               size="sm"
               className="h-7 sm:h-8 text-xs"
-              onClick={() => addToCart(product)}
+              onClick={() => { addToCart(product); haptic.impact('light'); }}
             >
               <ShoppingCart className="w-3 h-3 mr-1" />
               В корзину
