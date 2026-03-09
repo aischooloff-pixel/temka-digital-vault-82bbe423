@@ -21,7 +21,7 @@ const tagColors: Record<string, string> = {
 };
 
 const ProductCard = ({ product }: { product: Product }) => {
-  const { addToCart, toggleFavorite, isFavorite } = useStore();
+  const { addToCart } = useStore();
   const discount = product.oldPrice ? Math.round((1 - product.price / product.oldPrice) * 100) : 0;
 
   return (
