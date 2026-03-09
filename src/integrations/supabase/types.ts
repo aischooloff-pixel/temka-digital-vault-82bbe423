@@ -86,6 +86,39 @@ export type Database = {
         }
         Relationships: []
       }
+      balance_history: {
+        Row: {
+          admin_telegram_id: number
+          amount: number
+          balance_after: number
+          comment: string
+          created_at: string
+          id: string
+          telegram_id: number
+          type: string
+        }
+        Insert: {
+          admin_telegram_id: number
+          amount: number
+          balance_after?: number
+          comment?: string
+          created_at?: string
+          id?: string
+          telegram_id: number
+          type?: string
+        }
+        Update: {
+          admin_telegram_id?: number
+          amount?: number
+          balance_after?: number
+          comment?: string
+          created_at?: string
+          id?: string
+          telegram_id?: number
+          type?: string
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           created_at: string
@@ -449,37 +482,49 @@ export type Database = {
       }
       user_profiles: {
         Row: {
+          balance: number
           created_at: string
           first_name: string
           id: string
+          internal_note: string | null
+          is_blocked: boolean
           is_premium: boolean
           language_code: string | null
           last_name: string | null
           photo_url: string | null
+          role: string
           telegram_id: number
           updated_at: string
           username: string | null
         }
         Insert: {
+          balance?: number
           created_at?: string
           first_name?: string
           id?: string
+          internal_note?: string | null
+          is_blocked?: boolean
           is_premium?: boolean
           language_code?: string | null
           last_name?: string | null
           photo_url?: string | null
+          role?: string
           telegram_id: number
           updated_at?: string
           username?: string | null
         }
         Update: {
+          balance?: number
           created_at?: string
           first_name?: string
           id?: string
+          internal_note?: string | null
+          is_blocked?: boolean
           is_premium?: boolean
           language_code?: string | null
           last_name?: string | null
           photo_url?: string | null
+          role?: string
           telegram_id?: number
           updated_at?: string
           username?: string | null
