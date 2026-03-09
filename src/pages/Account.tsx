@@ -15,7 +15,7 @@ const tabs = [
   { id: 'favorites', label: 'Избранное', icon: Heart },
   
   { id: 'notifications', label: 'Уведомления', icon: Bell },
-  { id: 'settings', label: 'Настройки', icon: Settings },
+  
 ];
 
 const Account = () => {
