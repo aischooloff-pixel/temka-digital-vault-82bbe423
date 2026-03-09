@@ -68,12 +68,6 @@ const ProductCard = ({ product }: { product: Product }) => {
         </Link>
         <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 line-clamp-1">{product.subtitle}</p>
 
-        {/* Rating */}
-        <div className="flex items-center gap-1 mt-2">
-          <Star className="w-3 h-3 fill-gold text-gold" />
-          <span className="text-xs font-medium">{product.rating}</span>
-          <span className="text-[10px] sm:text-xs text-muted-foreground">({product.reviewCount})</span>
-        </div>
 
         {/* Delivery badge */}
         <div className="flex items-center gap-1 mt-2">
