@@ -17,6 +17,11 @@ export interface DbProduct {
   guarantee: string;
   features: string[];
   is_active: boolean;
+  is_featured: boolean;
+  is_popular: boolean;
+  is_new: boolean;
+  sort_order: number;
+  slug: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -26,6 +31,9 @@ export interface DbCategory {
   name: string;
   icon: string;
   sort_order: number;
+  is_active: boolean;
+  description: string;
+  slug: string | null;
   created_at: string;
 }
 

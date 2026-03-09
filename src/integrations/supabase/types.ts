@@ -14,29 +14,155 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_logs: {
+        Row: {
+          action: string
+          admin_telegram_id: number
+          created_at: string
+          details: Json | null
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+        }
+        Insert: {
+          action: string
+          admin_telegram_id: number
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+        }
+        Update: {
+          action?: string
+          admin_telegram_id?: number
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
+      admin_sessions: {
+        Row: {
+          data: Json | null
+          state: string
+          telegram_id: number
+          updated_at: string
+        }
+        Insert: {
+          data?: Json | null
+          state: string
+          telegram_id: number
+          updated_at?: string
+        }
+        Update: {
+          data?: Json | null
+          state?: string
+          telegram_id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      admin_users: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          telegram_id: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: string
+          telegram_id: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          telegram_id?: number
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           created_at: string
+          description: string
           icon: string
           id: string
+          is_active: boolean
           name: string
+          slug: string | null
           sort_order: number
         }
         Insert: {
           created_at?: string
+          description?: string
           icon?: string
           id: string
+          is_active?: boolean
           name: string
+          slug?: string | null
           sort_order?: number
         }
         Update: {
           created_at?: string
+          description?: string
           icon?: string
           id?: string
+          is_active?: boolean
           name?: string
+          slug?: string | null
           sort_order?: number
         }
         Relationships: []
+      }
+      inventory_items: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          order_id: string | null
+          product_id: string
+          sold_at: string | null
+          status: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          order_id?: string | null
+          product_id: string
+          sold_at?: string | null
+          status?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          order_id?: string | null
+          product_id?: string
+          sold_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       order_items: {
         Row: {
@@ -139,10 +265,15 @@ export type Database = {
           id: string
           image: string | null
           is_active: boolean
+          is_featured: boolean
+          is_new: boolean
+          is_popular: boolean
           old_price: number | null
           platform: string
           price: number
           region: string
+          slug: string | null
+          sort_order: number
           specifications: Json
           stock: number
           subcategory: string
@@ -161,10 +292,15 @@ export type Database = {
           id?: string
           image?: string | null
           is_active?: boolean
+          is_featured?: boolean
+          is_new?: boolean
+          is_popular?: boolean
           old_price?: number | null
           platform?: string
           price: number
           region?: string
+          slug?: string | null
+          sort_order?: number
           specifications?: Json
           stock?: number
           subcategory?: string
@@ -183,10 +319,15 @@ export type Database = {
           id?: string
           image?: string | null
           is_active?: boolean
+          is_featured?: boolean
+          is_new?: boolean
+          is_popular?: boolean
           old_price?: number | null
           platform?: string
           price?: number
           region?: string
+          slug?: string | null
+          sort_order?: number
           specifications?: Json
           stock?: number
           subcategory?: string
@@ -204,6 +345,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      promocodes: {
+        Row: {
+          code: string
+          created_at: string
+          discount_type: string
+          discount_value: number
+          id: string
+          is_active: boolean
+          max_uses: number | null
+          used_count: number
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          discount_type?: string
+          discount_value: number
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          used_count?: number
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          discount_type?: string
+          discount_value?: number
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          used_count?: number
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Relationships: []
       }
       reviews: {
         Row: {
@@ -248,6 +428,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      shop_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
       }
       user_profiles: {
         Row: {
