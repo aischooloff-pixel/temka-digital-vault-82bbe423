@@ -36,7 +36,8 @@ serve(async (req) => {
 
     // GET ?setup=true → auto-register webhook
     if (req.method === "GET" && url.searchParams.get("setup") === "true") {
-      const webhookUrl = `${url.origin}/functions/v1/telegram-bot`;
+      const origin = url.origin.replace("http://", "https://");
+      const webhookUrl = `${origin}/functions/v1/telegram-bot`;
       const result = await setWebhook(botToken, webhookUrl);
       return new Response(JSON.stringify({ webhook: webhookUrl, result }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
