@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Home, Search, ShoppingCart, User } from 'lucide-react';
 import { useStore } from '@/contexts/StoreContext';
+import { useTelegram } from '@/contexts/TelegramContext';
 
 const navItems = [
   { path: '/', icon: Home, label: 'Главная' },
