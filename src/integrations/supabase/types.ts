@@ -14,7 +14,280 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      categories: {
+        Row: {
+          created_at: string
+          icon: string
+          id: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          icon?: string
+          id: string
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          icon?: string
+          id?: string
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      order_items: {
+        Row: {
+          created_at: string
+          id: string
+          order_id: string
+          product_id: string
+          product_price: number
+          product_title: string
+          quantity: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          order_id: string
+          product_id: string
+          product_price: number
+          product_title: string
+          quantity?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          order_id?: string
+          product_id?: string
+          product_price?: number
+          product_title?: string
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          created_at: string
+          currency: string
+          id: string
+          invoice_id: string | null
+          notes: string | null
+          order_number: string
+          pay_url: string | null
+          payment_status: string
+          status: string
+          telegram_id: number
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          id?: string
+          invoice_id?: string | null
+          notes?: string | null
+          order_number: string
+          pay_url?: string | null
+          payment_status?: string
+          status?: string
+          telegram_id: number
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          id?: string
+          invoice_id?: string | null
+          notes?: string | null
+          order_number?: string
+          pay_url?: string | null
+          payment_status?: string
+          status?: string
+          telegram_id?: number
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      products: {
+        Row: {
+          category_id: string | null
+          created_at: string
+          delivery_type: string
+          description: string
+          features: string[]
+          guarantee: string
+          id: string
+          image: string | null
+          is_active: boolean
+          old_price: number | null
+          platform: string
+          price: number
+          region: string
+          specifications: Json
+          stock: number
+          subcategory: string
+          subtitle: string
+          tags: string[]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string
+          delivery_type?: string
+          description?: string
+          features?: string[]
+          guarantee?: string
+          id?: string
+          image?: string | null
+          is_active?: boolean
+          old_price?: number | null
+          platform?: string
+          price: number
+          region?: string
+          specifications?: Json
+          stock?: number
+          subcategory?: string
+          subtitle?: string
+          tags?: string[]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string
+          delivery_type?: string
+          description?: string
+          features?: string[]
+          guarantee?: string
+          id?: string
+          image?: string | null
+          is_active?: boolean
+          old_price?: number | null
+          platform?: string
+          price?: number
+          region?: string
+          specifications?: Json
+          stock?: number
+          subcategory?: string
+          subtitle?: string
+          tags?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reviews: {
+        Row: {
+          author: string
+          avatar: string
+          created_at: string
+          id: string
+          product_id: string
+          rating: number
+          telegram_id: number | null
+          text: string
+          verified: boolean
+        }
+        Insert: {
+          author: string
+          avatar?: string
+          created_at?: string
+          id?: string
+          product_id: string
+          rating: number
+          telegram_id?: number | null
+          text?: string
+          verified?: boolean
+        }
+        Update: {
+          author?: string
+          avatar?: string
+          created_at?: string
+          id?: string
+          product_id?: string
+          rating?: number
+          telegram_id?: number | null
+          text?: string
+          verified?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_profiles: {
+        Row: {
+          created_at: string
+          first_name: string
+          id: string
+          is_premium: boolean
+          language_code: string | null
+          last_name: string | null
+          photo_url: string | null
+          telegram_id: number
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          created_at?: string
+          first_name?: string
+          id?: string
+          is_premium?: boolean
+          language_code?: string | null
+          last_name?: string | null
+          photo_url?: string | null
+          telegram_id: number
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          created_at?: string
+          first_name?: string
+          id?: string
+          is_premium?: boolean
+          language_code?: string | null
+          last_name?: string | null
+          photo_url?: string | null
+          telegram_id?: number
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

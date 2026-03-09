@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createHmac } from "node:crypto";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,6 +42,10 @@ serve(async (req) => {
     const data = JSON.parse(body);
     console.log("CryptoBot webhook received:", data);
 
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
     if (data.update_type === "invoice_paid") {
       const invoice = data.payload;
       const orderData = JSON.parse(invoice.payload || "{}");
@@ -52,8 +57,64 @@ serve(async (req) => {
         telegramUserId: orderData.telegramUserId,
       });
 
-      // TODO: Update order status in database when orders table is created
-      // TODO: Send confirmation message to user via Telegram Bot API
+      // Update order status
+      if (orderData.orderId) {
+        const { error: updateError } = await supabase
+          .from("orders")
+          .update({
+            status: "paid",
+            payment_status: "paid",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", orderData.orderId);
+
+        if (updateError) {
+          console.error("Failed to update order:", updateError);
+        } else {
+          console.log("Order updated to paid:", orderData.orderId);
+        }
+
+        // Decrement stock for order items
+        const { data: orderItems } = await supabase
+          .from("order_items")
+          .select("product_id, quantity")
+          .eq("order_id", orderData.orderId);
+
+        if (orderItems) {
+          for (const item of orderItems) {
+            await supabase.rpc('', {}).catch(() => {});
+            // Decrement stock manually
+            const { data: product } = await supabase
+              .from("products")
+              .select("stock")
+              .eq("id", item.product_id)
+              .single();
+
+            if (product) {
+              await supabase
+                .from("products")
+                .update({ stock: Math.max(0, product.stock - item.quantity), updated_at: new Date().toISOString() })
+                .eq("id", item.product_id);
+            }
+          }
+        }
+
+        // Send confirmation via Telegram Bot
+        const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
+        if (botToken && orderData.telegramUserId) {
+          const message = `✅ *Оплата подтверждена!*\n\n📦 Заказ: \`${orderData.orderNumber || orderData.orderId}\`\n💰 Сумма: ${invoice.amount} ${invoice.fiat || 'USD'}\n\nВаш товар будет доставлен в ближайшее время. Спасибо за покупку!`;
+
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: orderData.telegramUserId,
+              text: message,
+              parse_mode: "Markdown",
+            }),
+          });
+        }
+      }
     }
 
     return new Response(

@@ -1,21 +1,50 @@
-import { Package, Clock, CheckCircle2, Gift, MessageCircle, ChevronRight } from 'lucide-react';
+import { Package, CheckCircle2, Clock, MessageCircle, ChevronRight, AlertCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { useTelegram } from '@/contexts/TelegramContext';
+import { useOrders, useUserStats } from '@/hooks/useOrders';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS } from '@/types/database';
+import type { DbOrder } from '@/types/database';
 
-const mockOrders = [
-  { id: 'TK-A1B2C3', product: 'Windows 11 Pro — Вечный ключ', date: '2024-12-15', status: 'delivered', price: 24.99 },
-  { id: 'TK-D4E5F6', product: 'Netflix Премиум — 12 месяцев', date: '2024-12-10', status: 'delivered', price: 29.99 },
-  { id: 'TK-G7H8I9', product: 'Spotify Премиум — 6 месяцев', date: '2024-12-08', status: 'processing', price: 19.99 },
-];
+const statusIcon = (status: DbOrder['status']) => {
+  switch (status) {
+    case 'completed':
+    case 'delivered':
+    case 'paid':
+      return <CheckCircle2 className="w-3 h-3 text-primary" />;
+    case 'processing':
+    case 'awaiting_payment':
+    case 'pending':
+      return <Clock className="w-3 h-3 text-warning" />;
+    case 'cancelled':
+      return <XCircle className="w-3 h-3 text-muted-foreground" />;
+    case 'error':
+      return <AlertCircle className="w-3 h-3 text-destructive" />;
+    default:
+      return <Clock className="w-3 h-3" />;
+  }
+};
+
+const statusColor = (status: DbOrder['status']) => {
+  switch (status) {
+    case 'completed': case 'delivered': case 'paid': return 'text-primary';
+    case 'processing': case 'awaiting_payment': case 'pending': return 'text-warning';
+    case 'cancelled': return 'text-muted-foreground';
+    case 'error': return 'text-destructive';
+    default: return 'text-muted-foreground';
+  }
+};
 
 const Account = () => {
   const { user, isInTelegram } = useTelegram();
+  const { data: orders, isLoading: ordersLoading } = useOrders();
+  const { data: stats, isLoading: statsLoading } = useUserStats();
 
   const displayName = user
     ? `${user.firstName}${user.lastName ? ` ${user.lastName}` : ''}`
     : 'Telegram User';
-  const username = user?.username ? `@${user.username}` : '@username';
+  const username = user?.username ? `@${user.username}` : '';
   const avatar = user?.firstName?.[0]?.toUpperCase() || 'T';
 
   return (
@@ -30,7 +59,7 @@ const Account = () => {
           )}
           <div className="flex-1 min-w-0">
             <h2 className="font-display font-semibold text-base truncate">{displayName}</h2>
-            <p className="text-xs text-muted-foreground">{username}</p>
+            {username && <p className="text-xs text-muted-foreground">{username}</p>}
           </div>
           {user?.isPremium && (
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-gold/30 bg-gold/10 text-gold">⭐ Premium</span>
@@ -41,23 +70,29 @@ const Account = () => {
             <CheckCircle2 className="w-3 h-3" /> {isInTelegram ? 'Аккаунт подключён через Telegram' : 'Откройте в Telegram для полного доступа'}
           </p>
         </div>
-        {user?.id && (
-          <p className="text-[10px] text-muted-foreground mt-2">Telegram ID: {user.id}</p>
-        )}
       </div>
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 gap-2 mt-4">
-        {[
-          { label: 'Заказов', value: '3', icon: Package },
-          { label: 'Купоны', value: '1', icon: Gift },
-        ].map((s, i) => (
-          <div key={i} className="bg-card border border-border/50 rounded-xl p-3 text-center">
-            <s.icon className="w-4 h-4 text-primary mx-auto mb-1.5" />
-            <div className="font-display font-bold text-lg">{s.value}</div>
-            <div className="text-[10px] text-muted-foreground">{s.label}</div>
-          </div>
-        ))}
+        {statsLoading ? (
+          <>
+            <Skeleton className="h-20 rounded-xl" />
+            <Skeleton className="h-20 rounded-xl" />
+          </>
+        ) : (
+          <>
+            <div className="bg-card border border-border/50 rounded-xl p-3 text-center">
+              <Package className="w-4 h-4 text-primary mx-auto mb-1.5" />
+              <div className="font-display font-bold text-lg">{stats?.orderCount || 0}</div>
+              <div className="text-[10px] text-muted-foreground">Заказов</div>
+            </div>
+            <div className="bg-card border border-border/50 rounded-xl p-3 text-center">
+              <CheckCircle2 className="w-4 h-4 text-primary mx-auto mb-1.5" />
+              <div className="font-display font-bold text-lg">${stats?.totalSpent?.toFixed(2) || '0.00'}</div>
+              <div className="text-[10px] text-muted-foreground">Потрачено</div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Orders */}
@@ -65,25 +100,37 @@ const Account = () => {
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-display font-semibold text-sm">Мои заказы</h3>
         </div>
-        <div className="space-y-2">
-          {mockOrders.map(order => (
-            <div key={order.id} className="bg-card border border-border/50 rounded-xl p-3 flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <div className="text-xs font-medium truncate">{order.product}</div>
-                <div className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                  <span className="font-mono">{order.id}</span> · {order.date}
+        {ordersLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
+          </div>
+        ) : !orders || orders.length === 0 ? (
+          <div className="text-center py-8">
+            <Package className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">У вас пока нет заказов</p>
+            <Link to="/catalog"><Button variant="outline" size="sm" className="mt-3">Перейти в каталог</Button></Link>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {orders.map(order => (
+              <div key={order.id} className="bg-card border border-border/50 rounded-xl p-3 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-xs font-medium truncate">Заказ {order.order_number}</div>
+                  <div className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                    {new Date(order.created_at).toLocaleDateString('ru-RU')}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-xs font-bold">${Number(order.total_amount).toFixed(2)}</div>
+                  <div className={`text-[10px] flex items-center gap-1 mt-0.5 ${statusColor(order.status)}`}>
+                    {statusIcon(order.status)}
+                    {ORDER_STATUS_LABELS[order.status]}
+                  </div>
                 </div>
               </div>
-              <div className="text-right shrink-0">
-                <div className="text-xs font-bold">${order.price}</div>
-                <div className={`text-[10px] flex items-center gap-1 mt-0.5 ${order.status === 'delivered' ? 'text-primary' : 'text-warning'}`}>
-                  {order.status === 'delivered' ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                  {order.status === 'delivered' ? 'Доставлен' : 'В обработке'}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Support */}
@@ -96,18 +143,6 @@ const Account = () => {
           <ChevronRight className="w-4 h-4 text-muted-foreground" />
         </div>
       </a>
-
-      {/* Referral */}
-      <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 mt-4">
-        <Gift className="w-6 h-6 text-primary mb-2" />
-        <h3 className="font-display font-semibold text-sm">Пригласи друга</h3>
-        <p className="text-xs text-muted-foreground mt-1">Получайте 5% комиссии с каждой покупки.</p>
-        <div className="flex gap-2 mt-3">
-          <input type="text" readOnly value={`https://t.me/temkastore_bot?ref=${user?.id || 'USER123'}`}
-            className="flex-1 h-8 px-3 bg-secondary border border-border rounded-lg text-[10px] text-muted-foreground font-mono min-w-0" />
-          <Button size="sm" className="text-xs h-8" onClick={() => navigator.clipboard.writeText(`https://t.me/temkastore_bot?ref=${user?.id || 'USER123'}`)}>Копировать</Button>
-        </div>
-      </div>
     </div>
   );
 };

@@ -1,14 +1,14 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { Product } from '@/data/products';
+import type { DbProduct } from '@/types/database';
 
 interface CartItem {
-  product: Product;
+  product: DbProduct;
   quantity: number;
 }
 
 interface StoreContextType {
   cart: CartItem[];
-  addToCart: (product: Product) => void;
+  addToCart: (product: DbProduct) => void;
   removeFromCart: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
@@ -24,7 +24,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const addToCart = useCallback((product: Product) => {
+  const addToCart = useCallback((product: DbProduct) => {
     setCart(prev => {
       const existing = prev.find(item => item.product.id === product.id);
       if (existing) {
@@ -54,10 +54,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const clearCart = useCallback(() => setCart([]), []);
 
-
-
-
-  const cartTotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const cartTotal = cart.reduce((sum, item) => sum + Number(item.product.price) * item.quantity, 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (

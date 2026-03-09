@@ -1,9 +1,12 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Zap, Shield, Star, ChevronRight, ArrowRight, CheckCircle2, Users, Package, Clock } from 'lucide-react';
+import { Zap, Shield, Star, ChevronRight, ArrowRight, CheckCircle2, Package, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ProductCard from '@/components/ProductCard';
-import { products, categories, reviews } from '@/data/products';
+import ProductCardSkeleton from '@/components/ProductCardSkeleton';
+import { useProducts, useCategories, useProductStats } from '@/hooks/useProducts';
+import { useReviews } from '@/hooks/useProducts';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const fadeIn = {
   hidden: { opacity: 0, y: 16 },
@@ -11,11 +14,16 @@ const fadeIn = {
 };
 
 const Index = () => {
-  const featuredProducts = products.filter(p => p.tags.includes('best-seller') || p.tags.includes('hot')).slice(0, 6);
+  const { data: products, isLoading: productsLoading } = useProducts();
+  const { data: categories, isLoading: categoriesLoading } = useCategories();
+  const { data: reviews, isLoading: reviewsLoading } = useReviews();
+  const { data: stats } = useProductStats();
+
+  const featuredProducts = products?.filter(p => p.tags.includes('best-seller') || p.tags.includes('hot')).slice(0, 6) || [];
 
   return (
     <div>
-      {/* Hero — compact for Telegram */}
+      {/* Hero */}
       <section className="relative overflow-hidden px-4 pt-8 pb-8">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(160,84%,50%,0.08),transparent_60%)]" />
         <div className="container-main mx-auto relative">
@@ -46,21 +54,36 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Stats */}
+      {/* Stats — real data */}
       <section className="border-y border-border/30 bg-card/30">
-        <div className="container-main mx-auto px-4 py-4 grid grid-cols-4 gap-2">
-          {[
-            { value: '50K+', label: 'Клиентов', icon: Users },
-            { value: '12K+', label: 'Продано', icon: Package },
-            { value: '99.8%', label: 'Отзывов', icon: Star },
-            { value: '<2м', label: 'Доставка', icon: Clock },
-          ].map((stat, i) => (
-            <div key={i} className="text-center">
-              <stat.icon className="w-4 h-4 text-primary mx-auto mb-1" />
-              <div className="font-display text-base sm:text-lg font-bold">{stat.value}</div>
-              <div className="text-[9px] text-muted-foreground">{stat.label}</div>
-            </div>
-          ))}
+        <div className="container-main mx-auto px-4 py-4 grid grid-cols-3 gap-2">
+          {stats ? (
+            <>
+              <div className="text-center">
+                <Package className="w-4 h-4 text-primary mx-auto mb-1" />
+                <div className="font-display text-base sm:text-lg font-bold">{stats.totalProducts}</div>
+                <div className="text-[9px] text-muted-foreground">Товаров</div>
+              </div>
+              <div className="text-center">
+                <CheckCircle2 className="w-4 h-4 text-primary mx-auto mb-1" />
+                <div className="font-display text-base sm:text-lg font-bold">{stats.inStock}</div>
+                <div className="text-[9px] text-muted-foreground">В наличии</div>
+              </div>
+              <div className="text-center">
+                <Clock className="w-4 h-4 text-primary mx-auto mb-1" />
+                <div className="font-display text-base sm:text-lg font-bold">&lt;2м</div>
+                <div className="text-[9px] text-muted-foreground">Доставка</div>
+              </div>
+            </>
+          ) : (
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="text-center space-y-1">
+                <Skeleton className="w-4 h-4 mx-auto rounded-full" />
+                <Skeleton className="h-5 w-10 mx-auto" />
+                <Skeleton className="h-3 w-12 mx-auto" />
+              </div>
+            ))
+          )}
         </div>
       </section>
 
@@ -73,15 +96,25 @@ const Index = () => {
               Все <ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
-          <div className="grid grid-cols-4 gap-2">
-            {categories.slice(0, 8).map((cat) => (
-              <Link key={cat.id} to={`/catalog?category=${cat.id}`}
-                className="p-2.5 bg-card border border-border/50 rounded-xl text-center hover:border-primary/30 transition-all">
-                <div className="text-xl mb-1">{cat.icon}</div>
-                <h3 className="font-display font-medium text-[10px] leading-tight">{cat.name}</h3>
-              </Link>
-            ))}
-          </div>
+          {categoriesLoading ? (
+            <div className="grid grid-cols-4 gap-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className="h-16 rounded-xl" />
+              ))}
+            </div>
+          ) : categories && categories.length > 0 ? (
+            <div className="grid grid-cols-4 gap-2">
+              {categories.map((cat) => (
+                <Link key={cat.id} to={`/catalog?category=${cat.id}`}
+                  className="p-2.5 bg-card border border-border/50 rounded-xl text-center hover:border-primary/30 transition-all">
+                  <div className="text-xl mb-1">{cat.icon}</div>
+                  <h3 className="font-display font-medium text-[10px] leading-tight">{cat.name}</h3>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">Категории не найдены</p>
+          )}
         </div>
       </section>
 
@@ -94,13 +127,25 @@ const Index = () => {
               Все <ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
-          <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
-            {featuredProducts.map(product => (
-              <div key={product.id} className="min-w-[220px] sm:min-w-[260px] snap-start shrink-0">
-                <ProductCard product={product} />
-              </div>
-            ))}
-          </div>
+          {productsLoading ? (
+            <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="min-w-[220px] sm:min-w-[260px] snap-start shrink-0">
+                  <ProductCardSkeleton />
+                </div>
+              ))}
+            </div>
+          ) : featuredProducts.length > 0 ? (
+            <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
+              {featuredProducts.map(product => (
+                <div key={product.id} className="min-w-[220px] sm:min-w-[260px] snap-start shrink-0">
+                  <ProductCard product={product} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-8">Товары скоро появятся</p>
+          )}
         </div>
       </section>
 
@@ -108,25 +153,35 @@ const Index = () => {
       <section className="px-4 pb-6 bg-card/20">
         <div className="container-main mx-auto pt-6">
           <h2 className="font-display text-lg font-bold mb-4">Отзывы</h2>
-          <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x scrollbar-hide">
-            {reviews.slice(0, 4).map((review) => (
-              <div key={review.id} className="min-w-[240px] p-3 bg-card border border-border/50 rounded-xl snap-start shrink-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-7 h-7 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">{review.avatar}</div>
-                  <div>
-                    <div className="text-xs font-medium">{review.author}</div>
-                    {review.verified && <div className="text-[9px] text-primary flex items-center gap-0.5"><CheckCircle2 className="w-2.5 h-2.5" /> Проверен</div>}
+          {reviewsLoading ? (
+            <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x scrollbar-hide">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="min-w-[240px] h-32 rounded-xl shrink-0" />
+              ))}
+            </div>
+          ) : reviews && reviews.length > 0 ? (
+            <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x scrollbar-hide">
+              {reviews.slice(0, 6).map((review) => (
+                <div key={review.id} className="min-w-[240px] p-3 bg-card border border-border/50 rounded-xl snap-start shrink-0">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-7 h-7 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">{review.avatar}</div>
+                    <div>
+                      <div className="text-xs font-medium">{review.author}</div>
+                      {review.verified && <div className="text-[9px] text-primary flex items-center gap-0.5"><CheckCircle2 className="w-2.5 h-2.5" /> Проверен</div>}
+                    </div>
                   </div>
+                  <div className="flex gap-0.5 mb-1.5">
+                    {Array.from({ length: review.rating }).map((_, j) => (
+                      <Star key={j} className="w-3 h-3 fill-gold text-gold" />
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground line-clamp-3">{review.text}</p>
                 </div>
-                <div className="flex gap-0.5 mb-1.5">
-                  {Array.from({ length: review.rating }).map((_, j) => (
-                    <Star key={j} className="w-3 h-3 fill-gold text-gold" />
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground line-clamp-3">{review.text}</p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">Пока нет отзывов</p>
+          )}
         </div>
       </section>
 
