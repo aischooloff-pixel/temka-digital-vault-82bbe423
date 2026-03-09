@@ -1,6 +1,7 @@
 import { Package, Clock, CheckCircle2, Gift, MessageCircle, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
+import { useTelegram } from '@/contexts/TelegramContext';
 
 const mockOrders = [
   { id: 'TK-A1B2C3', product: 'Windows 11 Pro — Вечный ключ', date: '2024-12-15', status: 'delivered', price: 24.99 },
@@ -9,22 +10,40 @@ const mockOrders = [
 ];
 
 const Account = () => {
+  const { user, isInTelegram } = useTelegram();
+
+  const displayName = user
+    ? `${user.firstName}${user.lastName ? ` ${user.lastName}` : ''}`
+    : 'Telegram User';
+  const username = user?.username ? `@${user.username}` : '@username';
+  const avatar = user?.firstName?.[0]?.toUpperCase() || 'T';
+
   return (
     <div className="container-main mx-auto px-4 py-4 sm:py-6">
       {/* Telegram Profile */}
       <div className="bg-card border border-border/50 rounded-xl p-4">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-primary/20 text-primary flex items-center justify-center text-lg font-bold font-display">T</div>
+          {user?.photoUrl ? (
+            <img src={user.photoUrl} alt={displayName} className="w-12 h-12 rounded-full object-cover" />
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-primary/20 text-primary flex items-center justify-center text-lg font-bold font-display">{avatar}</div>
+          )}
           <div className="flex-1 min-w-0">
-            <h2 className="font-display font-semibold text-base truncate">Telegram User</h2>
-            <p className="text-xs text-muted-foreground">@username</p>
+            <h2 className="font-display font-semibold text-base truncate">{displayName}</h2>
+            <p className="text-xs text-muted-foreground">{username}</p>
           </div>
+          {user?.isPremium && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-gold/30 bg-gold/10 text-gold">⭐ Premium</span>
+          )}
         </div>
         <div className="mt-3 px-3 py-1.5 bg-primary/5 border border-primary/20 rounded-lg">
           <p className="text-[10px] text-primary flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3" /> Аккаунт подключён через Telegram
+            <CheckCircle2 className="w-3 h-3" /> {isInTelegram ? 'Аккаунт подключён через Telegram' : 'Откройте в Telegram для полного доступа'}
           </p>
         </div>
+        {user?.id && (
+          <p className="text-[10px] text-muted-foreground mt-2">Telegram ID: {user.id}</p>
+        )}
       </div>
 
       {/* Quick Stats */}
@@ -84,9 +103,9 @@ const Account = () => {
         <h3 className="font-display font-semibold text-sm">Пригласи друга</h3>
         <p className="text-xs text-muted-foreground mt-1">Получайте 5% комиссии с каждой покупки.</p>
         <div className="flex gap-2 mt-3">
-          <input type="text" readOnly value="https://t.me/temkastore_bot?ref=USER123"
+          <input type="text" readOnly value={`https://t.me/temkastore_bot?ref=${user?.id || 'USER123'}`}
             className="flex-1 h-8 px-3 bg-secondary border border-border rounded-lg text-[10px] text-muted-foreground font-mono min-w-0" />
-          <Button size="sm" className="text-xs h-8" onClick={() => navigator.clipboard.writeText('https://t.me/temkastore_bot?ref=USER123')}>Копировать</Button>
+          <Button size="sm" className="text-xs h-8" onClick={() => navigator.clipboard.writeText(`https://t.me/temkastore_bot?ref=${user?.id || 'USER123'}`)}>Копировать</Button>
         </div>
       </div>
     </div>

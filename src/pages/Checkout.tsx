@@ -3,13 +3,22 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Shield, Zap, Lock, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/contexts/StoreContext';
+import { useTelegram } from '@/contexts/TelegramContext';
+import { supabase } from '@/integrations/supabase/client';
 
 const Checkout = () => {
   const { cart, cartTotal, clearCart } = useStore();
+  const { user, isInTelegram, openInvoice, haptic } = useTelegram();
   const navigate = useNavigate();
   const [agreed, setAgreed] = useState(false);
   const [notes, setNotes] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState('');
+
+  const displayName = user
+    ? `${user.firstName}${user.lastName ? ` ${user.lastName}` : ''}`
+    : 'Telegram User';
+  const avatar = user?.firstName?.[0]?.toUpperCase() || 'T';
 
   if (cart.length === 0) {
     return (
@@ -21,13 +30,56 @@ const Checkout = () => {
     );
   }
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (!agreed) return;
     setProcessing(true);
-    setTimeout(() => {
-      clearCart();
-      navigate('/order-success');
-    }, 2000);
+    setError('');
+    haptic.impact('medium');
+
+    try {
+      const orderId = `TK-${Date.now().toString(36).toUpperCase()}`;
+      const description = cart.map(item => `${item.product.title} ×${item.quantity}`).join(', ');
+
+      const { data, error: fnError } = await supabase.functions.invoke('create-invoice', {
+        body: {
+          amount: cartTotal.toFixed(2),
+          currency: 'USD',
+          description,
+          orderId,
+          telegramUserId: user?.id,
+        },
+      });
+
+      if (fnError) throw new Error(fnError.message);
+      if (data?.error) throw new Error(data.error);
+
+      // Open invoice in Telegram or redirect to pay URL
+      if (isInTelegram && data?.miniAppUrl) {
+        openInvoice(data.miniAppUrl, (status) => {
+          if (status === 'paid') {
+            haptic.notification('success');
+            clearCart();
+            navigate('/order-success');
+          } else if (status === 'failed') {
+            haptic.notification('error');
+            navigate('/order-failed');
+          }
+        });
+      } else if (data?.payUrl) {
+        window.open(data.payUrl, '_blank');
+        // Navigate to success page with pending status
+        clearCart();
+        navigate('/order-success');
+      } else {
+        throw new Error('Не удалось создать инвойс');
+      }
+    } catch (err: any) {
+      console.error('Checkout error:', err);
+      setError(err.message || 'Ошибка при создании заказа');
+      haptic.notification('error');
+    } finally {
+      setProcessing(false);
+    }
   };
 
   return (
@@ -42,9 +94,13 @@ const Checkout = () => {
         <div className="bg-card border border-border/50 rounded-xl p-4">
           <h3 className="font-display font-semibold text-sm mb-2">Ваш аккаунт</h3>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">T</div>
+            {user?.photoUrl ? (
+              <img src={user.photoUrl} alt={displayName} className="w-8 h-8 rounded-full object-cover" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">{avatar}</div>
+            )}
             <div>
-              <div className="text-sm font-medium">Telegram User</div>
+              <div className="text-sm font-medium">{displayName}</div>
               <div className="text-[10px] text-muted-foreground">Заказ привязан к вашему Telegram профилю</div>
             </div>
           </div>
@@ -77,6 +133,13 @@ const Checkout = () => {
             <Link to="/refund" className="text-primary hover:underline">Политикой возврата</Link>.
           </span>
         </label>
+
+        {/* Error */}
+        {error && (
+          <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-3 text-xs text-destructive">
+            {error}
+          </div>
+        )}
 
         {/* Summary */}
         <div className="bg-card border border-border/50 rounded-xl p-4 space-y-3">

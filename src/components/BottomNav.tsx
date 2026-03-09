@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Home, Search, ShoppingCart, User } from 'lucide-react';
 import { useStore } from '@/contexts/StoreContext';
+import { useTelegram } from '@/contexts/TelegramContext';
 
 const navItems = [
   { path: '/', icon: Home, label: 'Главная' },
@@ -12,6 +13,7 @@ const navItems = [
 const BottomNav = () => {
   const location = useLocation();
   const { cartCount } = useStore();
+  const { haptic } = useTelegram();
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 glass-strong border-t border-border/30 safe-area-bottom">
@@ -25,6 +27,7 @@ const BottomNav = () => {
             <Link
               key={item.path}
               to={item.path}
+              onClick={() => haptic.selection()}
               className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors relative ${
                 isActive ? 'text-primary' : 'text-muted-foreground'
               }`}

@@ -3,6 +3,7 @@ import { ShoppingCart, Zap, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Product } from '@/data/products';
 import { useStore } from '@/contexts/StoreContext';
+import { useTelegram } from '@/contexts/TelegramContext';
 
 const tagLabels: Record<string, string> = {
   'hot': 'ХИТ',
@@ -22,6 +23,7 @@ const tagColors: Record<string, string> = {
 
 const ProductCard = ({ product }: { product: Product }) => {
   const { addToCart } = useStore();
+  const { haptic } = useTelegram();
   const discount = product.oldPrice ? Math.round((1 - product.price / product.oldPrice) * 100) : 0;
 
   return (
@@ -97,7 +99,7 @@ const ProductCard = ({ product }: { product: Product }) => {
             <Button
               size="sm"
               className="h-7 sm:h-8 text-xs"
-              onClick={() => addToCart(product)}
+              onClick={() => { addToCart(product); haptic.impact('light'); }}
             >
               <ShoppingCart className="w-3 h-3 mr-1" />
               В корзину
