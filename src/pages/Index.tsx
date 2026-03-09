@@ -211,7 +211,7 @@ const Index = () => {
               <h2 className="font-display text-xl sm:text-2xl md:text-3xl font-bold">Нужна помощь?</h2>
               <p className="text-muted-foreground text-sm mt-2 max-w-md mx-auto">Наша команда поддержки доступна 24/7. Свяжитесь через Telegram, Discord или email.</p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-6">
-                <Link to="/support" className="w-full sm:w-auto"><Button variant="hero" size="lg" className="w-full sm:w-auto">Связаться с поддержкой</Button></Link>
+                <a href="https://t.me/paveldurov" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto"><Button variant="hero" size="lg" className="w-full sm:w-auto">Связаться с поддержкой</Button></a>
                 <Link to="/faq" className="w-full sm:w-auto"><Button variant="outline" size="lg" className="w-full sm:w-auto">Читать FAQ</Button></Link>
               </div>
             </div>
