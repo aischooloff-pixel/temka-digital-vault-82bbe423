@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router-dom';
-import { Star, Zap, Clock, Shield, Heart, ShoppingCart, CheckCircle2, ChevronRight, ArrowLeft, MessageCircle } from 'lucide-react';
+import { Star, Zap, Clock, Shield, ShoppingCart, CheckCircle2, ChevronRight, ArrowLeft, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ProductCard from '@/components/ProductCard';
 import { getProductById, getReviewsByProductId, products, reviews } from '@/data/products';
