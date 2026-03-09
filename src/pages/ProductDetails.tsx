@@ -111,9 +111,8 @@ const ProductDetails = () => {
             <Button variant="hero" size="xl" className="flex-1" onClick={() => addToCart(product)}>
               <ShoppingCart className="w-4 h-4 mr-1" /> В корзину
             </Button>
-            <Button variant="hero-outline" size="xl" onClick={() => toggleFavorite(product.id)}>
-              <Heart className={`w-4 h-4 ${isFavorite(product.id) ? 'fill-destructive text-destructive' : ''}`} />
-            </Button>
+
+
           </div>
 
           {/* Quick features */}

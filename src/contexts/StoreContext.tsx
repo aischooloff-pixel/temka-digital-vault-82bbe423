@@ -54,13 +54,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const clearCart = useCallback(() => setCart([]), []);
 
-  const toggleFavorite = useCallback((productId: string) => {
-    setFavorites(prev =>
-      prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId]
-    );
-  }, []);
 
-  const isFavorite = useCallback((productId: string) => favorites.includes(productId), [favorites]);
+
 
   const cartTotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
