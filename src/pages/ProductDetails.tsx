@@ -2,7 +2,7 @@ import { useParams, Link } from 'react-router-dom';
 import { Zap, Clock, Shield, ShoppingCart, CheckCircle2, ChevronRight, ArrowLeft, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ProductCard from '@/components/ProductCard';
-import { getProductById, getReviewsByProductId, products, reviews } from '@/data/products';
+import { getProductById, products } from '@/data/products';
 import { useStore } from '@/contexts/StoreContext';
 import { useState } from 'react';
 
