@@ -26,7 +26,7 @@ const ProductDetails = () => {
 
   const discount = product.oldPrice ? Math.round((1 - product.price / product.oldPrice) * 100) : 0;
   const similar = products.filter(p => p.category === product.category && p.id !== product.id).slice(0, 4);
-  const allReviews = productReviews.length > 0 ? productReviews : reviews.slice(0, 3);
+  
 
   return (
     <div className="container-main mx-auto px-4 py-6 sm:py-8">
