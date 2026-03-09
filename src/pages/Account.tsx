@@ -13,7 +13,7 @@ const tabs = [
   { id: 'dashboard', label: 'Обзор', icon: User },
   { id: 'orders', label: 'История заказов', icon: Package },
   { id: 'favorites', label: 'Избранное', icon: Heart },
-  { id: 'support', label: 'Тикеты', icon: Headphones },
+  
   { id: 'notifications', label: 'Уведомления', icon: Bell },
   { id: 'settings', label: 'Настройки', icon: Settings },
 ];
@@ -145,14 +145,6 @@ const Account = () => {
             </div>
           )}
 
-          {activeTab === 'support' && (
-            <div className="text-center py-12">
-              <Headphones className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-              <h3 className="font-display font-semibold">Нет открытых тикетов</h3>
-              <p className="text-sm text-muted-foreground mt-1">У вас нет активных обращений в поддержку</p>
-              <Link to="/support"><Button variant="outline" className="mt-4">Создать тикет</Button></Link>
-            </div>
-          )}
 
           {activeTab === 'notifications' && (
             <div className="text-center py-12">
