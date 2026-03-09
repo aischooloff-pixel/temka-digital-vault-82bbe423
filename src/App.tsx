@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { StoreProvider } from "@/contexts/StoreContext";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import BottomNav from "@/components/BottomNav";
 import Index from "./pages/Index";
 import Catalog from "./pages/Catalog";
 import ProductDetails from "./pages/ProductDetails";
@@ -15,10 +16,8 @@ import OrderSuccess from "./pages/OrderSuccess";
 import OrderFailed from "./pages/OrderFailed";
 import Account from "./pages/Account";
 import Favorites from "./pages/Favorites";
-import Support from "./pages/Support";
 import FAQ from "./pages/FAQ";
 import About from "./pages/About";
-import Contact from "./pages/Contact";
 import { Terms, Privacy, Refund } from "./pages/Legal";
 import { Delivery, Guarantees } from "./pages/InfoPages";
 import NotFound from "./pages/NotFound";
@@ -34,7 +33,7 @@ const App = () => (
         <BrowserRouter>
           <div className="min-h-screen flex flex-col">
             <Header />
-            <main className="flex-1">
+            <main className="flex-1 pb-14">
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/catalog" element={<Catalog />} />
@@ -45,10 +44,8 @@ const App = () => (
                 <Route path="/order-failed" element={<OrderFailed />} />
                 <Route path="/account" element={<Account />} />
                 <Route path="/favorites" element={<Favorites />} />
-                <Route path="/support" element={<Support />} />
                 <Route path="/faq" element={<FAQ />} />
                 <Route path="/about" element={<About />} />
-                <Route path="/contact" element={<Contact />} />
                 <Route path="/terms" element={<Terms />} />
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/refund" element={<Refund />} />
@@ -58,6 +55,7 @@ const App = () => (
               </Routes>
             </main>
             <Footer />
+            <BottomNav />
           </div>
         </BrowserRouter>
       </StoreProvider>
