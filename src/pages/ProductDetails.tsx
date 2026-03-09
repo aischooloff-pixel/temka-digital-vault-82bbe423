@@ -163,30 +163,6 @@ const ProductDetails = () => {
           </div>
         )}
 
-        {activeTab === 'reviews' && (
-          <div className="max-w-3xl space-y-4">
-            {allReviews.map(review => (
-              <div key={review.id} className="p-4 bg-card border border-border/50 rounded-xl">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center text-sm font-bold">{review.avatar}</div>
-                    <div>
-                      <span className="text-sm font-medium">{review.author}</span>
-                      {review.verified && <span className="text-[10px] text-primary ml-2">✓ Проверен</span>}
-                    </div>
-                  </div>
-                  <span className="text-xs text-muted-foreground">{review.date}</span>
-                </div>
-                <div className="flex gap-0.5 mb-2">
-                  {Array.from({ length: review.rating }).map((_, j) => (
-                    <Star key={j} className="w-3 h-3 fill-gold text-gold" />
-                  ))}
-                </div>
-                <p className="text-xs sm:text-sm text-muted-foreground">{review.text}</p>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Similar Products */}
