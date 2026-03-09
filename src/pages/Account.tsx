@@ -28,10 +28,9 @@ const Account = () => {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-3 gap-2 mt-4">
+      <div className="grid grid-cols-2 gap-2 mt-4">
         {[
           { label: 'Заказов', value: '3', icon: Package },
-          { label: 'Избранное', value: '5', icon: Heart },
           { label: 'Купоны', value: '1', icon: Gift },
         ].map((s, i) => (
           <div key={i} className="bg-card border border-border/50 rounded-xl p-3 text-center">
