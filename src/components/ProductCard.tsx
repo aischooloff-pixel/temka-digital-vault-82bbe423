@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ShoppingCart, Zap, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Product } from '@/data/products';
+import type { DbProduct } from '@/types/database';
 import { useStore } from '@/contexts/StoreContext';
 import { useTelegram } from '@/contexts/TelegramContext';
 
@@ -21,28 +21,30 @@ const tagColors: Record<string, string> = {
   'instant': 'bg-primary/20 text-primary border-primary/30',
 };
 
-const ProductCard = ({ product }: { product: Product }) => {
+const categoryEmoji: Record<string, string> = {
+  'social-media': '📱',
+  'gaming': '🎮',
+  'streaming': '🎬',
+  'software': '🔑',
+  'premium': '👑',
+  'automation': '🤖',
+  'ai-tools': '🧠',
+  'services': '⚡',
+};
+
+const ProductCard = ({ product }: { product: DbProduct }) => {
   const { addToCart } = useStore();
   const { haptic } = useTelegram();
-  const discount = product.oldPrice ? Math.round((1 - product.price / product.oldPrice) * 100) : 0;
+  const discount = product.old_price ? Math.round((1 - Number(product.price) / Number(product.old_price)) * 100) : 0;
+  const outOfStock = product.stock <= 0;
 
   return (
-    <div className="group relative bg-card border border-border/50 rounded-xl overflow-hidden hover-lift hover:border-primary/30 transition-all duration-300">
-      {/* Image area */}
+    <div className={`group relative bg-card border border-border/50 rounded-xl overflow-hidden hover-lift hover:border-primary/30 transition-all duration-300 ${outOfStock ? 'opacity-60' : ''}`}>
       <Link to={`/product/${product.id}`} className="block">
         <div className="relative h-36 sm:h-44 bg-secondary/50 flex items-center justify-center overflow-hidden">
-          <div className="text-4xl sm:text-5xl">{
-            product.category === 'social-media' ? '📱' :
-            product.category === 'gaming' ? '🎮' :
-            product.category === 'streaming' ? '🎬' :
-            product.category === 'software' ? '🔑' :
-            product.category === 'premium' ? '👑' :
-            product.category === 'automation' ? '🤖' :
-            product.category === 'ai-tools' ? '🧠' : '⚡'
-          }</div>
+          <div className="text-4xl sm:text-5xl">{categoryEmoji[product.category_id || ''] || '⚡'}</div>
           <div className="absolute inset-0 bg-gradient-to-t from-card/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
-          {/* Tags */}
           <div className="absolute top-2 left-2 flex flex-wrap gap-1">
             {product.tags.map(tag => (
               <span key={tag} className={`text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-full border ${tagColors[tag] || 'bg-secondary text-secondary-foreground border-border'}`}>
@@ -51,18 +53,21 @@ const ProductCard = ({ product }: { product: Product }) => {
             ))}
           </div>
 
-          {/* Discount badge */}
           {discount > 0 && (
             <span className="absolute top-2 right-2 bg-destructive text-destructive-foreground text-[10px] font-bold px-2 py-0.5 rounded-full">
               -{discount}%
             </span>
           )}
+
+          {outOfStock && (
+            <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
+              <span className="text-sm font-semibold text-muted-foreground">Нет в наличии</span>
+            </div>
+          )}
         </div>
       </Link>
 
-      {/* Content */}
       <div className="p-3 sm:p-4">
-        {/* Category */}
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{product.platform}</span>
 
         <Link to={`/product/${product.id}`}>
@@ -70,10 +75,8 @@ const ProductCard = ({ product }: { product: Product }) => {
         </Link>
         <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 line-clamp-1">{product.subtitle}</p>
 
-
-        {/* Delivery badge */}
         <div className="flex items-center gap-1 mt-2">
-          {product.deliveryType === 'instant' ? (
+          {product.delivery_type === 'instant' ? (
             <span className="flex items-center gap-1 text-[10px] text-primary font-medium">
               <Zap className="w-3 h-3" /> Мгновенная доставка
             </span>
@@ -82,29 +85,27 @@ const ProductCard = ({ product }: { product: Product }) => {
               <Clock className="w-3 h-3" /> Ручная доставка
             </span>
           )}
-          {product.stock < 10 && (
+          {product.stock > 0 && product.stock < 10 && (
             <span className="text-[10px] text-warning font-medium ml-auto">Осталось {product.stock}</span>
           )}
         </div>
 
-        {/* Price & Actions */}
         <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/30">
           <div>
-            <span className="font-display font-bold text-base sm:text-lg">${product.price}</span>
-            {product.oldPrice && (
-              <span className="text-[10px] sm:text-xs text-muted-foreground line-through ml-1.5 sm:ml-2">${product.oldPrice}</span>
+            <span className="font-display font-bold text-base sm:text-lg">${Number(product.price).toFixed(2)}</span>
+            {product.old_price && (
+              <span className="text-[10px] sm:text-xs text-muted-foreground line-through ml-1.5 sm:ml-2">${Number(product.old_price).toFixed(2)}</span>
             )}
           </div>
-          <div className="flex items-center gap-1">
-            <Button
-              size="sm"
-              className="h-7 sm:h-8 text-xs"
-              onClick={() => { addToCart(product); haptic.impact('light'); }}
-            >
-              <ShoppingCart className="w-3 h-3 mr-1" />
-              В корзину
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            className="h-7 sm:h-8 text-xs"
+            disabled={outOfStock}
+            onClick={() => { addToCart(product); haptic.impact('light'); }}
+          >
+            <ShoppingCart className="w-3 h-3 mr-1" />
+            {outOfStock ? 'Нет' : 'В корзину'}
+          </Button>
         </div>
       </div>
     </div>
