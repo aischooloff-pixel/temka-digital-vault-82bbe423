@@ -31,7 +31,7 @@ const faqData = [
   {
     category: 'Refunds & Replacements',
     items: [
-      { q: 'Can I get a refund?', a: 'We offer refunds within the guarantee period if the product doesn't match the description or stops working. Each product has a specific guarantee period listed on its page.' },
+      { q: 'Can I get a refund?', a: "We offer refunds within the guarantee period if the product doesn't match the description or stops working. Each product has a specific guarantee period listed on its page." },
       { q: 'How do replacements work?', a: 'If a product is defective, contact support with your order ID. We will verify the issue and provide a replacement at no additional cost within the guarantee period.' },
       { q: 'What is not covered by the guarantee?', a: 'Guarantee does not cover products banned or disabled due to user actions, violations of terms of service of the platform, or usage outside the intended purpose.' },
     ],
