@@ -10,7 +10,7 @@ const ProductDetails = () => {
   const { id } = useParams<{ id: string }>();
   const product = getProductById(id || '');
   const productReviews = getReviewsByProductId(id || '');
-  const { addToCart, toggleFavorite, isFavorite } = useStore();
+  const { addToCart } = useStore();
   const [activeTab, setActiveTab] = useState('description');
 
   if (!product) {
