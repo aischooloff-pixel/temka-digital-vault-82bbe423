@@ -1,48 +1,47 @@
 import { Link } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
 
 const legalPages: Record<string, { title: string; content: string[] }> = {
   terms: {
-    title: 'Terms of Service',
+    title: 'Условия использования',
     content: [
-      'Welcome to TEMKA.STORE. By accessing or using our platform, you agree to be bound by these Terms of Service.',
-      '1. Account Registration — You must provide accurate information when creating an account. You are responsible for maintaining the security of your account credentials.',
-      '2. Products & Services — All digital products are sold as-is. Product descriptions are provided for informational purposes. We verify all products before listing but cannot guarantee compatibility with all use cases.',
-      '3. Payments — All prices are in USD. Payment is required before product delivery. We accept credit cards, cryptocurrency, PayPal, and other methods as displayed at checkout.',
-      '4. Delivery — Instant delivery products are delivered automatically after payment confirmation. Manual delivery products are processed within 1-24 hours.',
-      '5. Prohibited Use — You may not use our products for illegal activities, spam, harassment, or any activity that violates the terms of service of the respective platforms.',
-      '6. Intellectual Property — All content on TEMKA.STORE, including logos, text, and design, is our intellectual property and may not be reproduced without permission.',
-      '7. Limitation of Liability — TEMKA.STORE is not liable for any indirect, incidental, or consequential damages arising from the use of our products or services.',
-      '8. Changes to Terms — We reserve the right to modify these terms at any time. Continued use of the platform constitutes acceptance of updated terms.',
-      'Last updated: December 2024',
+      'Добро пожаловать на TEMKA.STORE. Используя нашу платформу, вы соглашаетесь с данными Условиями использования.',
+      '1. Регистрация аккаунта — Вы обязаны предоставлять достоверную информацию при создании аккаунта. Вы несёте ответственность за безопасность своих учётных данных.',
+      '2. Товары и услуги — Все цифровые товары продаются «как есть». Описания товаров предоставлены для информационных целей. Мы проверяем все товары перед размещением.',
+      '3. Оплата — Все цены указаны в USD. Оплата требуется до доставки товара. Мы принимаем банковские карты, криптовалюту, PayPal и другие способы.',
+      '4. Доставка — Товары с мгновенной доставкой доставляются автоматически после подтверждения оплаты. Товары с ручной доставкой обрабатываются в течение 1-24 часов.',
+      '5. Запрещённое использование — Запрещено использовать наши товары для незаконной деятельности, спама, преследования или нарушения условий использования соответствующих платформ.',
+      '6. Интеллектуальная собственность — Весь контент на TEMKA.STORE, включая логотипы, текст и дизайн, является нашей интеллектуальной собственностью.',
+      '7. Ограничение ответственности — TEMKA.STORE не несёт ответственности за косвенные или побочные убытки, связанные с использованием наших товаров или услуг.',
+      '8. Изменения условий — Мы оставляем за собой право изменять эти условия в любое время. Продолжение использования платформы означает принятие обновлённых условий.',
+      'Последнее обновление: декабрь 2024',
     ],
   },
   privacy: {
-    title: 'Privacy Policy',
+    title: 'Политика конфиденциальности',
     content: [
-      'TEMKA.STORE is committed to protecting your privacy. This policy explains how we collect, use, and safeguard your information.',
-      '1. Information We Collect — We collect information you provide directly, such as email address, payment details, and contact information. We also collect usage data and analytics.',
-      '2. How We Use Information — Your information is used to process orders, provide customer support, improve our services, and send relevant communications.',
-      '3. Data Security — We implement industry-standard security measures including SSL encryption, secure payment processing, and access controls to protect your data.',
-      '4. Third-Party Services — We use trusted third-party services for payment processing and analytics. These services have their own privacy policies.',
-      '5. Cookies — We use cookies to improve your browsing experience and analyze site traffic. You can control cookie settings in your browser.',
-      '6. Your Rights — You have the right to access, correct, or delete your personal data. Contact us at support@temka.store to exercise these rights.',
-      '7. Data Retention — We retain your data for as long as your account is active or as needed to provide services and comply with legal obligations.',
-      'Last updated: December 2024',
+      'TEMKA.STORE привержен защите вашей конфиденциальности. Данная политика объясняет, как мы собираем, используем и защищаем вашу информацию.',
+      '1. Собираемая информация — Мы собираем информацию, которую вы предоставляете напрямую: email, платёжные данные и контактную информацию. Также мы собираем данные об использовании и аналитику.',
+      '2. Использование информации — Ваша информация используется для обработки заказов, оказания поддержки, улучшения услуг и отправки соответствующих сообщений.',
+      '3. Безопасность данных — Мы применяем стандартные меры безопасности включая SSL шифрование, безопасную обработку платежей и контроль доступа.',
+      '4. Сторонние сервисы — Мы используем доверенные сторонние сервисы для обработки платежей и аналитики. Эти сервисы имеют собственные политики конфиденциальности.',
+      '5. Файлы cookie — Мы используем файлы cookie для улучшения вашего опыта и анализа трафика. Вы можете управлять настройками cookie в вашем браузере.',
+      '6. Ваши права — Вы имеете право на доступ, исправление или удаление ваших персональных данных. Свяжитесь с нами: support@temka.store.',
+      '7. Хранение данных — Мы храним ваши данные, пока ваш аккаунт активен или пока это необходимо для предоставления услуг.',
+      'Последнее обновление: декабрь 2024',
     ],
   },
   refund: {
-    title: 'Refund Policy',
+    title: 'Политика возврата',
     content: [
-      'At TEMKA.STORE, we stand behind the quality of our products. This policy outlines our refund and replacement procedures.',
-      '1. Guarantee Period — Each product has a specific guarantee period listed on its product page. This period starts from the moment of delivery.',
-      '2. Eligible Refunds — Refunds are available when: the product does not match the description, the product is non-functional at delivery, or credentials are invalid.',
-      '3. Replacement Priority — We prioritize replacements over refunds. If a replacement is available, it will be offered first.',
-      '4. Non-Refundable Cases — Refunds are not available for: products banned due to user actions, products used beyond their intended purpose, or requests made after the guarantee period.',
-      '5. Refund Process — To request a refund, contact support with your order ID and a description of the issue. Refunds are processed within 24-48 hours after approval.',
-      '6. Partial Refunds — In some cases, partial refunds may be offered if the product was partially delivered or partially functional.',
-      'For any questions about refunds, contact support@temka.store.',
-      'Last updated: December 2024',
+      'В TEMKA.STORE мы уверены в качестве наших товаров. Данная политика описывает процедуры возврата и замены.',
+      '1. Гарантийный период — Каждый товар имеет свой гарантийный период, указанный на странице товара. Период начинается с момента доставки.',
+      '2. Условия возврата — Возврат возможен, если: товар не соответствует описанию, товар не работает при доставке, или учётные данные недействительны.',
+      '3. Приоритет замены — Мы отдаём приоритет замене перед возвратом средств. Если замена доступна, она будет предложена в первую очередь.',
+      '4. Невозвратные случаи — Возврат невозможен для: товаров, заблокированных по вине пользователя, товаров, использованных не по назначению, или запросов после гарантийного периода.',
+      '5. Процесс возврата — Для запроса возврата свяжитесь с поддержкой, указав ID заказа и описание проблемы. Возвраты обрабатываются в течение 24-48 часов.',
+      '6. Частичный возврат — В некоторых случаях может быть предложен частичный возврат, если товар был доставлен или работал частично.',
+      'По вопросам возврата обращайтесь: support@temka.store.',
+      'Последнее обновление: декабрь 2024',
     ],
   },
 };
@@ -51,15 +50,15 @@ const LegalPage = ({ type }: { type: 'terms' | 'privacy' | 'refund' }) => {
   const page = legalPages[type];
 
   return (
-    <div className="container-main mx-auto px-4 py-8 max-w-3xl">
-      <h1 className="font-display text-3xl font-bold mb-8">{page.title}</h1>
-      <div className="space-y-4">
+    <div className="container-main mx-auto px-4 py-6 sm:py-8 max-w-3xl">
+      <h1 className="font-display text-2xl sm:text-3xl font-bold mb-6 sm:mb-8">{page.title}</h1>
+      <div className="space-y-3 sm:space-y-4">
         {page.content.map((p, i) => (
-          <p key={i} className="text-muted-foreground leading-relaxed text-sm">{p}</p>
+          <p key={i} className="text-muted-foreground leading-relaxed text-xs sm:text-sm">{p}</p>
         ))}
       </div>
-      <div className="mt-8 pt-6 border-t border-border/30 text-center">
-        <p className="text-sm text-muted-foreground">Questions? <Link to="/support" className="text-primary hover:underline">Contact Support</Link></p>
+      <div className="mt-6 sm:mt-8 pt-6 border-t border-border/30 text-center">
+        <p className="text-sm text-muted-foreground">Вопросы? <Link to="/support" className="text-primary hover:underline">Связаться с поддержкой</Link></p>
       </div>
     </div>
   );
