@@ -36,7 +36,7 @@ const Catalog = () => {
     switch (sortBy) {
       case 'price-asc': result.sort((a, b) => a.price - b.price); break;
       case 'price-desc': result.sort((a, b) => b.price - a.price); break;
-      case 'rating': result.sort((a, b) => b.rating - a.rating); break;
+      case 'rating': break;
       case 'newest': result.reverse(); break;
       default: result.sort((a, b) => b.reviewCount - a.reviewCount);
     }
