@@ -24,7 +24,7 @@ const OrderFailed = () => {
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6 sm:mt-8">
           <Link to="/checkout"><Button variant="hero"><RefreshCcw className="w-4 h-4 mr-1" /> Попробовать снова</Button></Link>
-          <Link to="/support"><Button variant="outline"><Headphones className="w-4 h-4 mr-1" /> Связаться с поддержкой</Button></Link>
+          <a href="https://t.me/paveldurov" target="_blank" rel="noopener noreferrer"><Button variant="outline"><Headphones className="w-4 h-4 mr-1" /> Связаться с поддержкой</Button></a>
         </div>
       </div>
     </div>

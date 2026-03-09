@@ -114,7 +114,7 @@ const FAQ = () => {
       {/* CTA */}
       <div className="text-center mt-10 sm:mt-12">
         <p className="text-muted-foreground text-sm">Не нашли ответ?</p>
-        <Link to="/support"><Button variant="hero" className="mt-3"><Headphones className="w-4 h-4 mr-1" /> Связаться с поддержкой</Button></Link>
+        <a href="https://t.me/paveldurov" target="_blank" rel="noopener noreferrer"><Button variant="hero" className="mt-3"><Headphones className="w-4 h-4 mr-1" /> Связаться с поддержкой</Button></a>
       </div>
     </div>
   );

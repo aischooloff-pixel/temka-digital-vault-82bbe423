@@ -220,7 +220,7 @@ const ProductDetails = () => {
             <p className="text-xs sm:text-sm text-muted-foreground">Наша поддержка поможет вам 24/7</p>
           </div>
         </div>
-        <Link to="/support"><Button variant="outline">Связаться с поддержкой</Button></Link>
+        <a href="https://t.me/paveldurov" target="_blank" rel="noopener noreferrer"><Button variant="outline">Связаться с поддержкой</Button></a>
       </div>
     </div>
   );

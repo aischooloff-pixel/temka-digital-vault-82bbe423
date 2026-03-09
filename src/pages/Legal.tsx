@@ -58,7 +58,7 @@ const LegalPage = ({ type }: { type: 'terms' | 'privacy' | 'refund' }) => {
         ))}
       </div>
       <div className="mt-6 sm:mt-8 pt-6 border-t border-border/30 text-center">
-        <p className="text-sm text-muted-foreground">Вопросы? <Link to="/support" className="text-primary hover:underline">Связаться с поддержкой</Link></p>
+        <p className="text-sm text-muted-foreground">Вопросы? <a href="https://t.me/paveldurov" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Связаться с поддержкой</a></p>
       </div>
     </div>
   );
