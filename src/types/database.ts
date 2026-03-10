@@ -48,8 +48,22 @@ export interface DbOrder {
   invoice_id: string | null;
   pay_url: string | null;
   notes: string | null;
+  discount_amount: number;
+  promo_code: string | null;
+  balance_used: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface DbBalanceHistory {
+  id: string;
+  telegram_id: number;
+  amount: number;
+  type: string;
+  balance_after: number;
+  comment: string;
+  admin_telegram_id: number;
+  created_at: string;
 }
 
 export interface DbOrderItem {
