@@ -18,6 +18,34 @@ const fadeIn = {
   visible: (i: number) => ({ opacity: 1, y: 0, transition: { delay: i * 0.08, duration: 0.4 } }),
 };
 
+import type { DbReview } from '@/types/database';
+
+const ReviewCard = ({ review }: { review: DbReview }) => (
+  <div className="bg-card border border-border/50 rounded-xl p-4">
+    <div className="flex items-center gap-2 mb-2">
+      {review.avatar ? (
+        <img src={review.avatar} alt={review.author} className="w-7 h-7 rounded-full object-cover" />
+      ) : (
+        <div className="w-7 h-7 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">
+          {review.author?.[0]?.toUpperCase() || '?'}
+        </div>
+      )}
+      <div className="flex-1">
+        <div className="text-sm font-medium">{review.author}</div>
+        <div className="flex gap-0.5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Star key={i} className={`w-3 h-3 ${i < review.rating ? 'text-gold fill-gold' : 'text-muted-foreground'}`} />
+          ))}
+        </div>
+      </div>
+      <div className="text-[10px] text-muted-foreground">
+        {new Date(review.created_at).toLocaleDateString('ru-RU')}
+      </div>
+    </div>
+    {review.text && <p className="text-sm text-muted-foreground">{review.text}</p>}
+  </div>
+);
+
 const Index = () => {
   const { data: products, isLoading: productsLoading } = useProducts();
   const { data: categories, isLoading: categoriesLoading } = useCategories();
