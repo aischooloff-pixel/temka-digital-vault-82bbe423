@@ -160,15 +160,6 @@ const Checkout = () => {
           )}
         </div>
 
-        <label className="flex items-start gap-2.5 cursor-pointer">
-          <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)}
-            className="mt-0.5 w-4 h-4 rounded border-border bg-secondary text-primary focus:ring-primary" />
-          <span className="text-xs text-muted-foreground">
-            Я согласен с <Link to="/terms" className="text-primary hover:underline">Условиями использования</Link>,{' '}
-            <Link to="/privacy" className="text-primary hover:underline">Политикой конфиденциальности</Link> и{' '}
-            <Link to="/refund" className="text-primary hover:underline">Политикой возврата</Link>.
-          </span>
-        </label>
 
         {error && (
           <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-3 text-xs text-destructive">
