@@ -62,10 +62,10 @@ serve(async (req) => {
       return jsonRes({ error: "Вы уже оставили отзыв" }, 400);
     }
 
-    // Get user profile for avatar
+    // Get user profile for avatar and name
     const { data: profile } = await supabase
       .from("user_profiles")
-      .select("photo_url, first_name, last_name")
+      .select("photo_url, first_name, last_name, username")
       .eq("telegram_id", telegramId)
       .maybeSingle();
 
