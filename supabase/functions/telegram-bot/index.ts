@@ -642,41 +642,18 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
       ikb([[btn("🗃 Склад товара", `a:iv:${pid}:0`)], [btn("◀️ Меню", "a:m")]]));
   }
 
-  // Broadcast
+  // Broadcast — save to session for preview
   if (state === "bc:t") {
-    const { data: users } = await d.from("user_profiles").select("telegram_id").eq("is_blocked", false);
-    if (!users?.length) { await tg.send(cid, "❌ Нет пользователей."); await clearSession(adminId); return; }
-    const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
-    let ok = 0, fail = 0;
-
+    await setSession(adminId, "bc:preview", { text: text || "", photoId: photo?.length ? photo[photo.length - 1].file_id : null });
+    const previewText = text || "(без текста)";
     if (photo?.length) {
-      // Media broadcast
-      const fileId = photo[photo.length - 1].file_id;
-      for (const u of users) {
-        try {
-          const r = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: u.telegram_id, photo: fileId, caption: text || "", parse_mode: "HTML" }),
-          }).then(r => r.json());
-          if (r.ok) ok++; else fail++;
-        } catch { fail++; }
-      }
+      await tg.sendPhoto(cid, photo[photo.length - 1].file_id, `📢 <b>Предпросмотр:</b>\n\n${previewText}`,
+        ikb([[btn("✅ Отправить", "a:bcsend"), btn("✏️ Редактировать", "a:bcedit"), btn("❌ Отмена", "a:bccancel")]]));
     } else {
-      // Text broadcast
-      for (const u of users) {
-        try {
-          const r = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: u.telegram_id, text, parse_mode: "HTML" }),
-          }).then(r => r.json());
-          if (r.ok) ok++; else fail++;
-        } catch { fail++; }
-      }
+      await tg.send(cid, `📢 <b>Предпросмотр:</b>\n\n${text}`,
+        ikb([[btn("✅ Отправить", "a:bcsend"), btn("✏️ Редактировать", "a:bcedit"), btn("❌ Отмена", "a:bccancel")]]));
     }
-    await logA(adminId, "broadcast", "broadcast", undefined, { ok, fail, total: users.length });
-    await clearSession(adminId);
-    return await tg.send(cid, `📢 <b>Рассылка завершена!</b>\n\n✅ ${ok}\n❌ ${fail}\n📊 ${users.length}`,
-      ikb([[btn("◀️ Меню", "a:m")]]));
+    return;
   }
 
   // Message to user
