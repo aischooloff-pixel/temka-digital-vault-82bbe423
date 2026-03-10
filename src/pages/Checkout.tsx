@@ -36,7 +36,6 @@ const Checkout = () => {
   }
 
   const handleCheckout = async () => {
-    if (!agreed) return;
     setProcessing(true);
     setError('');
     haptic.impact('medium');
