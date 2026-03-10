@@ -1019,7 +1019,12 @@ async function handleCallback(tg: ReturnType<typeof TG>, cb: any, adminId: numbe
     if (d === "a:bs") { await setSession(adminId, "bc:t"); await tg.answer(cb.id); return await tg.send(cid, "📢 Введите текст рассылки (поддерживается HTML: &lt;b&gt;, &lt;i&gt;, &lt;u&gt;, &lt;a&gt;) или отправьте фото с подписью:\n\n/cancel — отмена"); }
     if (d === "a:bcsend") {
       const session = await getSession(adminId);
-      if (!session || session.state !== "bc:preview") { await tg.answer(cb.id, "⚠️ Сессия устарела"); return; }
+      console.log("Broadcast send - session:", JSON.stringify(session));
+      if (!session || session.state !== "bc:preview") {
+        console.error("Broadcast session lost! adminId:", adminId, "session:", JSON.stringify(session));
+        await tg.answer(cb.id, "⚠️ Сессия устарела. Попробуйте создать рассылку заново.");
+        return;
+      }
       const sData = session.data;
       const { data: users } = await db().from("user_profiles").select("telegram_id").eq("is_blocked", false);
       if (!users?.length) { await tg.answer(cb.id, "❌ Нет пользователей"); await clearSession(adminId); return; }
