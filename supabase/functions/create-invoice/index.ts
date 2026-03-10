@@ -29,12 +29,43 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Upsert user profile
+    // Check if user is blocked
     if (telegramUserId) {
+      const { data: userProfile } = await supabase
+        .from("user_profiles")
+        .select("is_blocked")
+        .eq("telegram_id", telegramUserId)
+        .maybeSingle();
+
+      if (userProfile?.is_blocked) {
+        return new Response(
+          JSON.stringify({ error: "Ваш аккаунт заблокирован" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       await supabase.from("user_profiles").upsert(
         { telegram_id: telegramUserId, updated_at: new Date().toISOString() },
         { onConflict: "telegram_id" }
       );
+    }
+
+    // Check stock for all items
+    if (items && items.length > 0) {
+      for (const item of items) {
+        const { data: product } = await supabase
+          .from("products")
+          .select("stock, title")
+          .eq("id", item.productId)
+          .single();
+
+        if (!product || product.stock < item.quantity) {
+          return new Response(
+            JSON.stringify({ error: `Товар "${product?.title || item.productTitle}" закончился или недостаточно на складе` }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
     }
 
     // Create order in database

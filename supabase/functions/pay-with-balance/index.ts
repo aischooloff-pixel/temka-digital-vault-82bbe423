@@ -26,18 +26,48 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Verify user has enough balance
+    // Verify user has enough balance and is not blocked
     const { data: profile } = await supabase
       .from("user_profiles")
-      .select("balance")
+      .select("balance, is_blocked")
       .eq("telegram_id", telegramUserId)
       .single();
 
-    if (!profile || Number(profile.balance) < balanceUsed) {
+    if (!profile) {
+      return new Response(
+        JSON.stringify({ error: "User not found" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (profile.is_blocked) {
+      return new Response(
+        JSON.stringify({ error: "Ваш аккаунт заблокирован" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (Number(profile.balance) < balanceUsed) {
       return new Response(
         JSON.stringify({ error: "Insufficient balance" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Check stock for all items
+    for (const item of items) {
+      const { data: product } = await supabase
+        .from("products")
+        .select("stock, title")
+        .eq("id", item.productId)
+        .single();
+
+      if (!product || product.stock < item.quantity) {
+        return new Response(
+          JSON.stringify({ error: `Товар "${product?.title || item.productTitle}" закончился или недостаточно на складе` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Create order
