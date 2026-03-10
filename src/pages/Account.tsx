@@ -348,6 +348,69 @@ const Account = () => {
         open={!!selectedBalance}
         onOpenChange={open => { if (!open) setSelectedBalance(null); }}
       />
+
+      {/* Top-up Drawer */}
+      <Drawer open={showTopup} onOpenChange={setShowTopup}>
+        <DrawerContent className="max-h-[85vh]">
+          <DrawerHeader className="pb-2">
+            <DrawerTitle className="flex items-center gap-2 text-base">
+              <Wallet className="w-4 h-4 text-primary" />
+              Пополнение баланса
+            </DrawerTitle>
+          </DrawerHeader>
+          <div className="px-4 pb-4 space-y-4">
+            <div className="grid grid-cols-4 gap-2">
+              {TOPUP_PRESETS.map(preset => (
+                <button
+                  key={preset}
+                  onClick={() => setTopupAmount(String(preset))}
+                  className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+                    topupAmount === String(preset)
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-secondary/50 border-border/50 hover:bg-secondary'
+                  }`}
+                >
+                  ${preset}
+                </button>
+              ))}
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Или введите сумму</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                <Input
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={topupAmount}
+                  onChange={e => setTopupAmount(e.target.value)}
+                  className="pl-7"
+                />
+              </div>
+            </div>
+            <Button
+              variant="default"
+              size="lg"
+              className="w-full gap-2"
+              onClick={handleTopup}
+              disabled={!topupAmount || Number(topupAmount) <= 0 || topupProcessing}
+            >
+              {topupProcessing ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Создание инвойса...</>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  Пополнить {topupAmount && Number(topupAmount) > 0 ? `$${Number(topupAmount).toFixed(2)}` : ''}
+                </>
+              )}
+            </Button>
+            <p className="text-[10px] text-muted-foreground text-center">
+              Оплата через CryptoBot · Криптовалюта
+            </p>
+          </div>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 };
