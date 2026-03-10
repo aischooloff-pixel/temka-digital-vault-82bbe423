@@ -1187,7 +1187,7 @@ serve(async (req) => {
       const support = supportSetting?.value || "paveldurov";
 
       await tg.send(chatId,
-        `👋 Привет, ${firstName}!\n\nДобро пожаловать в наш магазин цифровых товаров!\n\n🛍 Аккаунты, ключи ПО и подписки\n⚡ Мгновенная доставка\n₿ Оплата через CryptoBot\n🛡 Гарантия и поддержка\n\nНажмите кнопку ниже 👇`,
+        `👋 Привет, ${firstName}!\n\nДобро пожаловать в наш магазин цифровых товаров!\n\n🛍 Аккаунты, ключи ПО и подписки\n⚡ Мгновенная доставка\n₿ Оплата через CryptoBot\n🛡 Гарантия и поддержка\n\nИспользуя сервис, вы принимаете <a href="${webAppUrl}/terms">Оферту</a> и <a href="${webAppUrl}/privacy">Политику конфиденциальности</a>.\n\nНажмите кнопку ниже 👇`,
         { inline_keyboard: [
           [{ text: "🛒 Открыть магазин", web_app: { url: webAppUrl } }],
           [{ text: "📋 Каталог", web_app: { url: `${webAppUrl}/catalog` } }, { text: "👤 Профиль", web_app: { url: `${webAppUrl}/account` } }],
@@ -1220,6 +1220,7 @@ serve(async (req) => {
           last_name: message.from.last_name || null, username: message.from.username || null,
           is_premium: message.from.is_premium || false, language_code: message.from.language_code || null,
           ...(photoUrl ? { photo_url: photoUrl } : {}),
+          accepted_terms: true,
           updated_at: new Date().toISOString(),
         }, { onConflict: "telegram_id" });
       }

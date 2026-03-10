@@ -13,7 +13,6 @@ const Checkout = () => {
   const { user, isInTelegram, openTelegramLink, haptic } = useTelegram();
   const { data: profile } = useUserProfile();
   const navigate = useNavigate();
-  const [agreed, setAgreed] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
 
@@ -37,7 +36,6 @@ const Checkout = () => {
   }
 
   const handleCheckout = async () => {
-    if (!agreed) return;
     setProcessing(true);
     setError('');
     haptic.impact('medium');
@@ -162,15 +160,6 @@ const Checkout = () => {
           )}
         </div>
 
-        <label className="flex items-start gap-2.5 cursor-pointer">
-          <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)}
-            className="mt-0.5 w-4 h-4 rounded border-border bg-secondary text-primary focus:ring-primary" />
-          <span className="text-xs text-muted-foreground">
-            Я согласен с <Link to="/terms" className="text-primary hover:underline">Условиями использования</Link>,{' '}
-            <Link to="/privacy" className="text-primary hover:underline">Политикой конфиденциальности</Link> и{' '}
-            <Link to="/refund" className="text-primary hover:underline">Политикой возврата</Link>.
-          </span>
-        </label>
 
         {error && (
           <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-3 text-xs text-destructive">
@@ -222,7 +211,7 @@ const Checkout = () => {
           </div>
 
           <Button variant="hero" size="lg" className="w-full" onClick={handleCheckout}
-            disabled={!agreed || processing}>
+            disabled={processing}>
             {processing ? (
               <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /> Создание заказа...</span>
             ) : toPay > 0 ? (
@@ -231,6 +220,12 @@ const Checkout = () => {
               <><Wallet className="w-4 h-4 mr-1" /> Оплатить балансом</>
             )}
           </Button>
+
+          <p className="text-[10px] text-muted-foreground text-center pt-1">
+            Нажимая «Оплатить», вы подтверждаете согласие с{' '}
+            <Link to="/terms" className="text-primary hover:underline">Офертой</Link> и{' '}
+            <Link to="/privacy" className="text-primary hover:underline">Политикой конфиденциальности</Link>.
+          </p>
 
           <div className="space-y-1.5 pt-1 text-[10px] text-muted-foreground">
             <span className="flex items-center gap-1.5"><Shield className="w-3 h-3 text-primary" /> Безопасная оплата</span>

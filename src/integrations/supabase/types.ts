@@ -497,6 +497,7 @@ export type Database = {
       }
       user_profiles: {
         Row: {
+          accepted_terms: boolean
           balance: number
           created_at: string
           first_name: string
@@ -513,6 +514,7 @@ export type Database = {
           username: string | null
         }
         Insert: {
+          accepted_terms?: boolean
           balance?: number
           created_at?: string
           first_name?: string
@@ -529,6 +531,7 @@ export type Database = {
           username?: string | null
         }
         Update: {
+          accepted_terms?: boolean
           balance?: number
           created_at?: string
           first_name?: string
