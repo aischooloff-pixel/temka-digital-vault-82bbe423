@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Zap, Shield, ChevronRight, ArrowRight, CheckCircle2, Package, Clock, Star, Send, Trash2 } from 'lucide-react';
+import { Zap, Shield, ChevronRight, ArrowRight, CheckCircle2, Package, Clock, Star, Send, Trash2, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '@/components/ui/drawer';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import ProductCard from '@/components/ProductCard';
 import ProductCardSkeleton from '@/components/ProductCardSkeleton';
 import { useProducts, useCategories, useProductStats, useReviews } from '@/hooks/useProducts';
@@ -15,6 +17,34 @@ const fadeIn = {
   hidden: { opacity: 0, y: 16 },
   visible: (i: number) => ({ opacity: 1, y: 0, transition: { delay: i * 0.08, duration: 0.4 } }),
 };
+
+import type { DbReview } from '@/types/database';
+
+const ReviewCard = ({ review }: { review: DbReview }) => (
+  <div className="bg-card border border-border/50 rounded-xl p-4">
+    <div className="flex items-center gap-2 mb-2">
+      {review.avatar ? (
+        <img src={review.avatar} alt={review.author} className="w-7 h-7 rounded-full object-cover" />
+      ) : (
+        <div className="w-7 h-7 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">
+          {review.author?.[0]?.toUpperCase() || '?'}
+        </div>
+      )}
+      <div className="flex-1">
+        <div className="text-sm font-medium">{review.author}</div>
+        <div className="flex gap-0.5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Star key={i} className={`w-3 h-3 ${i < review.rating ? 'text-gold fill-gold' : 'text-muted-foreground'}`} />
+          ))}
+        </div>
+      </div>
+      <div className="text-[10px] text-muted-foreground">
+        {new Date(review.created_at).toLocaleDateString('ru-RU')}
+      </div>
+    </div>
+    {review.text && <p className="text-sm text-muted-foreground">{review.text}</p>}
+  </div>
+);
 
 const Index = () => {
   const { data: products, isLoading: productsLoading } = useProducts();
@@ -31,6 +61,8 @@ const Index = () => {
   const [reviewSuccess, setReviewSuccess] = useState(false);
   const [reviewError, setReviewError] = useState('');
   const [deletingReview, setDeletingReview] = useState(false);
+  const [showAllReviews, setShowAllReviews] = useState(false);
+  const [reviewFilter, setReviewFilter] = useState<'all' | 'positive' | 'negative'>('all');
 
   const featuredProducts = products?.filter(p => p.is_featured || p.is_popular).slice(0, 6) || [];
   const newProducts = products?.filter(p => p.is_new).slice(0, 6) || [];
@@ -248,21 +280,22 @@ const Index = () => {
         </section>
       )}
 
-      {/* Reviews */}
       <section className="px-4 py-8">
         <div className="container-main mx-auto max-w-lg">
           <div className="flex items-center justify-between mb-5">
             <h2 className="font-display text-xl font-bold">Отзывы</h2>
-            {user && !userHasReview && (
-              <Button variant="outline" size="sm" onClick={() => setShowReviewForm(!showReviewForm)}>
-                ✍️ Оставить отзыв
-              </Button>
-            )}
-            {user && userHasReview && (
-              <Button variant="ghost" size="sm" onClick={handleDeleteReview} disabled={deletingReview} className="text-destructive hover:text-destructive">
-                <Trash2 className="w-3 h-3 mr-1" /> {deletingReview ? '...' : 'Удалить отзыв'}
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {user && !userHasReview && (
+                <Button variant="outline" size="sm" onClick={() => setShowReviewForm(!showReviewForm)}>
+                  ✍️ Оставить
+                </Button>
+              )}
+              {user && userHasReview && (
+                <Button variant="ghost" size="sm" onClick={handleDeleteReview} disabled={deletingReview} className="text-destructive hover:text-destructive">
+                  <Trash2 className="w-3 h-3 mr-1" /> {deletingReview ? '...' : 'Удалить'}
+                </Button>
+              )}
+            </div>
           </div>
 
           {reviewSuccess && (
@@ -300,33 +333,20 @@ const Index = () => {
               {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
             </div>
           ) : reviews && reviews.length > 0 ? (
-            <div className="space-y-3">
-              {reviews.slice(0, 5).map(review => (
-                <div key={review.id} className="bg-card border border-border/50 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    {review.avatar ? (
-                      <img src={review.avatar} alt={review.author} className="w-7 h-7 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-7 h-7 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">
-                        {review.author?.[0]?.toUpperCase() || '?'}
-                      </div>
-                    )}
-                    <div className="flex-1">
-                      <div className="text-sm font-medium">{review.author}</div>
-                      <div className="flex gap-0.5">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <Star key={i} className={`w-3 h-3 ${i < review.rating ? 'text-gold fill-gold' : 'text-muted-foreground'}`} />
-                        ))}
-                      </div>
-                    </div>
-                    <div className="text-[10px] text-muted-foreground">
-                      {new Date(review.created_at).toLocaleDateString('ru-RU')}
-                    </div>
-                  </div>
-                  {review.text && <p className="text-sm text-muted-foreground">{review.text}</p>}
+            <>
+              <div className="space-y-3">
+                {reviews.slice(0, 3).map(review => (
+                  <ReviewCard key={review.id} review={review} />
+                ))}
+              </div>
+              {reviews.length > 3 && (
+                <div className="text-center mt-4">
+                  <Button variant="outline" size="sm" onClick={() => setShowAllReviews(true)}>
+                    Все отзывы ({reviews.length}) <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+                  </Button>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           ) : (
             <div className="text-center py-6">
               <p className="text-sm text-muted-foreground">Отзывов пока нет</p>
@@ -340,7 +360,52 @@ const Index = () => {
         </div>
       </section>
 
-      {/* FAQ Preview */}
+      {/* All Reviews Drawer */}
+      <Drawer open={showAllReviews} onOpenChange={setShowAllReviews}>
+        <DrawerContent className="max-h-[85vh]">
+          <DrawerHeader className="pb-2">
+            <DrawerTitle className="text-base">Все отзывы</DrawerTitle>
+          </DrawerHeader>
+          <div className="px-4 pb-2 flex gap-2">
+            {(['all', 'positive', 'negative'] as const).map(f => (
+              <button
+                key={f}
+                onClick={() => setReviewFilter(f)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                  reviewFilter === f
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-secondary/50 border-border/50 hover:bg-secondary'
+                }`}
+              >
+                {f === 'all' ? 'Все' : f === 'positive' ? '⭐ Положительные' : '👎 Отрицательные'}
+              </button>
+            ))}
+          </div>
+          <ScrollArea className="px-4 pb-4 max-h-[60vh]">
+            <div className="space-y-3">
+              {(reviews || [])
+                .filter(r => {
+                  if (reviewFilter === 'positive') return r.rating >= 4;
+                  if (reviewFilter === 'negative') return r.rating <= 3;
+                  return true;
+                })
+                .map(review => (
+                  <ReviewCard key={review.id} review={review} />
+                ))}
+              {reviews && reviewFilter !== 'all' && (reviews || []).filter(r => reviewFilter === 'positive' ? r.rating >= 4 : r.rating <= 3).length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-6">Нет отзывов в этой категории</p>
+              )}
+            </div>
+          </ScrollArea>
+          <div className="p-4 pt-2">
+            <DrawerClose asChild>
+              <Button variant="outline" size="sm" className="w-full">Закрыть</Button>
+            </DrawerClose>
+          </div>
+        </DrawerContent>
+      </Drawer>
+
+
       <section className="px-4 py-8">
         <div className="container-main mx-auto max-w-lg">
           <h2 className="font-display text-xl font-bold mb-4">Частые вопросы</h2>
