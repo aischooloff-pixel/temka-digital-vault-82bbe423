@@ -1126,6 +1126,62 @@ serve(async (req) => {
     // Callback queries
     if (body.callback_query) {
       const cb = body.callback_query;
+
+      // Terms acceptance — available to all users
+      if (cb.data === "terms:accept") {
+        const tgId = cb.from.id;
+        const firstName = cb.from.first_name || "друг";
+        const webAppUrl = Deno.env.get("WEBAPP_URL") || "https://temka-digital-vault.lovable.app";
+        const { data: supportSetting } = await db().from("shop_settings").select("value").eq("key", "support_username").maybeSingle();
+        const support = supportSetting?.value || "paveldurov";
+
+        // Upsert profile with accepted_terms + fetch avatar
+        let photoUrl: string | null = null;
+        try {
+          const photosRes = await fetch(`https://api.telegram.org/bot${botToken}/getUserProfilePhotos`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: tgId, limit: 1 }),
+          }).then(r => r.json());
+          if (photosRes.ok && photosRes.result?.total_count > 0) {
+            const fileId = photosRes.result.photos[0][0].file_id;
+            const fileData = await fetch(`https://api.telegram.org/bot${botToken}/getFile`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ file_id: fileId }),
+            }).then(r => r.json());
+            if (fileData.ok) {
+              photoUrl = `https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`;
+            }
+          }
+        } catch (e) { console.error("Photo fetch error:", e); }
+
+        await db().from("user_profiles").upsert({
+          telegram_id: tgId, first_name: cb.from.first_name || "",
+          last_name: cb.from.last_name || null, username: cb.from.username || null,
+          is_premium: cb.from.is_premium || false, language_code: cb.from.language_code || null,
+          ...(photoUrl ? { photo_url: photoUrl } : {}),
+          accepted_terms: true,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "telegram_id" });
+
+        // Edit the terms message to show accepted
+        await tg.edit(cb.message.chat.id, cb.message.message_id,
+          `✅ Вы приняли условия использования сервиса.\n\nДобро пожаловать, ${firstName}! 🎉`
+        );
+
+        // Send welcome message
+        await tg.send(cb.message.chat.id,
+          `🛍 Аккаунты, ключи ПО и подписки\n⚡ Мгновенная доставка\n₿ Оплата через CryptoBot\n🛡 Гарантия и поддержка\n\nНажмите кнопку ниже 👇`,
+          { inline_keyboard: [
+            [{ text: "🛒 Открыть магазин", web_app: { url: webAppUrl } }],
+            [{ text: "📋 Каталог", web_app: { url: `${webAppUrl}/catalog` } }, { text: "👤 Профиль", web_app: { url: `${webAppUrl}/account` } }],
+            [{ text: "💬 Поддержка", url: `https://t.me/${support}` }],
+          ] }
+        );
+
+        await tg.answer(cb.id, "✅ Условия приняты!");
+        return json({ ok: true });
+      }
+
       const role = await isAdmin(cb.from.id);
       if (!role) { await tg.answer(cb.id, "⛔ Нет доступа"); return json({ ok: true }); }
       await handleCallback(tg, cb, cb.from.id);
@@ -1183,47 +1239,59 @@ serve(async (req) => {
     // /start
     if (text === "/start") {
       const webAppUrl = Deno.env.get("WEBAPP_URL") || "https://temka-digital-vault.lovable.app";
-      const { data: supportSetting } = await db().from("shop_settings").select("value").eq("key", "support_username").maybeSingle();
-      const support = supportSetting?.value || "paveldurov";
 
-      await tg.send(chatId,
-        `👋 Привет, ${firstName}!\n\nДобро пожаловать в наш магазин цифровых товаров!\n\n🛍 Аккаунты, ключи ПО и подписки\n⚡ Мгновенная доставка\n₿ Оплата через CryptoBot\n🛡 Гарантия и поддержка\n\nИспользуя сервис, вы принимаете <a href="${webAppUrl}/terms">Оферту</a> и <a href="${webAppUrl}/privacy">Политику конфиденциальности</a>.\n\nНажмите кнопку ниже 👇`,
-        { inline_keyboard: [
-          [{ text: "🛒 Открыть магазин", web_app: { url: webAppUrl } }],
-          [{ text: "📋 Каталог", web_app: { url: `${webAppUrl}/catalog` } }, { text: "👤 Профиль", web_app: { url: `${webAppUrl}/account` } }],
-          [{ text: "💬 Поддержка", url: `https://t.me/${support}` }],
-        ] }
-      );
-
-      // Upsert profile + fetch avatar
+      // Check if user already accepted terms
       if (tgId) {
-        let photoUrl: string | null = null;
-        try {
-          const photosRes = await fetch(`https://api.telegram.org/bot${botToken}/getUserProfilePhotos`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ user_id: tgId, limit: 1 }),
-          }).then(r => r.json());
-          if (photosRes.ok && photosRes.result?.total_count > 0) {
-            const fileId = photosRes.result.photos[0][0].file_id;
-            const fileData = await fetch(`https://api.telegram.org/bot${botToken}/getFile`, {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ file_id: fileId }),
-            }).then(r => r.json());
-            if (fileData.ok) {
-              photoUrl = `https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`;
-            }
-          }
-        } catch (e) { console.error("Photo fetch error:", e); }
+        const { data: profile } = await db().from("user_profiles").select("accepted_terms").eq("telegram_id", tgId).maybeSingle();
+        if (profile?.accepted_terms) {
+          // Already accepted — show welcome
+          const { data: supportSetting } = await db().from("shop_settings").select("value").eq("key", "support_username").maybeSingle();
+          const support = supportSetting?.value || "paveldurov";
 
-        await db().from("user_profiles").upsert({
-          telegram_id: tgId, first_name: message.from.first_name || "",
-          last_name: message.from.last_name || null, username: message.from.username || null,
-          is_premium: message.from.is_premium || false, language_code: message.from.language_code || null,
-          ...(photoUrl ? { photo_url: photoUrl } : {}),
-          accepted_terms: true,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "telegram_id" });
+          // Upsert profile + fetch avatar
+          let photoUrl: string | null = null;
+          try {
+            const photosRes = await fetch(`https://api.telegram.org/bot${botToken}/getUserProfilePhotos`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ user_id: tgId, limit: 1 }),
+            }).then(r => r.json());
+            if (photosRes.ok && photosRes.result?.total_count > 0) {
+              const fileId = photosRes.result.photos[0][0].file_id;
+              const fileData = await fetch(`https://api.telegram.org/bot${botToken}/getFile`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ file_id: fileId }),
+              }).then(r => r.json());
+              if (fileData.ok) {
+                photoUrl = `https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`;
+              }
+            }
+          } catch (e) { console.error("Photo fetch error:", e); }
+
+          await db().from("user_profiles").upsert({
+            telegram_id: tgId, first_name: message.from.first_name || "",
+            last_name: message.from.last_name || null, username: message.from.username || null,
+            is_premium: message.from.is_premium || false, language_code: message.from.language_code || null,
+            ...(photoUrl ? { photo_url: photoUrl } : {}),
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "telegram_id" });
+
+          await tg.send(chatId,
+            `👋 С возвращением, ${firstName}!\n\n🛍 Аккаунты, ключи ПО и подписки\n⚡ Мгновенная доставка\n₿ Оплата через CryptoBot\n🛡 Гарантия и поддержка\n\nНажмите кнопку ниже 👇`,
+            { inline_keyboard: [
+              [{ text: "🛒 Открыть магазин", web_app: { url: webAppUrl } }],
+              [{ text: "📋 Каталог", web_app: { url: `${webAppUrl}/catalog` } }, { text: "👤 Профиль", web_app: { url: `${webAppUrl}/account` } }],
+              [{ text: "💬 Поддержка", url: `https://t.me/${support}` }],
+            ] }
+          );
+          return json({ ok: true });
+        }
       }
+
+      // First time — show terms acceptance
+      await tg.send(chatId,
+        `👋 Привет, ${firstName}!\n\nДобро пожаловать в наш магазин цифровых товаров!\n\nПеред началом использования, пожалуйста, ознакомьтесь с нашими документами:\n\n📄 <a href="${webAppUrl}/terms">Публичная оферта</a>\n🔒 <a href="${webAppUrl}/privacy">Политика конфиденциальности</a>\n\nНажмите кнопку ниже, чтобы принять условия и начать пользоваться сервисом.`,
+        ikb([[btn("✅ Принимаю условия", "terms:accept")]])
+      );
       return json({ ok: true });
     }
 
