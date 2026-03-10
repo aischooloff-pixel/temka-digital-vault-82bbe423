@@ -31,11 +31,15 @@ const Index = () => {
   const featuredProducts = products?.filter(p => p.is_featured || p.is_popular).slice(0, 6) || [];
   const newProducts = products?.filter(p => p.is_new).slice(0, 6) || [];
 
+  // Check if current user already left a review
+  const userHasReview = reviews?.some(r => r.telegram_id === user?.id) ||
+    false;
+
   const handleSubmitReview = async () => {
     if (!reviewText.trim() || !user?.id) return;
     setReviewSubmitting(true);
     try {
-      const { error } = await supabase.functions.invoke('submit-review', {
+      const res = await supabase.functions.invoke('submit-review', {
         body: {
           telegramId: user.id,
           rating: reviewRating,
@@ -43,13 +47,18 @@ const Index = () => {
           author: `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}`,
         },
       });
-      if (error) throw error;
+      if (res.data?.error) {
+        setReviewError(res.data.error);
+        return;
+      }
+      if (res.error) throw res.error;
       setReviewSuccess(true);
       setReviewText('');
       setShowReviewForm(false);
       setTimeout(() => setReviewSuccess(false), 5000);
-    } catch (e) {
+    } catch (e: any) {
       console.error('Review submit error:', e);
+      setReviewError(e.message || 'Ошибка отправки');
     } finally {
       setReviewSubmitting(false);
     }
