@@ -144,7 +144,7 @@ const Checkout = () => {
           </div>
           {toPay > 0 ? (
             <div className="p-3 rounded-xl border border-primary bg-primary/5 text-center">
-              <div className="text-2xl mb-1">₿</div>
+              <img src={cryptobotLogo} alt="CryptoBot" className="w-8 h-8 rounded-lg mx-auto mb-1" />
               <div className="text-sm font-medium text-primary">CryptoBot</div>
               <div className="text-[10px] text-muted-foreground mt-0.5">
                 {balanceUsed > 0

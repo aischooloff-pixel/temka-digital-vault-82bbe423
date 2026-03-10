@@ -397,6 +397,7 @@ const Account = () => {
               )}
             </Button>
             <p className="text-[10px] text-muted-foreground text-center">
+              <img src={cryptobotLogo} alt="CryptoBot" className="w-4 h-4 rounded-sm inline-block mr-1 align-middle" />
               Оплата через CryptoBot · Криптовалюта
             </p>
           </div>
