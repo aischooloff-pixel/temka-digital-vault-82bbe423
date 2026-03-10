@@ -48,7 +48,7 @@ const statusColor = (status: DbOrder['status']) => {
 const PREVIEW_COUNT = 5;
 
 const Account = () => {
-  const { user, isInTelegram, openInvoice, haptic } = useTelegram();
+  const { user, isInTelegram, openTelegramLink, haptic } = useTelegram();
   const { data: orders, isLoading: ordersLoading } = useOrders();
   const { data: balanceHistory, isLoading: balanceLoading } = useBalanceHistory();
   const { data: stats, isLoading: statsLoading } = useUserStats();
