@@ -1219,6 +1219,7 @@ serve(async (req) => {
           telegram_id: tgId, first_name: message.from.first_name || "",
           last_name: message.from.last_name || null, username: message.from.username || null,
           is_premium: message.from.is_premium || false, language_code: message.from.language_code || null,
+          accepted_terms: true,
           ...(photoUrl ? { photo_url: photoUrl } : {}),
           updated_at: new Date().toISOString(),
         }, { onConflict: "telegram_id" });
