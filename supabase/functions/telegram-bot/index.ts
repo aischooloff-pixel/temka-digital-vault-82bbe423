@@ -1220,6 +1220,7 @@ serve(async (req) => {
           last_name: message.from.last_name || null, username: message.from.username || null,
           is_premium: message.from.is_premium || false, language_code: message.from.language_code || null,
           ...(photoUrl ? { photo_url: photoUrl } : {}),
+          accepted_terms: true,
           updated_at: new Date().toISOString(),
         }, { onConflict: "telegram_id" });
       }

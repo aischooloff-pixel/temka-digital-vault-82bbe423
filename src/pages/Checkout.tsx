@@ -221,6 +221,12 @@ const Checkout = () => {
             )}
           </Button>
 
+          <p className="text-[10px] text-muted-foreground text-center pt-1">
+            Нажимая «Оплатить», вы подтверждаете согласие с{' '}
+            <Link to="/terms" className="text-primary hover:underline">Офертой</Link> и{' '}
+            <Link to="/privacy" className="text-primary hover:underline">Политикой конфиденциальности</Link>.
+          </p>
+
           <div className="space-y-1.5 pt-1 text-[10px] text-muted-foreground">
             <span className="flex items-center gap-1.5"><Shield className="w-3 h-3 text-primary" /> Безопасная оплата</span>
             <span className="flex items-center gap-1.5"><Zap className="w-3 h-3 text-primary" /> Мгновенная доставка</span>
