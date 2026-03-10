@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.create-topup-invoice]
 verify_jwt = false
+
+[functions.check-payment]
+verify_jwt = false
