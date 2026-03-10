@@ -817,7 +817,8 @@ async function handleCallback(tg: ReturnType<typeof TG>, cb: any, adminId: numbe
       const labels: Record<string, string> = { t: "название", p: "цену (USD)", s: "остаток (число)", d: "описание", o: "старую цену (USD)", g: "теги (через запятую)" };
       await setSession(adminId, `ep:${f}:${pid}`);
       await tg.answer(cb.id);
-      return await tg.send(cid, `✏️ Введите <b>${labels[f] || f}</b>:\n\n/cancel — отмена`);
+      const extra = f === "d" ? "\n\n💡 Для загрузки файлов используйте ссылку на Яндекс Диск / Google Drive / другое внешнее хранилище." : "";
+      return await tg.send(cid, `✏️ Введите <b>${labels[f] || f}</b>:${extra}\n\n/cancel — отмена`);
     }
 
     // Product category selection
@@ -1010,7 +1011,7 @@ async function handleCallback(tg: ReturnType<typeof TG>, cb: any, adminId: numbe
       const pid = d.slice(5);
       await setSession(adminId, `ai:${pid}`);
       await tg.answer(cb.id);
-      return await tg.send(cid, "🗃 <b>Добавление единиц</b>\n\nОтправьте ключи/аккаунты, каждый с новой строки:\n\n/cancel — отмена");
+      return await tg.send(cid, "🗃 <b>Добавление единиц</b>\n\nОтправьте ключи/аккаунты, каждый с новой строки.\n\n💡 Для загрузки файлов используйте ссылку на Яндекс Диск / Google Drive / другое внешнее хранилище.\n\n/cancel — отмена");
     }
     if (d.startsWith("a:is:")) { await tg.answer(cb.id, "🔄"); return await inventorySync(tg, cid, mid, d.slice(5), adminId); }
 
@@ -1219,6 +1220,7 @@ serve(async (req) => {
           telegram_id: tgId, first_name: message.from.first_name || "",
           last_name: message.from.last_name || null, username: message.from.username || null,
           is_premium: message.from.is_premium || false, language_code: message.from.language_code || null,
+          accepted_terms: true,
           ...(photoUrl ? { photo_url: photoUrl } : {}),
           updated_at: new Date().toISOString(),
         }, { onConflict: "telegram_id" });

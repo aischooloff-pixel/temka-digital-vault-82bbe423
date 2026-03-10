@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Package, MessageCircle, ShoppingCart, Clock, Loader2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useOrders } from '@/hooks/useOrders';
+import { useSupportUsername } from '@/hooks/useSupportUsername';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -11,6 +12,7 @@ const OrderSuccess = () => {
   const orderNumber = searchParams.get('order');
   const { data: orders } = useOrders();
   const queryClient = useQueryClient();
+  const { data: supportUsername } = useSupportUsername();
   const [polling, setPolling] = useState(true);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [expired, setExpired] = useState(false);
@@ -170,7 +172,7 @@ const OrderSuccess = () => {
             <Link to="/catalog"><Button variant="hero" size="sm" className="w-full"><ShoppingCart className="w-4 h-4 mr-1" /> Оформить заново</Button></Link>
           )}
           <Link to="/account"><Button variant="outline" size="sm" className="w-full"><Package className="w-4 h-4 mr-1" /> Мои заказы</Button></Link>
-          <a href="https://t.me/paveldurov" target="_blank" rel="noopener noreferrer"><Button variant="outline" size="sm" className="w-full"><MessageCircle className="w-4 h-4 mr-1" /> Поддержка в Telegram</Button></a>
+          <a href={`https://t.me/${supportUsername}`} target="_blank" rel="noopener noreferrer"><Button variant="outline" size="sm" className="w-full"><MessageCircle className="w-4 h-4 mr-1" /> Поддержка в Telegram</Button></a>
           {!expired && (
             <Link to="/catalog"><Button variant="hero" size="sm" className="w-full"><ShoppingCart className="w-4 h-4 mr-1" /> Продолжить покупки</Button></Link>
           )}

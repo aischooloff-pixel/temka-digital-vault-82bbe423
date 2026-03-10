@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { useTelegram } from '@/contexts/TelegramContext';
 import { useOrders, useUserStats, useUserProfile, useBalanceHistory } from '@/hooks/useOrders';
+import { useSupportUsername } from '@/hooks/useSupportUsername';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ORDER_STATUS_LABELS } from '@/types/database';
@@ -55,6 +56,7 @@ const Account = () => {
   const { data: stats, isLoading: statsLoading } = useUserStats();
   const { data: profile, isLoading: profileLoading } = useUserProfile();
   const queryClient = useQueryClient();
+  const { data: supportUsername } = useSupportUsername();
 
   const [showAll, setShowAll] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<DbOrder | null>(null);
@@ -297,7 +299,7 @@ const Account = () => {
       </div>
 
       {/* Support */}
-      <a href="https://t.me/paveldurov" target="_blank" rel="noopener noreferrer" className="mt-4 block">
+      <a href={`https://t.me/${supportUsername}`} target="_blank" rel="noopener noreferrer" className="mt-4 block">
         <div className="bg-card border border-border/50 rounded-xl p-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <MessageCircle className="w-4 h-4 text-primary" />
