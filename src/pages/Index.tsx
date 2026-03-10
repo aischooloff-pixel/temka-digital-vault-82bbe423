@@ -250,9 +250,14 @@ const Index = () => {
         <div className="container-main mx-auto max-w-lg">
           <div className="flex items-center justify-between mb-5">
             <h2 className="font-display text-xl font-bold">Отзывы</h2>
-            {user && (
+            {user && !userHasReview && (
               <Button variant="outline" size="sm" onClick={() => setShowReviewForm(!showReviewForm)}>
                 ✍️ Оставить отзыв
+              </Button>
+            )}
+            {user && userHasReview && (
+              <Button variant="ghost" size="sm" onClick={handleDeleteReview} disabled={deletingReview} className="text-destructive hover:text-destructive">
+                <Trash2 className="w-3 h-3 mr-1" /> {deletingReview ? '...' : 'Удалить отзыв'}
               </Button>
             )}
           </div>
