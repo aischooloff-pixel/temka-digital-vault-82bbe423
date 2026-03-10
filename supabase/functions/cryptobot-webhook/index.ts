@@ -25,11 +25,8 @@ serve(async (req) => {
     const body = await req.text();
     const signature = req.headers.get("crypto-pay-api-signature");
 
-    // Verify webhook signature
     const secret = createHmac("sha256", "WebAppData").update(cryptobotToken).digest();
-    const expectedSignature = createHmac("sha256", secret)
-      .update(body)
-      .digest("hex");
+    const expectedSignature = createHmac("sha256", secret).update(body).digest("hex");
 
     if (signature !== expectedSignature) {
       console.error("Invalid webhook signature");
@@ -55,11 +52,12 @@ serve(async (req) => {
         amount: invoice.amount,
         orderId: orderData.orderId,
         telegramUserId: orderData.telegramUserId,
+        balanceUsed: orderData.balanceUsed,
       });
 
-      // Update order status
       if (orderData.orderId) {
-        const { error: updateError } = await supabase
+        // Update order status
+        await supabase
           .from("orders")
           .update({
             status: "paid",
@@ -68,10 +66,31 @@ serve(async (req) => {
           })
           .eq("id", orderData.orderId);
 
-        if (updateError) {
-          console.error("Failed to update order:", updateError);
-        } else {
-          console.log("Order updated to paid:", orderData.orderId);
+        // Deduct balance if balanceUsed > 0
+        const balanceUsed = Number(orderData.balanceUsed || 0);
+        if (balanceUsed > 0 && orderData.telegramUserId) {
+          const { data: profile } = await supabase
+            .from("user_profiles")
+            .select("balance")
+            .eq("telegram_id", orderData.telegramUserId)
+            .single();
+
+          if (profile) {
+            const newBalance = Math.max(0, Number(profile.balance) - balanceUsed);
+            await supabase
+              .from("user_profiles")
+              .update({ balance: newBalance, updated_at: new Date().toISOString() })
+              .eq("telegram_id", orderData.telegramUserId);
+
+            await supabase.from("balance_history").insert({
+              telegram_id: orderData.telegramUserId,
+              amount: -balanceUsed,
+              balance_after: newBalance,
+              type: "purchase",
+              comment: `Заказ ${orderData.orderNumber || orderData.orderId}`,
+              admin_telegram_id: orderData.telegramUserId,
+            });
+          }
         }
 
         // Auto-deliver inventory items
@@ -85,7 +104,6 @@ serve(async (req) => {
 
         if (orderItems) {
           for (const item of orderItems) {
-            // Get available inventory items for this product
             const { data: invItems } = await supabase
               .from("inventory_items")
               .select("id, content")
@@ -97,7 +115,6 @@ serve(async (req) => {
               const deliveredCount = Math.min(invItems.length, item.quantity);
               const ids = invItems.slice(0, deliveredCount).map(i => i.id);
 
-              // Mark as sold
               await supabase
                 .from("inventory_items")
                 .update({
@@ -107,13 +124,11 @@ serve(async (req) => {
                 })
                 .in("id", ids);
 
-              // Collect content for delivery
               deliveredContent.push(
                 `📦 <b>${item.product_title}</b> (×${deliveredCount}):\n` +
                 invItems.slice(0, deliveredCount).map(i => `<code>${i.content}</code>`).join("\n")
               );
 
-              // Update stock
               const { count: remaining } = await supabase
                 .from("inventory_items")
                 .select("id", { count: "exact", head: true })
@@ -132,7 +147,6 @@ serve(async (req) => {
           }
         }
 
-        // Update order status based on delivery
         const finalStatus = allDelivered && deliveredContent.length > 0 ? "delivered" : "paid";
         if (finalStatus !== "paid") {
           await supabase
@@ -141,10 +155,14 @@ serve(async (req) => {
             .eq("id", orderData.orderId);
         }
 
-        // Send confirmation + delivered content via Telegram Bot
+        // Send confirmation via Telegram Bot
         const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
         if (botToken && orderData.telegramUserId) {
           let message = `✅ <b>Оплата подтверждена!</b>\n\n📦 Заказ: <code>${orderData.orderNumber || orderData.orderId}</code>\n💰 Сумма: ${invoice.amount} ${invoice.fiat || 'USD'}\n`;
+
+          if (balanceUsed > 0) {
+            message += `💳 С баланса: $${balanceUsed.toFixed(2)}\n`;
+          }
 
           if (deliveredContent.length > 0) {
             message += `\n🎁 <b>Ваши товары:</b>\n\n${deliveredContent.join("\n\n")}\n\n⚠️ Сохраните данные! Сообщение может быть удалено.`;
