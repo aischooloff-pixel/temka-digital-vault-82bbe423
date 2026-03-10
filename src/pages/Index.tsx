@@ -33,6 +33,8 @@ const Index = () => {
   const [reviewSuccess, setReviewSuccess] = useState(false);
   const [reviewError, setReviewError] = useState('');
   const [deletingReview, setDeletingReview] = useState(false);
+  const [showAllReviews, setShowAllReviews] = useState(false);
+  const [reviewFilter, setReviewFilter] = useState<'all' | 'positive' | 'negative'>('all');
 
   const featuredProducts = products?.filter(p => p.is_featured || p.is_popular).slice(0, 6) || [];
   const newProducts = products?.filter(p => p.is_new).slice(0, 6) || [];
