@@ -58,7 +58,21 @@ export const useOrderItems = (orderId: string) => {
   });
 };
 
-export const useUserStats = () => {
+export const useOrderInventoryItems = (orderId: string) => {
+  return useQuery({
+    queryKey: ['order-inventory', orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('inventory_items')
+        .select('*')
+        .eq('order_id', orderId);
+      if (error) throw error;
+      return data as unknown as DbInventoryItem[];
+    },
+    enabled: !!orderId,
+  });
+};
+
   const { user } = useTelegram();
 
   return useQuery({
