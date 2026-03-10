@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Zap, Shield, ChevronRight, ArrowRight, CheckCircle2, Package, Clock, Star, Send } from 'lucide-react';
+import { Zap, Shield, ChevronRight, ArrowRight, CheckCircle2, Package, Clock, Star, Send, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ProductCard from '@/components/ProductCard';
 import ProductCardSkeleton from '@/components/ProductCardSkeleton';
