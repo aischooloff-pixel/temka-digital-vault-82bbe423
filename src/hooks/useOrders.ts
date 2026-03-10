@@ -73,6 +73,7 @@ export const useOrderInventoryItems = (orderId: string) => {
   });
 };
 
+export const useUserStats = () => {
   const { user } = useTelegram();
 
   return useQuery({
