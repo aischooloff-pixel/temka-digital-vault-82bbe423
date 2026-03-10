@@ -70,7 +70,7 @@ serve(async (req) => {
       rating: Math.min(5, Math.max(1, rating)),
       text: text.slice(0, 1000),
       author: displayName,
-      avatar: profile?.photo_url || "",
+      avatar: photoUrl || profile?.photo_url || "",
       product_id: productId,
       verified: false,
       moderation_status: "pending",
