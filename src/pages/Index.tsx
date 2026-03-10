@@ -22,6 +22,7 @@ const Index = () => {
   const { data: stats } = useProductStats();
   const { data: reviews, isLoading: reviewsLoading } = useReviews();
   const { user } = useTelegram();
+  const queryClient = useQueryClient();
 
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [reviewRating, setReviewRating] = useState(5);
@@ -29,6 +30,7 @@ const Index = () => {
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewSuccess, setReviewSuccess] = useState(false);
   const [reviewError, setReviewError] = useState('');
+  const [deletingReview, setDeletingReview] = useState(false);
 
   const featuredProducts = products?.filter(p => p.is_featured || p.is_popular).slice(0, 6) || [];
   const newProducts = products?.filter(p => p.is_new).slice(0, 6) || [];
@@ -37,15 +39,32 @@ const Index = () => {
   const { data: userReviewCheck } = useQuery({
     queryKey: ['user-review-check', user?.id],
     queryFn: async () => {
-      const { count } = await supabase
+      const { data } = await supabase
         .from('reviews')
-        .select('id', { count: 'exact', head: true })
-        .eq('telegram_id', user!.id);
-      return (count || 0) > 0;
+        .select('id')
+        .eq('telegram_id', user!.id)
+        .limit(1);
+      return data && data.length > 0 ? (data[0] as any).id : null;
     },
     enabled: !!user?.id,
   });
-  const userHasReview = userReviewCheck || false;
+  const userHasReview = !!userReviewCheck;
+  const userReviewId = userReviewCheck as string | null;
+
+  const handleDeleteReview = async () => {
+    if (!userReviewId) return;
+    setDeletingReview(true);
+    try {
+      const { error } = await supabase.from('reviews').delete().eq('id', userReviewId);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['user-review-check'] });
+      queryClient.invalidateQueries({ queryKey: ['reviews'] });
+    } catch (e: any) {
+      console.error('Delete review error:', e);
+    } finally {
+      setDeletingReview(false);
+    }
+  };
 
   const handleSubmitReview = async () => {
     if (!reviewText.trim() || !user?.id) return;
