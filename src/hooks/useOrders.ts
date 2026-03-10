@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTelegram } from '@/contexts/TelegramContext';
-import type { DbOrder, DbOrderItem, DbBalanceHistory } from '@/types/database';
+import type { DbOrder, DbOrderItem, DbBalanceHistory, DbInventoryItem } from '@/types/database';
 
 export const useOrders = () => {
   const { user } = useTelegram();
