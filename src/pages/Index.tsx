@@ -32,9 +32,19 @@ const Index = () => {
   const featuredProducts = products?.filter(p => p.is_featured || p.is_popular).slice(0, 6) || [];
   const newProducts = products?.filter(p => p.is_new).slice(0, 6) || [];
 
-  // Check if current user already left a review
-  const userHasReview = reviews?.some(r => r.telegram_id === user?.id) ||
-    false;
+  // Check if current user already left a review (any status)
+  const { data: userReviewCheck } = useQuery({
+    queryKey: ['user-review-check', user?.id],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from('reviews')
+        .select('id', { count: 'exact', head: true })
+        .eq('telegram_id', user!.id);
+      return (count || 0) > 0;
+    },
+    enabled: !!user?.id,
+  });
+  const userHasReview = userReviewCheck || false;
 
   const handleSubmitReview = async () => {
     if (!reviewText.trim() || !user?.id) return;
