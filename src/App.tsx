@@ -19,7 +19,7 @@ import Account from "./pages/Account";
 
 import FAQ from "./pages/FAQ";
 import About from "./pages/About";
-import { Terms, Privacy, Refund, PersonalData, Consent, ServiceRules, Disclaimer } from "./pages/Legal";
+import Legal from "./pages/Legal";
 import { Delivery, Guarantees } from "./pages/InfoPages";
 import NotFound from "./pages/NotFound";
 
