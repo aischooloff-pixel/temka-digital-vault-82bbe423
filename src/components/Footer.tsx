@@ -18,12 +18,7 @@ const Footer = () => {
           <div>
             <h4 className="font-display font-semibold text-xs mb-2">Документы</h4>
             <ul className="space-y-1">
-              <li><Link to="/terms" className="text-xs text-muted-foreground hover:text-primary transition-colors">Оферта</Link></li>
-              <li><Link to="/privacy" className="text-xs text-muted-foreground hover:text-primary transition-colors">Конфиденциальность</Link></li>
-              <li><Link to="/refund" className="text-xs text-muted-foreground hover:text-primary transition-colors">Покупка и возврат</Link></li>
-              <li><Link to="/personal-data" className="text-xs text-muted-foreground hover:text-primary transition-colors">Перс. данные</Link></li>
-              <li><Link to="/service-rules" className="text-xs text-muted-foreground hover:text-primary transition-colors">Правила сервиса</Link></li>
-              <li><Link to="/disclaimer" className="text-xs text-muted-foreground hover:text-primary transition-colors">Disclaimer</Link></li>
+              <li><Link to="/terms" className="text-xs text-muted-foreground hover:text-primary transition-colors">Условия и отказ</Link></li>
             </ul>
           </div>
         </div>
