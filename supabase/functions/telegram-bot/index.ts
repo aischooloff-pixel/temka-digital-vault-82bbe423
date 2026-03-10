@@ -998,7 +998,72 @@ async function handleCallback(tg: ReturnType<typeof TG>, cb: any, adminId: numbe
 
     // Broadcast
     if (d === "a:bc") { await tg.answer(cb.id); return await broadcastMenu(tg, cid, mid); }
-    if (d === "a:bs") { await setSession(adminId, "bc:t"); await tg.answer(cb.id); return await tg.send(cid, "📢 Введите текст рассылки (HTML) или отправьте фото с подписью:\n\n/cancel — отмена"); }
+    if (d === "a:bs") { await setSession(adminId, "bc:t"); await tg.answer(cb.id); return await tg.send(cid, "📢 Введите текст рассылки (поддерживается HTML: &lt;b&gt;, &lt;i&gt;, &lt;u&gt;, &lt;a&gt;) или отправьте фото с подписью:\n\n/cancel — отмена"); }
+    if (d === "a:bcsend") {
+      const session = await getSession(adminId);
+      if (!session || session.state !== "bc:preview") { await tg.answer(cb.id, "⚠️ Сессия устарела"); return; }
+      const sData = session.data;
+      const { data: users } = await db().from("user_profiles").select("telegram_id").eq("is_blocked", false);
+      if (!users?.length) { await tg.answer(cb.id, "❌ Нет пользователей"); await clearSession(adminId); return; }
+      const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
+      let ok = 0, fail = 0;
+      for (const u of users) {
+        try {
+          let r;
+          if (sData.photoId) {
+            r = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ chat_id: u.telegram_id, photo: sData.photoId, caption: (sData.text as string) || "", parse_mode: "HTML" }),
+            }).then(r => r.json());
+          } else {
+            r = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ chat_id: u.telegram_id, text: sData.text as string, parse_mode: "HTML" }),
+            }).then(r => r.json());
+          }
+          if (r.ok) ok++; else fail++;
+        } catch { fail++; }
+      }
+      await logA(adminId, "broadcast", "broadcast", undefined, { ok, fail, total: users.length });
+      await clearSession(adminId);
+      await tg.answer(cb.id, "✅");
+      return await tg.send(cid, `📢 <b>Рассылка завершена!</b>\n\n✅ ${ok}\n❌ ${fail}\n📊 ${users.length}`, ikb([[btn("◀️ Меню", "a:m")]]));
+    }
+    if (d === "a:bcedit") { await setSession(adminId, "bc:t"); await tg.answer(cb.id); return await tg.send(cid, "✏️ Введите новый текст рассылки:\n\n/cancel — отмена"); }
+    if (d === "a:bccancel") { await clearSession(adminId); await tg.answer(cb.id); return await tg.send(cid, "❌ Рассылка отменена.", ikb([[btn("◀️ Меню", "a:m")]])); }
+
+    // Reviews moderation
+    if (d.startsWith("a:rvl:")) { await tg.answer(cb.id); return await reviewsList(tg, cid, mid, parseInt(d.slice(6))); }
+    if (d.startsWith("a:rva:")) {
+      const rid = d.slice(6);
+      await db().from("reviews").update({ verified: true, moderation_status: "approved" }).eq("id", rid);
+      await logA(adminId, "approve_review", "review", rid);
+      await tg.answer(cb.id, "✅"); return await reviewsList(tg, cid, mid, 0);
+    }
+    if (d.startsWith("a:rvr:")) {
+      const rid = d.slice(6);
+      await db().from("reviews").update({ moderation_status: "rejected" }).eq("id", rid);
+      await logA(adminId, "reject_review", "review", rid);
+      await tg.answer(cb.id, "❌"); return await reviewsList(tg, cid, mid, 0);
+    }
+    if (d.startsWith("a:rvv:")) {
+      const rid = d.slice(6);
+      const { data: r } = await db().from("reviews").select("*").eq("id", rid).single();
+      if (!r) { await tg.answer(cb.id); return; }
+      const t = `⭐ <b>Отзыв</b>\n\n👤 ${esc(r.author)}\n${"⭐".repeat(r.rating)}\n\n${esc(r.text)}\n\n📅 ${new Date(r.created_at).toLocaleDateString("ru-RU")}`;
+      await tg.answer(cb.id);
+      return await tg.edit(cid, mid, t, ikb([
+        [btn("✅ Одобрить", `a:rva:${rid}`), btn("❌ Отклонить", `a:rvr:${rid}`)],
+        [btn("🗑 Удалить", `a:rvd:${rid}`)],
+        [btn("◀️ К отзывам", "a:rvl:0")],
+      ]));
+    }
+    if (d.startsWith("a:rvd:")) {
+      const rid = d.slice(6);
+      await db().from("reviews").delete().eq("id", rid);
+      await logA(adminId, "delete_review", "review", rid);
+      await tg.answer(cb.id, "🗑"); return await reviewsList(tg, cid, mid, 0);
+    }
 
     await tg.answer(cb.id, "❓");
   } catch (e) {
