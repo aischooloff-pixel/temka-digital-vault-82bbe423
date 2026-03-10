@@ -48,7 +48,7 @@ const statusColor = (status: DbOrder['status']) => {
 const PREVIEW_COUNT = 5;
 
 const Account = () => {
-  const { user, isInTelegram, openInvoice, haptic } = useTelegram();
+  const { user, isInTelegram, openTelegramLink, haptic } = useTelegram();
   const { data: orders, isLoading: ordersLoading } = useOrders();
   const { data: balanceHistory, isLoading: balanceLoading } = useBalanceHistory();
   const { data: stats, isLoading: statsLoading } = useUserStats();
@@ -81,20 +81,11 @@ const Account = () => {
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
 
-      if (isInTelegram && data?.miniAppUrl) {
-        openInvoice(data.miniAppUrl, (status) => {
-          if (status === 'paid') {
-            haptic.notification('success');
-            toast.success('Баланс пополнен!');
-            queryClient.invalidateQueries({ queryKey: ['user-profile'] });
-            queryClient.invalidateQueries({ queryKey: ['balance-history'] });
-            setShowTopup(false);
-            setTopupAmount('');
-          } else if (status === 'failed') {
-            haptic.notification('error');
-            toast.error('Оплата не прошла');
-          }
-        });
+      if (isInTelegram && data?.payUrl) {
+        openTelegramLink(data.payUrl);
+        toast.info('Откройте CryptoBot для оплаты');
+        setShowTopup(false);
+        setTopupAmount('');
       } else if (data?.payUrl) {
         window.open(data.payUrl, '_blank');
         toast.info('Откройте ссылку для оплаты');
