@@ -47,6 +47,54 @@ serve(async (req) => {
       const invoice = data.payload;
       const orderData = JSON.parse(invoice.payload || "{}");
 
+      // Handle balance top-up
+      if (orderData.type === "topup") {
+        const topupAmount = Number(orderData.amount);
+        const telegramUserId = orderData.telegramUserId;
+
+        console.log("Top-up payment confirmed:", { telegramUserId, topupAmount });
+
+        const { data: profile } = await supabase
+          .from("user_profiles")
+          .select("balance")
+          .eq("telegram_id", telegramUserId)
+          .single();
+
+        const currentBalance = Number(profile?.balance || 0);
+        const newBalance = currentBalance + topupAmount;
+
+        await supabase
+          .from("user_profiles")
+          .update({ balance: newBalance, updated_at: new Date().toISOString() })
+          .eq("telegram_id", telegramUserId);
+
+        await supabase.from("balance_history").insert({
+          telegram_id: telegramUserId,
+          amount: topupAmount,
+          balance_after: newBalance,
+          type: "credit",
+          comment: `Пополнение через CryptoBot`,
+          admin_telegram_id: telegramUserId,
+        });
+
+        // Send TG notification
+        const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
+        if (botToken) {
+          const message = `✅ <b>Баланс пополнен!</b>\n\n💰 Сумма: $${topupAmount.toFixed(2)}\n💳 Новый баланс: $${newBalance.toFixed(2)}`;
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: telegramUserId, text: message, parse_mode: "HTML" }),
+          });
+        }
+
+        return new Response(
+          JSON.stringify({ ok: true }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Handle order payment (existing logic)
       console.log("Payment confirmed:", {
         invoiceId: invoice.invoice_id,
         amount: invoice.amount,
