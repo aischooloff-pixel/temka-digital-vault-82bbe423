@@ -1121,7 +1121,16 @@ serve(async (req) => {
       return json({ webhook: webhookUrl, result });
     }
 
-    const body = await req.json();
+    const rawBody = await req.text();
+    console.log("Incoming webhook, body length:", rawBody.length);
+    let body: any;
+    try {
+      body = JSON.parse(rawBody);
+    } catch (e) {
+      console.error("Failed to parse body:", rawBody.substring(0, 200));
+      return json({ error: "Invalid JSON" }, 400);
+    }
+    console.log("Update type:", body.message ? "message" : body.callback_query ? "callback" : "other", "from:", body.message?.from?.id || body.callback_query?.from?.id);
     const tg = TG(botToken);
 
     // Callback queries
