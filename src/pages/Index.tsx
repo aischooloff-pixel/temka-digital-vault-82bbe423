@@ -52,11 +52,14 @@ const Index = () => {
   const userReviewId = userReviewCheck as string | null;
 
   const handleDeleteReview = async () => {
-    if (!userReviewId) return;
+    if (!userReviewId || !user?.id) return;
     setDeletingReview(true);
     try {
-      const { error } = await supabase.from('reviews').delete().eq('id', userReviewId);
-      if (error) throw error;
+      const res = await supabase.functions.invoke('submit-review', {
+        body: { action: 'delete', telegramId: user.id, reviewId: userReviewId },
+      });
+      if (res.data?.error) throw new Error(res.data.error);
+      if (res.error) throw res.error;
       queryClient.invalidateQueries({ queryKey: ['user-review-check'] });
       queryClient.invalidateQueries({ queryKey: ['reviews'] });
     } catch (e: any) {
