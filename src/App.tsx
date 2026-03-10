@@ -48,13 +48,10 @@ const App = () => (
                   
                   <Route path="/faq" element={<FAQ />} />
                   <Route path="/about" element={<About />} />
-                  <Route path="/terms" element={<Terms />} />
-                  <Route path="/privacy" element={<Privacy />} />
-                  <Route path="/refund" element={<Refund />} />
-                  <Route path="/personal-data" element={<PersonalData />} />
-                  <Route path="/consent" element={<Consent />} />
-                  <Route path="/service-rules" element={<ServiceRules />} />
-                  <Route path="/disclaimer" element={<Disclaimer />} />
+                  <Route path="/terms" element={<Legal />} />
+                  <Route path="/privacy" element={<Legal />} />
+                  <Route path="/refund" element={<Legal />} />
+                  <Route path="/disclaimer" element={<Legal />} />
                   <Route path="/delivery" element={<Delivery />} />
                   <Route path="/guarantees" element={<Guarantees />} />
                   <Route path="*" element={<NotFound />} />

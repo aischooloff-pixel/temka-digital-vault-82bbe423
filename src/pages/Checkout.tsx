@@ -222,9 +222,8 @@ const Checkout = () => {
           </Button>
 
           <p className="text-[10px] text-muted-foreground text-center pt-1">
-            Нажимая «Оплатить», вы подтверждаете согласие с{' '}
-            <Link to="/terms" className="text-primary hover:underline">Офертой</Link> и{' '}
-            <Link to="/privacy" className="text-primary hover:underline">Политикой конфиденциальности</Link>.
+            Нажимая «Оплатить», вы соглашаетесь с{' '}
+            <Link to="/terms" className="text-primary hover:underline">условиями сервиса</Link>.
           </p>
 
           <div className="space-y-1.5 pt-1 text-[10px] text-muted-foreground">
