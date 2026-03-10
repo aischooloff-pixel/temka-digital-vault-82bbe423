@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.pay-with-balance]
 verify_jwt = false
+
+[functions.create-topup-invoice]
+verify_jwt = false
