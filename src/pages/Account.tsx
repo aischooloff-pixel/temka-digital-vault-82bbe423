@@ -240,6 +240,15 @@ const Account = () => {
               </div>
             )}
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs border-primary/30 text-primary hover:bg-primary/10"
+            onClick={() => setShowTopup(true)}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Пополнить
+          </Button>
         </div>
       </div>
 
