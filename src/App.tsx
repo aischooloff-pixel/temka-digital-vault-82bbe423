@@ -19,7 +19,7 @@ import Account from "./pages/Account";
 
 import FAQ from "./pages/FAQ";
 import About from "./pages/About";
-import { Terms, Privacy, Refund } from "./pages/Legal";
+import { Terms, Privacy, Refund, PersonalData, Consent, ServiceRules, Disclaimer } from "./pages/Legal";
 import { Delivery, Guarantees } from "./pages/InfoPages";
 import NotFound from "./pages/NotFound";
 
@@ -51,6 +51,10 @@ const App = () => (
                   <Route path="/terms" element={<Terms />} />
                   <Route path="/privacy" element={<Privacy />} />
                   <Route path="/refund" element={<Refund />} />
+                  <Route path="/personal-data" element={<PersonalData />} />
+                  <Route path="/consent" element={<Consent />} />
+                  <Route path="/service-rules" element={<ServiceRules />} />
+                  <Route path="/disclaimer" element={<Disclaimer />} />
                   <Route path="/delivery" element={<Delivery />} />
                   <Route path="/guarantees" element={<Guarantees />} />
                   <Route path="*" element={<NotFound />} />

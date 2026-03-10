@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useShopStats } from '@/hooks/useProducts';
 import { Skeleton } from '@/components/ui/skeleton';
+import cryptobotLogo from '@/assets/cryptobot-logo.jpeg';
 
 const About = () => {
   const { data: stats, isLoading } = useShopStats();
@@ -12,15 +13,15 @@ const About = () => {
       <div className="text-center mb-10 sm:mb-14">
         <h1 className="font-display text-3xl sm:text-4xl md:text-5xl font-bold">О TEMKA.STORE</h1>
         <p className="text-muted-foreground text-sm sm:text-base mt-4 max-w-2xl mx-auto leading-relaxed">
-          Премиум маркетплейс цифровых товаров с мгновенной доставкой, оплатой через CryptoBot и гарантией качества каждого товара.
+          Премиум маркетплейс цифровых товаров в Telegram. Мгновенная доставка, оплата криптовалютой через CryptoBot, гарантия качества на каждый товар.
         </p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-12 sm:mb-16">
         {[
-          { icon: Shield, title: 'Надёжная платформа', desc: 'Каждый товар проверяется перед размещением. Транзакции защищены через CryptoBot.' },
-          { icon: Zap, title: 'Мгновенная доставка', desc: 'Цифровые товары доставляются автоматически сразу после подтверждения оплаты.' },
-          { icon: Star, title: 'Гарантия качества', desc: 'Работаем только с проверенными поставщиками. Поддержка решает любые вопросы.' },
+          { icon: Shield, title: 'Надёжная платформа', desc: 'Все товары проверяются перед размещением. Платежи защищены через CryptoBot — проверенный платёжный сервис в Telegram.' },
+          { icon: Zap, title: 'Мгновенная доставка', desc: 'Цифровые товары доставляются автоматически сразу после подтверждения оплаты. Данные доступа — в личном кабинете.' },
+          { icon: Star, title: 'Гарантия и поддержка', desc: 'На каждый товар действует гарантия. Поддержка через Telegram решает вопросы оперативно.' },
         ].map((item, i) => (
           <div key={i} className="bg-card border border-border/50 rounded-2xl p-6 sm:p-8 text-center">
             <item.icon className="w-8 h-8 sm:w-10 sm:h-10 text-primary mx-auto mb-4" />
@@ -31,13 +32,27 @@ const About = () => {
       </div>
 
       <div className="max-w-3xl mx-auto space-y-6">
-        <h2 className="font-display text-2xl sm:text-3xl font-bold">Наша миссия</h2>
-        <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-          TEMKA.STORE создан, чтобы сделать премиум цифровые товары доступными. Мы находим, проверяем и доставляем цифровые продукты от надёжных поставщиков по всему миру.
-        </p>
-        <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-          Наша команда обеспечивает контроль качества, защиту покупателей и оперативную поддержку через Telegram.
-        </p>
+        <h2 className="font-display text-2xl sm:text-3xl font-bold">Как это работает</h2>
+        <div className="space-y-3">
+          {[
+            'Откройте TEMKA.STORE в Telegram как Mini App',
+            'Выберите товары в каталоге и добавьте в корзину',
+            'Примените промокод или используйте баланс для скидки',
+            'Оплатите через CryptoBot (криптовалюта) или с баланса',
+            'Получите данные доступа мгновенно в личном кабинете',
+          ].map((step, i) => (
+            <div key={i} className="flex items-start gap-3 p-3 bg-card border border-border/50 rounded-xl">
+              <span className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold shrink-0">{i + 1}</span>
+              <p className="text-sm text-muted-foreground">{step}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-center gap-3 py-4">
+          <span className="text-xs text-muted-foreground">Принимаем оплату через</span>
+          <img src={cryptobotLogo} alt="CryptoBot" className="w-6 h-6 rounded-md" />
+          <span className="text-xs font-medium">CryptoBot</span>
+        </div>
 
         {/* Dynamic stats from real DB */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-8">
