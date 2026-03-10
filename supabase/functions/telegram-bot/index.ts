@@ -487,8 +487,27 @@ async function inventorySync(tg: ReturnType<typeof TG>, cid: number, mid: number
 // ═══════════════════════════════════════════════
 async function broadcastMenu(tg: ReturnType<typeof TG>, cid: number, mid: number) {
   const { count } = await db().from("user_profiles").select("id", { count: "exact", head: true });
-  return tg.edit(cid, mid, `📢 <b>Рассылка</b>\n\n👥 Получателей: <b>${count || 0}</b>\n\nОтправьте текст или фото с подписью.`,
+  return tg.edit(cid, mid, `📢 <b>Рассылка</b>\n\n👥 Получателей: <b>${count || 0}</b>\n\nОтправьте текст (HTML) или фото с подписью.\nПеред отправкой будет показан предпросмотр.`,
     ikb([[btn("✍️ Написать", "a:bs")], [btn("◀️ Меню", "a:m")]]));
+}
+
+// ═══════════════════════════════════════════════
+// REVIEWS MODERATION
+// ═══════════════════════════════════════════════
+async function reviewsList(tg: ReturnType<typeof TG>, cid: number, mid: number, page: number) {
+  const { data: reviews } = await db().from("reviews").select("*").eq("moderation_status", "pending").order("created_at", { ascending: false });
+  if (!reviews?.length) return tg.edit(cid, mid, "⭐ <b>Отзывы на модерации</b>\n\nНет новых отзывов.", ikb([[btn("◀️ Меню", "a:m")]]));
+  const pg = paginate(reviews, page, 5);
+  let t = `⭐ <b>Отзывы на модерации</b> (${reviews.length})\n\n`;
+  pg.items.forEach(r => {
+    t += `👤 <b>${esc(r.author)}</b> | ${"⭐".repeat(r.rating)}\n${esc(r.text.slice(0, 80))}\n\n`;
+  });
+  const rows: Btn[][] = pg.items.map(r => [
+    btn(`✅`, `a:rva:${r.id}`), btn(`❌`, `a:rvr:${r.id}`), btn(`${r.author.slice(0, 15)}`, `a:rvv:${r.id}`)
+  ]);
+  if (pg.total > 1) rows.push(pgRow("a:rvl", pg.page, pg.total));
+  rows.push([btn("◀️ Меню", "a:m")]);
+  return tg.edit(cid, mid, t, ikb(rows));
 }
 
 // ═══════════════════════════════════════════════
