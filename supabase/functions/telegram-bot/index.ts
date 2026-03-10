@@ -1196,7 +1196,8 @@ serve(async (req) => {
       const { data: supportSetting } = await db().from("shop_settings").select("value").eq("key", "support_username").maybeSingle();
       const support = supportSetting?.value || "paveldurov";
 
-      await tg.send(chatId,
+      console.log("Sending /start message to", chatId, "webAppUrl:", webAppUrl);
+      const sendResult = await tg.send(chatId,
         `👋 Привет, ${firstName}!\n\nДобро пожаловать в наш магазин цифровых товаров!\n\n🛍 Аккаунты, ключи ПО и подписки\n⚡ Мгновенная доставка\n₿ Оплата через CryptoBot\n🛡 Гарантия и поддержка\n\nНажмите кнопку ниже 👇`,
         { inline_keyboard: [
           [{ text: "🛒 Открыть магазин", web_app: { url: webAppUrl } }],
@@ -1204,6 +1205,8 @@ serve(async (req) => {
           [{ text: "💬 Поддержка", url: `https://t.me/${support}` }],
         ] }
       );
+      const sendResultText = await sendResult.text();
+      console.log("Send result:", sendResult.status, sendResultText.substring(0, 300));
 
       // Upsert profile + fetch avatar
       if (tgId) {
