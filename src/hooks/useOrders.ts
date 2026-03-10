@@ -101,3 +101,22 @@ export const useUserProfile = () => {
     refetchOnMount: 'always',
   });
 };
+
+export const useBalanceHistory = () => {
+  const { user } = useTelegram();
+
+  return useQuery({
+    queryKey: ['balance-history', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from('balance_history')
+        .select('*')
+        .eq('telegram_id', user.id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as unknown as DbBalanceHistory[];
+    },
+    enabled: !!user?.id,
+  });
+};
