@@ -15,7 +15,7 @@ serve(async (req) => {
   }
 
   try {
-    const { amount, currency, description, orderNumber, telegramUserId, notes, items } = await req.json();
+    const { amount, currency, description, orderNumber, telegramUserId, items, discountAmount, promoCode, balanceUsed, totalOriginal } = await req.json();
     const cryptobotToken = Deno.env.get("CRYPTOBOT_API_TOKEN");
 
     if (!cryptobotToken) {
@@ -25,7 +25,6 @@ serve(async (req) => {
       );
     }
 
-    // Create Supabase client with service role
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -46,9 +45,11 @@ serve(async (req) => {
         telegram_id: telegramUserId || 0,
         status: "pending",
         payment_status: "unpaid",
-        total_amount: parseFloat(amount),
+        total_amount: totalOriginal || parseFloat(amount),
         currency: currency || "USD",
-        notes: notes || null,
+        discount_amount: discountAmount || 0,
+        promo_code: promoCode || null,
+        balance_used: balanceUsed || 0,
       })
       .select()
       .single();
@@ -77,7 +78,23 @@ serve(async (req) => {
       }
     }
 
-    // Create CryptoBot invoice
+    // Increment promo used_count
+    if (promoCode) {
+      const { data: promo } = await supabase
+        .from("promocodes")
+        .select("id, used_count")
+        .eq("code", promoCode)
+        .maybeSingle();
+      if (promo) {
+        await supabase
+          .from("promocodes")
+          .update({ used_count: (promo.used_count || 0) + 1 })
+          .eq("id", promo.id);
+      }
+    }
+
+    // Create CryptoBot invoice (amount is already the remaining after balance deduction)
+    const invoiceAmount = parseFloat(amount);
     const response = await fetch(`${CRYPTOBOT_API_URL}/createInvoice`, {
       method: "POST",
       headers: {
@@ -87,9 +104,9 @@ serve(async (req) => {
       body: JSON.stringify({
         currency_type: "fiat",
         fiat: currency || "USD",
-        amount: String(amount),
+        amount: String(invoiceAmount),
         description: description || "Заказ в магазине",
-        payload: JSON.stringify({ orderId: order.id, orderNumber, telegramUserId }),
+        payload: JSON.stringify({ orderId: order.id, orderNumber, telegramUserId, balanceUsed: balanceUsed || 0 }),
         paid_btn_name: "callback",
         paid_btn_url: `https://t.me/${Deno.env.get("BOT_USERNAME") || "temkastore_bot"}`,
       }),
@@ -98,7 +115,6 @@ serve(async (req) => {
     const data = await response.json();
 
     if (!data.ok) {
-      // Update order status to error
       await supabase.from("orders").update({ status: "error" }).eq("id", order.id);
       console.error("CryptoBot API error:", data);
       return new Response(

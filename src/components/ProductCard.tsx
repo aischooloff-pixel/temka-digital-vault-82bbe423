@@ -6,11 +6,7 @@ import { useStore } from '@/contexts/StoreContext';
 import { useTelegram } from '@/contexts/TelegramContext';
 
 const tagLabels: Record<string, string> = {
-  'hot': 'ХИТ',
-  'new': 'НОВИНКА',
-  'sale': 'СКИДКА',
-  'best-seller': 'БЕСТСЕЛЛЕР',
-  'instant': 'МГНОВЕННО',
+  'hot': 'ХИТ', 'new': 'НОВИНКА', 'sale': 'СКИДКА', 'best-seller': 'БЕСТСЕЛЛЕР', 'instant': 'МГНОВЕННО',
 };
 
 const tagColors: Record<string, string> = {
@@ -22,14 +18,8 @@ const tagColors: Record<string, string> = {
 };
 
 const categoryEmoji: Record<string, string> = {
-  'social-media': '📱',
-  'gaming': '🎮',
-  'streaming': '🎬',
-  'software': '🔑',
-  'premium': '👑',
-  'automation': '🤖',
-  'ai-tools': '🧠',
-  'services': '⚡',
+  'social-media': '📱', 'gaming': '🎮', 'streaming': '🎬', 'software': '🔑',
+  'premium': '👑', 'automation': '🤖', 'ai-tools': '🧠', 'services': '⚡',
 };
 
 const ProductCard = ({ product }: { product: DbProduct }) => {
@@ -41,7 +31,7 @@ const ProductCard = ({ product }: { product: DbProduct }) => {
   return (
     <div className={`group relative bg-card border border-border/50 rounded-xl overflow-hidden hover-lift hover:border-primary/30 transition-all duration-300 ${outOfStock ? 'opacity-60' : ''}`}>
       <Link to={`/product/${product.id}`} className="block">
-        <div className="relative h-36 sm:h-44 bg-secondary/50 flex items-center justify-center overflow-hidden">
+        <div className="relative h-40 sm:h-48 bg-secondary/50 flex items-center justify-center overflow-hidden">
           {product.image ? (
             <img src={product.image} alt={product.title} className="w-full h-full object-cover" />
           ) : (
@@ -75,7 +65,7 @@ const ProductCard = ({ product }: { product: DbProduct }) => {
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{product.platform}</span>
 
         <Link to={`/product/${product.id}`}>
-          <h3 className="font-display font-semibold text-xs sm:text-sm mt-1 line-clamp-1 group-hover:text-primary transition-colors">{product.title}</h3>
+          <h3 className="font-display font-semibold text-sm sm:text-base mt-1 line-clamp-1 group-hover:text-primary transition-colors">{product.title}</h3>
         </Link>
         <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 line-clamp-1">{product.subtitle}</p>
 
@@ -96,18 +86,18 @@ const ProductCard = ({ product }: { product: DbProduct }) => {
 
         <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/30">
           <div>
-            <span className="font-display font-bold text-base sm:text-lg">${Number(product.price).toFixed(2)}</span>
+            <span className="font-display font-bold text-lg sm:text-xl">${Number(product.price).toFixed(2)}</span>
             {product.old_price && (
               <span className="text-[10px] sm:text-xs text-muted-foreground line-through ml-1.5 sm:ml-2">${Number(product.old_price).toFixed(2)}</span>
             )}
           </div>
           <Button
             size="sm"
-            className="h-7 sm:h-8 text-xs"
+            className="h-8 sm:h-9 text-sm"
             disabled={outOfStock}
             onClick={() => { addToCart(product); haptic.impact('light'); }}
           >
-            <ShoppingCart className="w-3 h-3 mr-1" />
+            <ShoppingCart className="w-3.5 h-3.5 mr-1" />
             {outOfStock ? 'Нет' : 'В корзину'}
           </Button>
         </div>

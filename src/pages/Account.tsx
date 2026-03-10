@@ -1,21 +1,17 @@
-import { Package, CheckCircle2, Clock, MessageCircle, ChevronRight, AlertCircle, XCircle } from 'lucide-react';
+import { Package, CheckCircle2, Clock, MessageCircle, ChevronRight, AlertCircle, XCircle, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { useTelegram } from '@/contexts/TelegramContext';
-import { useOrders, useUserStats } from '@/hooks/useOrders';
+import { useOrders, useUserStats, useUserProfile } from '@/hooks/useOrders';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS } from '@/types/database';
+import { ORDER_STATUS_LABELS } from '@/types/database';
 import type { DbOrder } from '@/types/database';
 
 const statusIcon = (status: DbOrder['status']) => {
   switch (status) {
-    case 'completed':
-    case 'delivered':
-    case 'paid':
+    case 'completed': case 'delivered': case 'paid':
       return <CheckCircle2 className="w-3 h-3 text-primary" />;
-    case 'processing':
-    case 'awaiting_payment':
-    case 'pending':
+    case 'processing': case 'awaiting_payment': case 'pending':
       return <Clock className="w-3 h-3 text-warning" />;
     case 'cancelled':
       return <XCircle className="w-3 h-3 text-muted-foreground" />;
@@ -40,6 +36,7 @@ const Account = () => {
   const { user, isInTelegram } = useTelegram();
   const { data: orders, isLoading: ordersLoading } = useOrders();
   const { data: stats, isLoading: statsLoading } = useUserStats();
+  const { data: profile, isLoading: profileLoading } = useUserProfile();
 
   const displayName = user
     ? `${user.firstName}${user.lastName ? ` ${user.lastName}` : ''}`
@@ -60,6 +57,7 @@ const Account = () => {
           <div className="flex-1 min-w-0">
             <h2 className="font-display font-semibold text-base truncate">{displayName}</h2>
             {username && <p className="text-xs text-muted-foreground">{username}</p>}
+            {user?.id && <p className="text-[10px] text-muted-foreground/60">ID: {user.id}</p>}
           </div>
           {user?.isPremium && (
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-gold/30 bg-gold/10 text-gold">⭐ Premium</span>
@@ -69,6 +67,25 @@ const Account = () => {
           <p className="text-[10px] text-primary flex items-center gap-1">
             <CheckCircle2 className="w-3 h-3" /> {isInTelegram ? 'Аккаунт подключён через Telegram' : 'Откройте в Telegram для полного доступа'}
           </p>
+        </div>
+      </div>
+
+      {/* Balance */}
+      <div className="mt-4 bg-card border border-border/50 rounded-xl p-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+            <Wallet className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1">
+            <div className="text-xs text-muted-foreground">Баланс</div>
+            {profileLoading ? (
+              <Skeleton className="h-6 w-20 mt-0.5" />
+            ) : (
+              <div className="font-display font-bold text-xl text-primary">
+                ${Number(profile?.balance || 0).toFixed(2)}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

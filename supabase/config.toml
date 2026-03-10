@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.telegram-bot]
 verify_jwt = false
+
+[functions.submit-review]
+verify_jwt = false
+
+[functions.pay-with-balance]
+verify_jwt = false

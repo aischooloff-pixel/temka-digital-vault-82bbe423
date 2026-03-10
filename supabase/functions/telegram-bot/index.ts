@@ -97,6 +97,7 @@ const menuKb = () => ikb([
   [btn("📊 Статистика", "a:st"), btn("🎟 Промокоды", "a:prl:0")],
   [btn("🗃 Склад", "a:sk:0"), btn("📋 Логи", "a:lg:0")],
   [btn("⚙️ Настройки", "a:se"), btn("📢 Рассылка", "a:bc")],
+  [btn("⭐ Отзывы", "a:rvl:0")],
 ]);
 
 // ═══════════════════════════════════════════════
@@ -486,8 +487,27 @@ async function inventorySync(tg: ReturnType<typeof TG>, cid: number, mid: number
 // ═══════════════════════════════════════════════
 async function broadcastMenu(tg: ReturnType<typeof TG>, cid: number, mid: number) {
   const { count } = await db().from("user_profiles").select("id", { count: "exact", head: true });
-  return tg.edit(cid, mid, `📢 <b>Рассылка</b>\n\n👥 Получателей: <b>${count || 0}</b>\n\nОтправьте текст или фото с подписью.`,
+  return tg.edit(cid, mid, `📢 <b>Рассылка</b>\n\n👥 Получателей: <b>${count || 0}</b>\n\nОтправьте текст (HTML) или фото с подписью.\nПеред отправкой будет показан предпросмотр.`,
     ikb([[btn("✍️ Написать", "a:bs")], [btn("◀️ Меню", "a:m")]]));
+}
+
+// ═══════════════════════════════════════════════
+// REVIEWS MODERATION
+// ═══════════════════════════════════════════════
+async function reviewsList(tg: ReturnType<typeof TG>, cid: number, mid: number, page: number) {
+  const { data: reviews } = await db().from("reviews").select("*").eq("moderation_status", "pending").order("created_at", { ascending: false });
+  if (!reviews?.length) return tg.edit(cid, mid, "⭐ <b>Отзывы на модерации</b>\n\nНет новых отзывов.", ikb([[btn("◀️ Меню", "a:m")]]));
+  const pg = paginate(reviews, page, 5);
+  let t = `⭐ <b>Отзывы на модерации</b> (${reviews.length})\n\n`;
+  pg.items.forEach(r => {
+    t += `👤 <b>${esc(r.author)}</b> | ${"⭐".repeat(r.rating)}\n${esc(r.text.slice(0, 80))}\n\n`;
+  });
+  const rows: Btn[][] = pg.items.map(r => [
+    btn(`✅`, `a:rva:${r.id}`), btn(`❌`, `a:rvr:${r.id}`), btn(`${r.author.slice(0, 15)}`, `a:rvv:${r.id}`)
+  ]);
+  if (pg.total > 1) rows.push(pgRow("a:rvl", pg.page, pg.total));
+  rows.push([btn("◀️ Меню", "a:m")]);
+  return tg.edit(cid, mid, t, ikb(rows));
 }
 
 // ═══════════════════════════════════════════════
@@ -622,41 +642,18 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
       ikb([[btn("🗃 Склад товара", `a:iv:${pid}:0`)], [btn("◀️ Меню", "a:m")]]));
   }
 
-  // Broadcast
+  // Broadcast — save to session for preview
   if (state === "bc:t") {
-    const { data: users } = await d.from("user_profiles").select("telegram_id").eq("is_blocked", false);
-    if (!users?.length) { await tg.send(cid, "❌ Нет пользователей."); await clearSession(adminId); return; }
-    const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
-    let ok = 0, fail = 0;
-
+    await setSession(adminId, "bc:preview", { text: text || "", photoId: photo?.length ? photo[photo.length - 1].file_id : null });
+    const previewText = text || "(без текста)";
     if (photo?.length) {
-      // Media broadcast
-      const fileId = photo[photo.length - 1].file_id;
-      for (const u of users) {
-        try {
-          const r = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: u.telegram_id, photo: fileId, caption: text || "", parse_mode: "HTML" }),
-          }).then(r => r.json());
-          if (r.ok) ok++; else fail++;
-        } catch { fail++; }
-      }
+      await tg.sendPhoto(cid, photo[photo.length - 1].file_id, `📢 <b>Предпросмотр:</b>\n\n${previewText}`,
+        ikb([[btn("✅ Отправить", "a:bcsend"), btn("✏️ Редактировать", "a:bcedit"), btn("❌ Отмена", "a:bccancel")]]));
     } else {
-      // Text broadcast
-      for (const u of users) {
-        try {
-          const r = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: u.telegram_id, text, parse_mode: "HTML" }),
-          }).then(r => r.json());
-          if (r.ok) ok++; else fail++;
-        } catch { fail++; }
-      }
+      await tg.send(cid, `📢 <b>Предпросмотр:</b>\n\n${text}`,
+        ikb([[btn("✅ Отправить", "a:bcsend"), btn("✏️ Редактировать", "a:bcedit"), btn("❌ Отмена", "a:bccancel")]]));
     }
-    await logA(adminId, "broadcast", "broadcast", undefined, { ok, fail, total: users.length });
-    await clearSession(adminId);
-    return await tg.send(cid, `📢 <b>Рассылка завершена!</b>\n\n✅ ${ok}\n❌ ${fail}\n📊 ${users.length}`,
-      ikb([[btn("◀️ Меню", "a:m")]]));
+    return;
   }
 
   // Message to user
@@ -1001,7 +998,72 @@ async function handleCallback(tg: ReturnType<typeof TG>, cb: any, adminId: numbe
 
     // Broadcast
     if (d === "a:bc") { await tg.answer(cb.id); return await broadcastMenu(tg, cid, mid); }
-    if (d === "a:bs") { await setSession(adminId, "bc:t"); await tg.answer(cb.id); return await tg.send(cid, "📢 Введите текст рассылки (HTML) или отправьте фото с подписью:\n\n/cancel — отмена"); }
+    if (d === "a:bs") { await setSession(adminId, "bc:t"); await tg.answer(cb.id); return await tg.send(cid, "📢 Введите текст рассылки (поддерживается HTML: &lt;b&gt;, &lt;i&gt;, &lt;u&gt;, &lt;a&gt;) или отправьте фото с подписью:\n\n/cancel — отмена"); }
+    if (d === "a:bcsend") {
+      const session = await getSession(adminId);
+      if (!session || session.state !== "bc:preview") { await tg.answer(cb.id, "⚠️ Сессия устарела"); return; }
+      const sData = session.data;
+      const { data: users } = await db().from("user_profiles").select("telegram_id").eq("is_blocked", false);
+      if (!users?.length) { await tg.answer(cb.id, "❌ Нет пользователей"); await clearSession(adminId); return; }
+      const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
+      let ok = 0, fail = 0;
+      for (const u of users) {
+        try {
+          let r;
+          if (sData.photoId) {
+            r = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ chat_id: u.telegram_id, photo: sData.photoId, caption: (sData.text as string) || "", parse_mode: "HTML" }),
+            }).then(r => r.json());
+          } else {
+            r = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ chat_id: u.telegram_id, text: sData.text as string, parse_mode: "HTML" }),
+            }).then(r => r.json());
+          }
+          if (r.ok) ok++; else fail++;
+        } catch { fail++; }
+      }
+      await logA(adminId, "broadcast", "broadcast", undefined, { ok, fail, total: users.length });
+      await clearSession(adminId);
+      await tg.answer(cb.id, "✅");
+      return await tg.send(cid, `📢 <b>Рассылка завершена!</b>\n\n✅ ${ok}\n❌ ${fail}\n📊 ${users.length}`, ikb([[btn("◀️ Меню", "a:m")]]));
+    }
+    if (d === "a:bcedit") { await setSession(adminId, "bc:t"); await tg.answer(cb.id); return await tg.send(cid, "✏️ Введите новый текст рассылки:\n\n/cancel — отмена"); }
+    if (d === "a:bccancel") { await clearSession(adminId); await tg.answer(cb.id); return await tg.send(cid, "❌ Рассылка отменена.", ikb([[btn("◀️ Меню", "a:m")]])); }
+
+    // Reviews moderation
+    if (d.startsWith("a:rvl:")) { await tg.answer(cb.id); return await reviewsList(tg, cid, mid, parseInt(d.slice(6))); }
+    if (d.startsWith("a:rva:")) {
+      const rid = d.slice(6);
+      await db().from("reviews").update({ verified: true, moderation_status: "approved" }).eq("id", rid);
+      await logA(adminId, "approve_review", "review", rid);
+      await tg.answer(cb.id, "✅"); return await reviewsList(tg, cid, mid, 0);
+    }
+    if (d.startsWith("a:rvr:")) {
+      const rid = d.slice(6);
+      await db().from("reviews").update({ moderation_status: "rejected" }).eq("id", rid);
+      await logA(adminId, "reject_review", "review", rid);
+      await tg.answer(cb.id, "❌"); return await reviewsList(tg, cid, mid, 0);
+    }
+    if (d.startsWith("a:rvv:")) {
+      const rid = d.slice(6);
+      const { data: r } = await db().from("reviews").select("*").eq("id", rid).single();
+      if (!r) { await tg.answer(cb.id); return; }
+      const t = `⭐ <b>Отзыв</b>\n\n👤 ${esc(r.author)}\n${"⭐".repeat(r.rating)}\n\n${esc(r.text)}\n\n📅 ${new Date(r.created_at).toLocaleDateString("ru-RU")}`;
+      await tg.answer(cb.id);
+      return await tg.edit(cid, mid, t, ikb([
+        [btn("✅ Одобрить", `a:rva:${rid}`), btn("❌ Отклонить", `a:rvr:${rid}`)],
+        [btn("🗑 Удалить", `a:rvd:${rid}`)],
+        [btn("◀️ К отзывам", "a:rvl:0")],
+      ]));
+    }
+    if (d.startsWith("a:rvd:")) {
+      const rid = d.slice(6);
+      await db().from("reviews").delete().eq("id", rid);
+      await logA(adminId, "delete_review", "review", rid);
+      await tg.answer(cb.id, "🗑"); return await reviewsList(tg, cid, mid, 0);
+    }
 
     await tg.answer(cb.id, "❓");
   } catch (e) {
