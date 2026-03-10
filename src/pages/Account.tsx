@@ -1,24 +1,33 @@
-import { Package, CheckCircle2, Clock, MessageCircle, ChevronRight, AlertCircle, XCircle, Wallet } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Package, CheckCircle2, Clock, MessageCircle, ChevronRight, AlertCircle, XCircle, Wallet, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { useTelegram } from '@/contexts/TelegramContext';
-import { useOrders, useUserStats, useUserProfile } from '@/hooks/useOrders';
+import { useOrders, useUserStats, useUserProfile, useBalanceHistory } from '@/hooks/useOrders';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { ORDER_STATUS_LABELS } from '@/types/database';
-import type { DbOrder } from '@/types/database';
+import type { DbOrder, DbBalanceHistory } from '@/types/database';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '@/components/ui/drawer';
+import OrderDetailSheet from '@/components/OrderDetailSheet';
+import BalanceDetailSheet from '@/components/BalanceDetailSheet';
+
+type TimelineItem =
+  | { type: 'order'; data: DbOrder; date: string }
+  | { type: 'balance'; data: DbBalanceHistory; date: string };
 
 const statusIcon = (status: DbOrder['status']) => {
   switch (status) {
     case 'completed': case 'delivered': case 'paid':
-      return <CheckCircle2 className="w-3 h-3 text-primary" />;
+      return <CheckCircle2 className="w-3.5 h-3.5 text-primary" />;
     case 'processing': case 'awaiting_payment': case 'pending':
-      return <Clock className="w-3 h-3 text-warning" />;
+      return <Clock className="w-3.5 h-3.5 text-warning" />;
     case 'cancelled':
-      return <XCircle className="w-3 h-3 text-muted-foreground" />;
+      return <XCircle className="w-3.5 h-3.5 text-muted-foreground" />;
     case 'error':
-      return <AlertCircle className="w-3 h-3 text-destructive" />;
+      return <AlertCircle className="w-3.5 h-3.5 text-destructive" />;
     default:
-      return <Clock className="w-3 h-3" />;
+      return <Clock className="w-3.5 h-3.5" />;
   }
 };
 
@@ -32,17 +41,112 @@ const statusColor = (status: DbOrder['status']) => {
   }
 };
 
+const PREVIEW_COUNT = 5;
+
 const Account = () => {
   const { user, isInTelegram } = useTelegram();
   const { data: orders, isLoading: ordersLoading } = useOrders();
+  const { data: balanceHistory, isLoading: balanceLoading } = useBalanceHistory();
   const { data: stats, isLoading: statsLoading } = useUserStats();
   const { data: profile, isLoading: profileLoading } = useUserProfile();
+
+  const [showAll, setShowAll] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<DbOrder | null>(null);
+  const [selectedBalance, setSelectedBalance] = useState<DbBalanceHistory | null>(null);
 
   const displayName = user
     ? `${user.firstName}${user.lastName ? ` ${user.lastName}` : ''}`
     : 'Telegram User';
   const username = user?.username ? `@${user.username}` : '';
   const avatar = user?.firstName?.[0]?.toUpperCase() || 'T';
+
+  const timeline = useMemo<TimelineItem[]>(() => {
+    const items: TimelineItem[] = [];
+    if (orders) {
+      orders.forEach(o => items.push({ type: 'order', data: o, date: o.created_at }));
+    }
+    if (balanceHistory) {
+      balanceHistory.forEach(b => items.push({ type: 'balance', data: b, date: b.created_at }));
+    }
+    items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return items;
+  }, [orders, balanceHistory]);
+
+  const previewItems = timeline.slice(0, PREVIEW_COUNT);
+  const isLoading = ordersLoading || balanceLoading;
+  const hasMore = timeline.length > PREVIEW_COUNT;
+
+  const renderCard = (item: TimelineItem, onClick: () => void) => {
+    if (item.type === 'order') {
+      const order = item.data;
+      return (
+        <button
+          key={`o-${order.id}`}
+          onClick={onClick}
+          className="w-full bg-card border border-border/50 rounded-xl p-3 flex items-center justify-between gap-2 text-left hover:bg-secondary/30 transition-colors"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <Package className="w-4 h-4 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-medium truncate">Заказ {order.order_number}</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">
+                {new Date(order.created_at).toLocaleDateString('ru-RU')}
+              </div>
+            </div>
+          </div>
+          <div className="text-right shrink-0">
+            <div className="text-xs font-bold">${Number(order.total_amount).toFixed(2)}</div>
+            <div className={`text-[10px] flex items-center gap-1 mt-0.5 justify-end ${statusColor(order.status)}`}>
+              {statusIcon(order.status)}
+              {ORDER_STATUS_LABELS[order.status]}
+            </div>
+          </div>
+        </button>
+      );
+    }
+
+    const entry = item.data;
+    const isCredit = entry.type === 'credit';
+    const amount = Number(entry.amount);
+    return (
+      <button
+        key={`b-${entry.id}`}
+        onClick={onClick}
+        className="w-full bg-card border border-border/50 rounded-xl p-3 flex items-center justify-between gap-2 text-left hover:bg-secondary/30 transition-colors"
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isCredit ? 'bg-primary/10' : 'bg-destructive/10'}`}>
+            {isCredit ? (
+              <ArrowDownCircle className="w-4 h-4 text-primary" />
+            ) : (
+              <ArrowUpCircle className="w-4 h-4 text-destructive" />
+            )}
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs font-medium truncate">{isCredit ? 'Пополнение' : 'Списание'}</div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              {new Date(entry.created_at).toLocaleDateString('ru-RU')}
+            </div>
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <div className={`text-xs font-bold ${isCredit ? 'text-primary' : 'text-destructive'}`}>
+            {isCredit ? '+' : '−'}${Math.abs(amount).toFixed(2)}
+          </div>
+        </div>
+      </button>
+    );
+  };
+
+  const handleItemClick = (item: TimelineItem) => {
+    if (item.type === 'order') {
+      setSelectedOrder(item.data);
+    } else {
+      setSelectedBalance(item.data);
+    }
+  };
 
   return (
     <div className="container-main mx-auto px-4 py-4 sm:py-6">
@@ -112,40 +216,31 @@ const Account = () => {
         )}
       </div>
 
-      {/* Orders */}
+      {/* Timeline: Orders + Balance History */}
       <div className="mt-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-display font-semibold text-sm">Мои заказы</h3>
+          <h3 className="font-display font-semibold text-sm">История</h3>
+          {hasMore && (
+            <Button variant="ghost" size="sm" className="text-xs h-7 px-2 text-primary" onClick={() => setShowAll(true)}>
+              Все
+              <ChevronRight className="w-3 h-3 ml-0.5" />
+            </Button>
+          )}
         </div>
-        {ordersLoading ? (
+
+        {isLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
           </div>
-        ) : !orders || orders.length === 0 ? (
+        ) : timeline.length === 0 ? (
           <div className="text-center py-8">
             <Package className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">У вас пока нет заказов</p>
+            <p className="text-sm text-muted-foreground">Пока нет записей</p>
             <Link to="/catalog"><Button variant="outline" size="sm" className="mt-3">Перейти в каталог</Button></Link>
           </div>
         ) : (
           <div className="space-y-2">
-            {orders.map(order => (
-              <div key={order.id} className="bg-card border border-border/50 rounded-xl p-3 flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="text-xs font-medium truncate">Заказ {order.order_number}</div>
-                  <div className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                    {new Date(order.created_at).toLocaleDateString('ru-RU')}
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="text-xs font-bold">${Number(order.total_amount).toFixed(2)}</div>
-                  <div className={`text-[10px] flex items-center gap-1 mt-0.5 ${statusColor(order.status)}`}>
-                    {statusIcon(order.status)}
-                    {ORDER_STATUS_LABELS[order.status]}
-                  </div>
-                </div>
-              </div>
-            ))}
+            {previewItems.map(item => renderCard(item, () => handleItemClick(item)))}
           </div>
         )}
       </div>
@@ -160,6 +255,40 @@ const Account = () => {
           <ChevronRight className="w-4 h-4 text-muted-foreground" />
         </div>
       </a>
+
+      {/* "All" Drawer */}
+      <Drawer open={showAll} onOpenChange={setShowAll}>
+        <DrawerContent className="max-h-[85vh]">
+          <DrawerHeader className="pb-2">
+            <DrawerTitle className="text-base">Вся история</DrawerTitle>
+          </DrawerHeader>
+          <ScrollArea className="px-4 pb-4 max-h-[65vh]">
+            <div className="space-y-2">
+              {timeline.map(item => renderCard(item, () => {
+                setShowAll(false);
+                setTimeout(() => handleItemClick(item), 300);
+              }))}
+            </div>
+          </ScrollArea>
+          <div className="p-4 pt-2">
+            <DrawerClose asChild>
+              <Button variant="outline" size="sm" className="w-full">Закрыть</Button>
+            </DrawerClose>
+          </div>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Detail Drawers */}
+      <OrderDetailSheet
+        order={selectedOrder}
+        open={!!selectedOrder}
+        onOpenChange={open => { if (!open) setSelectedOrder(null); }}
+      />
+      <BalanceDetailSheet
+        entry={selectedBalance}
+        open={!!selectedBalance}
+        onOpenChange={open => { if (!open) setSelectedBalance(null); }}
+      />
     </div>
   );
 };

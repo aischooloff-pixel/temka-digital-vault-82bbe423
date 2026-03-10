@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTelegram } from '@/contexts/TelegramContext';
-import type { DbOrder, DbOrderItem } from '@/types/database';
+import type { DbOrder, DbOrderItem, DbBalanceHistory } from '@/types/database';
 
 export const useOrders = () => {
   const { user } = useTelegram();
@@ -99,5 +99,24 @@ export const useUserProfile = () => {
     enabled: !!user?.id,
     staleTime: 0,
     refetchOnMount: 'always',
+  });
+};
+
+export const useBalanceHistory = () => {
+  const { user } = useTelegram();
+
+  return useQuery({
+    queryKey: ['balance-history', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from('balance_history')
+        .select('*')
+        .eq('telegram_id', user.id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as unknown as DbBalanceHistory[];
+    },
+    enabled: !!user?.id,
   });
 };
