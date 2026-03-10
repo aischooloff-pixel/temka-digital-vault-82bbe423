@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTelegram } from '@/contexts/TelegramContext';
-import type { DbOrder, DbOrderItem, DbBalanceHistory } from '@/types/database';
+import type { DbOrder, DbOrderItem, DbBalanceHistory, DbInventoryItem } from '@/types/database';
 
 export const useOrders = () => {
   const { user } = useTelegram();
@@ -53,6 +53,21 @@ export const useOrderItems = (orderId: string) => {
         .eq('order_id', orderId);
       if (error) throw error;
       return data as unknown as DbOrderItem[];
+    },
+    enabled: !!orderId,
+  });
+};
+
+export const useOrderInventoryItems = (orderId: string) => {
+  return useQuery({
+    queryKey: ['order-inventory', orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('inventory_items')
+        .select('*')
+        .eq('order_id', orderId);
+      if (error) throw error;
+      return data as unknown as DbInventoryItem[];
     },
     enabled: !!orderId,
   });

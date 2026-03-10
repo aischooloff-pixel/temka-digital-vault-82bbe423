@@ -76,6 +76,16 @@ export interface DbOrderItem {
   created_at: string;
 }
 
+export interface DbInventoryItem {
+  id: string;
+  product_id: string;
+  order_id: string | null;
+  content: string;
+  status: string;
+  sold_at: string | null;
+  created_at: string;
+}
+
 export interface DbReview {
   id: string;
   product_id: string;
