@@ -265,9 +265,13 @@ const Index = () => {
               {reviews.slice(0, 5).map(review => (
                 <div key={review.id} className="bg-card border border-border/50 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="w-7 h-7 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">
-                      {review.author?.[0]?.toUpperCase() || '?'}
-                    </div>
+                    {review.avatar ? (
+                      <img src={review.avatar} alt={review.author} className="w-7 h-7 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">
+                        {review.author?.[0]?.toUpperCase() || '?'}
+                      </div>
+                    )}
                     <div className="flex-1">
                       <div className="text-sm font-medium">{review.author}</div>
                       <div className="flex gap-0.5">
