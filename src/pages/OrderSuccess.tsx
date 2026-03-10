@@ -12,6 +12,7 @@ const OrderSuccess = () => {
   const orderNumber = searchParams.get('order');
   const { data: orders } = useOrders();
   const queryClient = useQueryClient();
+  const { data: supportUsername } = useSupportUsername();
   const [polling, setPolling] = useState(true);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [expired, setExpired] = useState(false);

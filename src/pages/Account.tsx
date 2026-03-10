@@ -56,6 +56,7 @@ const Account = () => {
   const { data: stats, isLoading: statsLoading } = useUserStats();
   const { data: profile, isLoading: profileLoading } = useUserProfile();
   const queryClient = useQueryClient();
+  const { data: supportUsername } = useSupportUsername();
 
   const [showAll, setShowAll] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<DbOrder | null>(null);
