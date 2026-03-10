@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Zap, Shield, ChevronRight, ArrowRight, CheckCircle2, Package, Clock, Star, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
