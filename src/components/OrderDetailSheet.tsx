@@ -1,14 +1,15 @@
-import { Package, Copy, CheckCircle2, Clock, XCircle, AlertCircle } from 'lucide-react';
+import { Package, Copy, CheckCircle2, Clock, XCircle, AlertCircle, KeyRound } from 'lucide-react';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '@/components/ui/drawer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { useOrderItems } from '@/hooks/useOrders';
+import { useOrderItems, useOrderInventoryItems } from '@/hooks/useOrders';
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS } from '@/types/database';
 import type { DbOrder } from '@/types/database';
 import { toast } from 'sonner';
+import { useState } from 'react';
 
 interface Props {
   order: DbOrder | null;
