@@ -57,6 +57,7 @@ const Index = () => {
           rating: reviewRating,
           text: reviewText.trim(),
           author: `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}`,
+          photoUrl: user.photoUrl || '',
         },
       });
       if (res.data?.error) {

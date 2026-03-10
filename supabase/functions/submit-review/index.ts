@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { telegramId, rating, text, author } = await req.json();
+    const { telegramId, rating, text, author, photoUrl } = await req.json();
 
     if (!telegramId || !rating || !text) {
       return new Response(

@@ -782,7 +782,10 @@ async function handleCallback(tg: ReturnType<typeof TG>, cb: any, adminId: numbe
   const cid = cb.message.chat.id;
   const mid = cb.message.message_id;
   const d = cb.data as string;
-  await clearSession(adminId);
+  // Don't clear session for broadcast actions that need it
+  if (!["a:bcsend", "a:bcedit", "a:bccancel"].includes(d)) {
+    await clearSession(adminId);
+  }
 
   try {
     if (d === "a:m") { await tg.answer(cb.id); return await tg.edit(cid, mid, menuText(), menuKb()); }
