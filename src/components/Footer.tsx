@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import cryptobotLogo from '@/assets/cryptobot-logo.jpeg';
 
 const Footer = () => {
   return (

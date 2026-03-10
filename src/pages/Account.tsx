@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import cryptobotLogo from '@/assets/cryptobot-logo.jpeg';
 import { Package, CheckCircle2, Clock, MessageCircle, ChevronRight, AlertCircle, XCircle, Wallet, ArrowDownCircle, ArrowUpCircle, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';

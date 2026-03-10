@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import cryptobotLogo from '@/assets/cryptobot-logo.jpeg';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shield, Zap, Lock, CheckCircle2, ArrowLeft, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
