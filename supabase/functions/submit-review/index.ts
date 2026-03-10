@@ -62,10 +62,10 @@ serve(async (req) => {
       return jsonRes({ error: "Вы уже оставили отзыв" }, 400);
     }
 
-    // Get user profile for avatar
+    // Get user profile for avatar and name
     const { data: profile } = await supabase
       .from("user_profiles")
-      .select("photo_url, first_name, last_name")
+      .select("photo_url, first_name, last_name, username")
       .eq("telegram_id", telegramId)
       .maybeSingle();
 
@@ -85,12 +85,36 @@ serve(async (req) => {
       ? `${profile.first_name}${profile.last_name ? ' ' + profile.last_name : ''}`
       : (author || "Пользователь");
 
+    // Try to fetch avatar from TG API if not in profile
+    let avatarUrl = photoUrl || profile?.photo_url || "";
+    if (!avatarUrl) {
+      try {
+        const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
+        if (botToken) {
+          const photosRes = await fetch(`https://api.telegram.org/bot${botToken}/getUserProfilePhotos`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: telegramId, limit: 1 }),
+          }).then(r => r.json());
+          if (photosRes.ok && photosRes.result?.total_count > 0) {
+            const fileId = photosRes.result.photos[0][0].file_id;
+            const fileData = await fetch(`https://api.telegram.org/bot${botToken}/getFile`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ file_id: fileId }),
+            }).then(r => r.json());
+            if (fileData.ok) {
+              avatarUrl = `https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`;
+            }
+          }
+        }
+      } catch (e) { console.error("Avatar fetch error:", e); }
+    }
+
     const { error } = await supabase.from("reviews").insert({
       telegram_id: telegramId,
       rating: Math.min(5, Math.max(1, rating)),
       text: text.slice(0, 1000),
       author: displayName,
-      avatar: photoUrl || profile?.photo_url || "",
+      avatar: avatarUrl,
       product_id: productId,
       verified: false,
       moderation_status: "pending",

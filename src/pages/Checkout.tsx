@@ -209,9 +209,22 @@ const Checkout = () => {
             </div>
           )}
 
-          <div className="border-t border-border/30 pt-2 flex justify-between font-display font-bold text-base">
-            <span>{toPay > 0 ? 'К оплате через CryptoBot' : 'Итого'}</span>
-            <span>${toPay > 0 ? toPay.toFixed(2) : totalAfterDiscount.toFixed(2)}</span>
+          <div className="border-t border-border/30 pt-2 space-y-1">
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>Сумма заказа</span>
+              <span>${totalAfterDiscount.toFixed(2)}</span>
+            </div>
+            {toPay > 0 ? (
+              <div className="flex justify-between font-display font-bold text-base">
+                <span>К оплате через CryptoBot</span>
+                <span>${toPay.toFixed(2)}</span>
+              </div>
+            ) : (
+              <div className="flex justify-between font-display font-bold text-base">
+                <span>К оплате (баланс)</span>
+                <span>${totalAfterDiscount.toFixed(2)}</span>
+              </div>
+            )}
           </div>
 
           <Button variant="hero" size="lg" className="w-full" onClick={handleCheckout}

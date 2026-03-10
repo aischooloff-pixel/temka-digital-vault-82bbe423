@@ -1019,7 +1019,12 @@ async function handleCallback(tg: ReturnType<typeof TG>, cb: any, adminId: numbe
     if (d === "a:bs") { await setSession(adminId, "bc:t"); await tg.answer(cb.id); return await tg.send(cid, "📢 Введите текст рассылки (поддерживается HTML: &lt;b&gt;, &lt;i&gt;, &lt;u&gt;, &lt;a&gt;) или отправьте фото с подписью:\n\n/cancel — отмена"); }
     if (d === "a:bcsend") {
       const session = await getSession(adminId);
-      if (!session || session.state !== "bc:preview") { await tg.answer(cb.id, "⚠️ Сессия устарела"); return; }
+      console.log("Broadcast send - session:", JSON.stringify(session));
+      if (!session || session.state !== "bc:preview") {
+        console.error("Broadcast session lost! adminId:", adminId, "session:", JSON.stringify(session));
+        await tg.answer(cb.id, "⚠️ Сессия устарела. Попробуйте создать рассылку заново.");
+        return;
+      }
       const sData = session.data;
       const { data: users } = await db().from("user_profiles").select("telegram_id").eq("is_blocked", false);
       if (!users?.length) { await tg.answer(cb.id, "❌ Нет пользователей"); await clearSession(adminId); return; }
@@ -1190,12 +1195,31 @@ serve(async (req) => {
         ] }
       );
 
-      // Upsert profile
+      // Upsert profile + fetch avatar
       if (tgId) {
+        let photoUrl: string | null = null;
+        try {
+          const photosRes = await fetch(`https://api.telegram.org/bot${botToken}/getUserProfilePhotos`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: tgId, limit: 1 }),
+          }).then(r => r.json());
+          if (photosRes.ok && photosRes.result?.total_count > 0) {
+            const fileId = photosRes.result.photos[0][0].file_id;
+            const fileData = await fetch(`https://api.telegram.org/bot${botToken}/getFile`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ file_id: fileId }),
+            }).then(r => r.json());
+            if (fileData.ok) {
+              photoUrl = `https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`;
+            }
+          }
+        } catch (e) { console.error("Photo fetch error:", e); }
+
         await db().from("user_profiles").upsert({
           telegram_id: tgId, first_name: message.from.first_name || "",
           last_name: message.from.last_name || null, username: message.from.username || null,
           is_premium: message.from.is_premium || false, language_code: message.from.language_code || null,
+          ...(photoUrl ? { photo_url: photoUrl } : {}),
           updated_at: new Date().toISOString(),
         }, { onConflict: "telegram_id" });
       }
