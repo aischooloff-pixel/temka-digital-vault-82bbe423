@@ -42,6 +42,8 @@ const copyToClipboard = (text: string) => {
 
 const OrderDetailSheet = ({ order, open, onOpenChange }: Props) => {
   const { data: items, isLoading: itemsLoading } = useOrderItems(order?.id || '');
+  const { data: inventoryItems, isLoading: inventoryLoading } = useOrderInventoryItems(order?.id || '');
+  const [revealedItems, setRevealedItems] = useState<Set<string>>(new Set());
 
   if (!order) return null;
 
