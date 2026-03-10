@@ -12,7 +12,7 @@ const Legal = () => {
       </Link>
 
       <h1 className="font-display text-xl font-bold mb-4">Условия использования и отказ от ответственности</h1>
-      <p className="text-[10px] text-muted-foreground mb-4">Последнее обновление: 10 марта 2025</p>
+      <p className="text-[10px] text-muted-foreground mb-4">Последнее обновление: 10 марта 2026</p>
 
       <div className="space-y-4 text-xs text-muted-foreground leading-relaxed">
         <section>

@@ -817,7 +817,8 @@ async function handleCallback(tg: ReturnType<typeof TG>, cb: any, adminId: numbe
       const labels: Record<string, string> = { t: "название", p: "цену (USD)", s: "остаток (число)", d: "описание", o: "старую цену (USD)", g: "теги (через запятую)" };
       await setSession(adminId, `ep:${f}:${pid}`);
       await tg.answer(cb.id);
-      return await tg.send(cid, `✏️ Введите <b>${labels[f] || f}</b>:\n\n/cancel — отмена`);
+      const extra = f === "d" ? "\n\n💡 Для загрузки файлов используйте ссылку на Яндекс Диск / Google Drive / другое внешнее хранилище." : "";
+      return await tg.send(cid, `✏️ Введите <b>${labels[f] || f}</b>:${extra}\n\n/cancel — отмена`);
     }
 
     // Product category selection

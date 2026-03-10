@@ -24,7 +24,7 @@ const Footer = () => {
         </div>
 
         <div className="mt-4 pt-4 border-t border-border/30 text-center">
-          <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-1">© 2025 TEMKA.STORE · Оплата через <img src={cryptobotLogo} alt="CryptoBot" className="w-3.5 h-3.5 rounded-sm inline-block" /> CryptoBot</p>
+          <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-1">© 2026 TEMKA.STORE · Оплата через <img src={cryptobotLogo} alt="CryptoBot" className="w-3.5 h-3.5 rounded-sm inline-block" /> CryptoBot</p>
         </div>
       </div>
     </footer>
