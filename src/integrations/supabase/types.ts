@@ -244,42 +244,51 @@ export type Database = {
       }
       orders: {
         Row: {
+          balance_used: number
           created_at: string
           currency: string
+          discount_amount: number
           id: string
           invoice_id: string | null
           notes: string | null
           order_number: string
           pay_url: string | null
           payment_status: string
+          promo_code: string | null
           status: string
           telegram_id: number
           total_amount: number
           updated_at: string
         }
         Insert: {
+          balance_used?: number
           created_at?: string
           currency?: string
+          discount_amount?: number
           id?: string
           invoice_id?: string | null
           notes?: string | null
           order_number: string
           pay_url?: string | null
           payment_status?: string
+          promo_code?: string | null
           status?: string
           telegram_id: number
           total_amount?: number
           updated_at?: string
         }
         Update: {
+          balance_used?: number
           created_at?: string
           currency?: string
+          discount_amount?: number
           id?: string
           invoice_id?: string | null
           notes?: string | null
           order_number?: string
           pay_url?: string | null
           payment_status?: string
+          promo_code?: string | null
           status?: string
           telegram_id?: number
           total_amount?: number
@@ -388,6 +397,7 @@ export type Database = {
           id: string
           is_active: boolean
           max_uses: number | null
+          max_uses_per_user: number | null
           used_count: number
           valid_from: string | null
           valid_until: string | null
@@ -400,6 +410,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           max_uses?: number | null
+          max_uses_per_user?: number | null
           used_count?: number
           valid_from?: string | null
           valid_until?: string | null
@@ -412,6 +423,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           max_uses?: number | null
+          max_uses_per_user?: number | null
           used_count?: number
           valid_from?: string | null
           valid_until?: string | null
@@ -424,6 +436,7 @@ export type Database = {
           avatar: string
           created_at: string
           id: string
+          moderation_status: string
           product_id: string
           rating: number
           telegram_id: number | null
@@ -435,6 +448,7 @@ export type Database = {
           avatar?: string
           created_at?: string
           id?: string
+          moderation_status?: string
           product_id: string
           rating: number
           telegram_id?: number | null
@@ -446,6 +460,7 @@ export type Database = {
           avatar?: string
           created_at?: string
           id?: string
+          moderation_status?: string
           product_id?: string
           rating?: number
           telegram_id?: number | null
