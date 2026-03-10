@@ -1010,7 +1010,7 @@ async function handleCallback(tg: ReturnType<typeof TG>, cb: any, adminId: numbe
       const pid = d.slice(5);
       await setSession(adminId, `ai:${pid}`);
       await tg.answer(cb.id);
-      return await tg.send(cid, "🗃 <b>Добавление единиц</b>\n\nОтправьте ключи/аккаунты, каждый с новой строки:\n\n/cancel — отмена");
+      return await tg.send(cid, "🗃 <b>Добавление единиц</b>\n\nОтправьте ключи/аккаунты, каждый с новой строки.\n\n💡 Для загрузки файлов используйте ссылку на Яндекс Диск / Google Drive / другое внешнее хранилище.\n\n/cancel — отмена");
     }
     if (d.startsWith("a:is:")) { await tg.answer(cb.id, "🔄"); return await inventorySync(tg, cid, mid, d.slice(5), adminId); }
 
