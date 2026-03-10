@@ -1,17 +1,18 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Shield, Zap, Lock, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { Shield, Zap, Lock, CheckCircle2, ArrowLeft, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/contexts/StoreContext';
 import { useTelegram } from '@/contexts/TelegramContext';
+import { useUserProfile } from '@/hooks/useOrders';
 import { supabase } from '@/integrations/supabase/client';
 
 const Checkout = () => {
-  const { cart, cartTotal, clearCart } = useStore();
+  const { cart, cartTotal, clearCart, discount, totalAfterDiscount, promoResult } = useStore();
   const { user, isInTelegram, openInvoice, haptic } = useTelegram();
+  const { data: profile } = useUserProfile();
   const navigate = useNavigate();
   const [agreed, setAgreed] = useState(false);
-  const [notes, setNotes] = useState('');
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
 
@@ -19,6 +20,10 @@ const Checkout = () => {
     ? `${user.firstName}${user.lastName ? ` ${user.lastName}` : ''}`
     : 'Telegram User';
   const avatar = user?.firstName?.[0]?.toUpperCase() || 'T';
+
+  const balance = Number(profile?.balance || 0);
+  const balanceUsed = Math.min(balance, totalAfterDiscount);
+  const toPay = Math.max(0, totalAfterDiscount - balanceUsed);
 
   if (cart.length === 0) {
     return (
@@ -39,45 +44,69 @@ const Checkout = () => {
     try {
       const orderNumber = `TK-${Date.now().toString(36).toUpperCase()}`;
       const description = cart.map(item => `${item.product.title} ×${item.quantity}`).join(', ');
+      const itemsPayload = cart.map(item => ({
+        productId: item.product.id,
+        productTitle: item.product.title,
+        productPrice: Number(item.product.price),
+        quantity: item.quantity,
+      }));
 
-      // Create order via edge function (which also creates invoice)
-      const { data, error: fnError } = await supabase.functions.invoke('create-invoice', {
-        body: {
-          amount: cartTotal.toFixed(2),
-          currency: 'USD',
-          description,
-          orderNumber,
-          telegramUserId: user?.id,
-          notes,
-          items: cart.map(item => ({
-            productId: item.product.id,
-            productTitle: item.product.title,
-            productPrice: Number(item.product.price),
-            quantity: item.quantity,
-          })),
-        },
-      });
-
-      if (fnError) throw new Error(fnError.message);
-      if (data?.error) throw new Error(data.error);
-
-      if (isInTelegram && data?.miniAppUrl) {
-        openInvoice(data.miniAppUrl, (status) => {
-          if (status === 'paid') {
-            haptic.notification('success');
-            clearCart();
-            navigate(`/order-success?order=${data.orderNumber || orderNumber}`);
-          } else if (status === 'failed') {
-            haptic.notification('error');
-            navigate('/order-failed');
-          }
+      if (toPay <= 0) {
+        // Full balance payment
+        const { data, error: fnError } = await supabase.functions.invoke('pay-with-balance', {
+          body: {
+            telegramUserId: user?.id,
+            orderNumber,
+            items: itemsPayload,
+            totalAmount: totalAfterDiscount,
+            discountAmount: discount,
+            promoCode: promoResult?.code || null,
+            balanceUsed: balanceUsed,
+          },
         });
-      } else if (data?.payUrl) {
-        window.open(data.payUrl, '_blank');
+        if (fnError) throw new Error(fnError.message);
+        if (data?.error) throw new Error(data.error);
+        haptic.notification('success');
         clearCart();
-        navigate(`/order-success?order=${data.orderNumber || orderNumber}`);
+        navigate(`/order-success?order=${data?.orderNumber || orderNumber}`);
       } else {
-        throw new Error('Не удалось создать инвойс');
+        // CryptoBot payment (partial or full)
+        const { data, error: fnError } = await supabase.functions.invoke('create-invoice', {
+          body: {
+            amount: toPay.toFixed(2),
+            currency: 'USD',
+            description,
+            orderNumber,
+            telegramUserId: user?.id,
+            items: itemsPayload,
+            discountAmount: discount,
+            promoCode: promoResult?.code || null,
+            balanceUsed: balanceUsed,
+            totalOriginal: cartTotal,
+          },
+        });
+
+        if (fnError) throw new Error(fnError.message);
+        if (data?.error) throw new Error(data.error);
+
+        if (isInTelegram && data?.miniAppUrl) {
+          openInvoice(data.miniAppUrl, (status) => {
+            if (status === 'paid') {
+              haptic.notification('success');
+              clearCart();
+              navigate(`/order-success?order=${data.orderNumber || orderNumber}`);
+            } else if (status === 'failed') {
+              haptic.notification('error');
+              navigate('/order-failed');
+            }
+          });
+        } else if (data?.payUrl) {
+          window.open(data.payUrl, '_blank');
+          clearCart();
+          navigate(`/order-success?order=${data.orderNumber || orderNumber}`);
+        } else {
+          throw new Error('Не удалось создать инвойс');
+        }
       }
     } catch (err: any) {
       console.error('Checkout error:', err);
@@ -113,17 +142,19 @@ const Checkout = () => {
 
         <div className="bg-card border border-border/50 rounded-xl p-4">
           <h3 className="font-display font-semibold text-sm mb-3">Способ оплаты</h3>
-          <div className="p-3 rounded-xl border border-primary bg-primary/5 text-center">
-            <div className="text-2xl mb-1">₿</div>
-            <div className="text-sm font-medium text-primary">CryptoBot</div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">Оплата криптовалютой через Telegram</div>
-          </div>
-        </div>
-
-        <div className="bg-card border border-border/50 rounded-xl p-4">
-          <h3 className="font-display font-semibold text-sm mb-2">Комментарий к заказу (необязательно)</h3>
-          <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Особые пожелания..."
-            className="w-full h-20 px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none" />
+          {toPay > 0 ? (
+            <div className="p-3 rounded-xl border border-primary bg-primary/5 text-center">
+              <div className="text-2xl mb-1">₿</div>
+              <div className="text-sm font-medium text-primary">CryptoBot</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">Оплата криптовалютой через Telegram</div>
+            </div>
+          ) : (
+            <div className="p-3 rounded-xl border border-primary bg-primary/5 text-center">
+              <Wallet className="w-6 h-6 text-primary mx-auto mb-1" />
+              <div className="text-sm font-medium text-primary">Оплата балансом</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">Полная оплата с вашего баланса</div>
+            </div>
+          )}
         </div>
 
         <label className="flex items-start gap-2.5 cursor-pointer">
@@ -152,16 +183,34 @@ const Checkout = () => {
               </div>
             ))}
           </div>
+
+          {discount > 0 && (
+            <div className="flex justify-between text-xs text-primary">
+              <span>Промокод ({promoResult?.code})</span>
+              <span>-${discount.toFixed(2)}</span>
+            </div>
+          )}
+
+          {balanceUsed > 0 && (
+            <div className="flex justify-between text-xs text-primary">
+              <span>Списание с баланса</span>
+              <span>-${balanceUsed.toFixed(2)}</span>
+            </div>
+          )}
+
           <div className="border-t border-border/30 pt-2 flex justify-between font-display font-bold text-base">
-            <span>Итого</span><span>${cartTotal.toFixed(2)}</span>
+            <span>{toPay > 0 ? 'К оплате через CryptoBot' : 'Итого (баланс)'}</span>
+            <span>${toPay > 0 ? toPay.toFixed(2) : '0.00'}</span>
           </div>
 
           <Button variant="hero" size="lg" className="w-full" onClick={handleCheckout}
             disabled={!agreed || processing}>
             {processing ? (
               <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /> Создание заказа...</span>
+            ) : toPay > 0 ? (
+              <><Lock className="w-4 h-4 mr-1" /> Оплатить — ${toPay.toFixed(2)}</>
             ) : (
-              <><Lock className="w-4 h-4 mr-1" /> Оплатить через CryptoBot — ${cartTotal.toFixed(2)}</>
+              <><Wallet className="w-4 h-4 mr-1" /> Оплатить балансом</>
             )}
           </Button>
 

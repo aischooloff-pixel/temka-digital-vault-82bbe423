@@ -23,7 +23,6 @@ export const useOrders = () => {
     enabled: !!user?.id,
   });
 
-  // Realtime subscription for order updates
   useEffect(() => {
     if (!user?.id) return;
     const channel = supabase
@@ -77,6 +76,25 @@ export const useUserStats = () => {
         orderCount: orders.length,
         totalSpent: paid.reduce((s, o) => s + Number(o.total_amount), 0),
       };
+    },
+    enabled: !!user?.id,
+  });
+};
+
+export const useUserProfile = () => {
+  const { user } = useTelegram();
+
+  return useQuery({
+    queryKey: ['user-profile', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('balance, role, is_blocked, internal_note')
+        .eq('telegram_id', user.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { balance: number; role: string; is_blocked: boolean; internal_note: string | null } | null;
     },
     enabled: !!user?.id,
   });

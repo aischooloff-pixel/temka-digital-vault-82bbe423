@@ -52,7 +52,11 @@ export const useReviews = (productId?: string) => {
   return useQuery({
     queryKey: ['reviews', productId],
     queryFn: async () => {
-      let query = supabase.from('reviews').select('*').order('created_at', { ascending: false });
+      let query = supabase
+        .from('reviews')
+        .select('*')
+        .eq('verified', true)
+        .order('created_at', { ascending: false });
       if (productId) query = query.eq('product_id', productId);
       const { data, error } = await query;
       if (error) throw error;
@@ -75,6 +79,33 @@ export const useProductStats = () => {
         totalProducts: items.length,
         inStock: items.filter(p => p.stock > 0).length,
         categories: new Set(items.map(p => p.category_id)).size,
+      };
+    },
+  });
+};
+
+export const useShopStats = () => {
+  return useQuery({
+    queryKey: ['shop-stats'],
+    queryFn: async () => {
+      const [usersRes, ordersRes, productsRes, reviewsRes] = await Promise.all([
+        supabase.from('user_profiles').select('id', { count: 'exact', head: true }),
+        supabase.from('orders').select('id, status', { count: 'exact' }),
+        supabase.from('products').select('id', { count: 'exact', head: true }).eq('is_active', true),
+        supabase.from('reviews').select('id', { count: 'exact', head: true }).eq('verified', true),
+      ]);
+
+      const orders = ordersRes.data || [];
+      const completedOrders = orders.filter(o =>
+        ['paid', 'completed', 'delivered', 'processing'].includes((o as any).status)
+      ).length;
+
+      return {
+        users: usersRes.count || 0,
+        completedOrders,
+        totalOrders: ordersRes.count || 0,
+        activeProducts: productsRes.count || 0,
+        approvedReviews: reviewsRes.count || 0,
       };
     },
   });
