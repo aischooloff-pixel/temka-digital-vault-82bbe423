@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Package, MessageCircle, ShoppingCart, Clock, Loader2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useOrders } from '@/hooks/useOrders';
+import { useSupportUsername } from '@/hooks/useSupportUsername';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 
