@@ -494,18 +494,33 @@ async function broadcastMenu(tg: ReturnType<typeof TG>, cid: number, mid: number
 // ═══════════════════════════════════════════════
 // REVIEWS MODERATION
 // ═══════════════════════════════════════════════
-async function reviewsList(tg: ReturnType<typeof TG>, cid: number, mid: number, page: number) {
-  const { data: reviews } = await db().from("reviews").select("*").eq("moderation_status", "pending").order("created_at", { ascending: false });
-  if (!reviews?.length) return tg.edit(cid, mid, "⭐ <b>Отзывы на модерации</b>\n\nНет новых отзывов.", ikb([[btn("◀️ Меню", "a:m")]]));
+async function reviewsList(tg: ReturnType<typeof TG>, cid: number, mid: number, page: number, filter?: string) {
+  let query = db().from("reviews").select("*").order("created_at", { ascending: false });
+  if (filter === "approved") query = query.eq("moderation_status", "approved");
+  else if (filter === "rejected") query = query.eq("moderation_status", "rejected");
+  else if (!filter || filter === "pending") query = query.eq("moderation_status", "pending");
+  else query = query; // "all"
+  const { data: reviews } = await query;
+  const statusLabel = filter === "approved" ? "одобренные" : filter === "rejected" ? "отклонённые" : filter === "all" ? "все" : "на модерации";
+  if (!reviews?.length) return tg.edit(cid, mid, `⭐ <b>Отзывы (${statusLabel})</b>\n\nНет отзывов.`, ikb([
+    [btn("⏳ Ожидающие", "a:rvl:0"), btn("✅ Одобренные", "a:rvf:approved:0")],
+    [btn("❌ Отклонённые", "a:rvf:rejected:0"), btn("📋 Все", "a:rvf:all:0")],
+    [btn("◀️ Меню", "a:m")],
+  ]));
   const pg = paginate(reviews, page, 5);
-  let t = `⭐ <b>Отзывы на модерации</b> (${reviews.length})\n\n`;
+  const se: Record<string, string> = { pending: "⏳", approved: "✅", rejected: "❌" };
+  let t = `⭐ <b>Отзывы (${statusLabel})</b> — ${reviews.length}\n\n`;
   pg.items.forEach(r => {
-    t += `👤 <b>${esc(r.author)}</b> | ${"⭐".repeat(r.rating)}\n${esc(r.text.slice(0, 80))}\n\n`;
+    t += `${se[r.moderation_status] || "❓"} <b>${esc(r.author)}</b> | ${"⭐".repeat(r.rating)}\n${esc(r.text.slice(0, 80))}\n\n`;
   });
   const rows: Btn[][] = pg.items.map(r => [
-    btn(`✅`, `a:rva:${r.id}`), btn(`❌`, `a:rvr:${r.id}`), btn(`${r.author.slice(0, 15)}`, `a:rvv:${r.id}`)
+    ...(r.moderation_status === "pending" ? [btn("✅", `a:rva:${r.id}`), btn("❌", `a:rvr:${r.id}`)] : []),
+    btn(`${se[r.moderation_status] || ""} ${r.author.slice(0, 18)}`, `a:rvv:${r.id}`)
   ]);
-  if (pg.total > 1) rows.push(pgRow("a:rvl", pg.page, pg.total));
+  const pfx = filter && filter !== "pending" ? `a:rvf:${filter}` : "a:rvl";
+  if (pg.total > 1) rows.push(pgRow(pfx, pg.page, pg.total));
+  rows.push([btn("⏳ Ожидающие", "a:rvl:0"), btn("✅ Одобренные", "a:rvf:approved:0")]);
+  rows.push([btn("❌ Отклонённые", "a:rvf:rejected:0"), btn("📋 Все", "a:rvf:all:0")]);
   rows.push([btn("◀️ Меню", "a:m")]);
   return tg.edit(cid, mid, t, ikb(rows));
 }

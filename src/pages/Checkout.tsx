@@ -142,11 +142,22 @@ const Checkout = () => {
 
         <div className="bg-card border border-border/50 rounded-xl p-4">
           <h3 className="font-display font-semibold text-sm mb-3">Способ оплаты</h3>
+          <div className="mb-3 flex items-center justify-between p-2.5 rounded-lg bg-secondary/50 border border-border/30">
+            <div className="flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-primary" />
+              <span className="text-xs text-muted-foreground">Ваш баланс</span>
+            </div>
+            <span className="text-sm font-bold text-primary">${balance.toFixed(2)}</span>
+          </div>
           {toPay > 0 ? (
             <div className="p-3 rounded-xl border border-primary bg-primary/5 text-center">
               <div className="text-2xl mb-1">₿</div>
               <div className="text-sm font-medium text-primary">CryptoBot</div>
-              <div className="text-[10px] text-muted-foreground mt-0.5">Оплата криптовалютой через Telegram</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">
+                {balanceUsed > 0
+                  ? `$${balanceUsed.toFixed(2)} с баланса + $${toPay.toFixed(2)} через CryptoBot`
+                  : 'Оплата криптовалютой через Telegram'}
+              </div>
             </div>
           ) : (
             <div className="p-3 rounded-xl border border-primary bg-primary/5 text-center">

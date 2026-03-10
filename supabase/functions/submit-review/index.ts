@@ -26,6 +26,26 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Check if user already has a review
+    const { count: existingCount } = await supabase
+      .from("reviews")
+      .select("id", { count: "exact", head: true })
+      .eq("telegram_id", telegramId);
+
+    if (existingCount && existingCount > 0) {
+      return new Response(
+        JSON.stringify({ error: "Вы уже оставили отзыв" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Get user profile for avatar
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("photo_url, first_name, last_name")
+      .eq("telegram_id", telegramId)
+      .maybeSingle();
+
     // Get a random product to associate review with (general store review)
     const { data: products } = await supabase
       .from("products")
@@ -41,11 +61,16 @@ serve(async (req) => {
       );
     }
 
+    const displayName = profile
+      ? `${profile.first_name}${profile.last_name ? ' ' + profile.last_name : ''}`
+      : (author || "Пользователь");
+
     const { error } = await supabase.from("reviews").insert({
       telegram_id: telegramId,
       rating: Math.min(5, Math.max(1, rating)),
       text: text.slice(0, 1000),
-      author: author || "Пользователь",
+      author: displayName,
+      avatar: profile?.photo_url || "",
       product_id: productId,
       verified: false,
       moderation_status: "pending",

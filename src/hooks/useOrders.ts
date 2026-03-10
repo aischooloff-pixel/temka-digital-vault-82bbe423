@@ -97,5 +97,7 @@ export const useUserProfile = () => {
       return data as { balance: number; role: string; is_blocked: boolean; internal_note: string | null } | null;
     },
     enabled: !!user?.id,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 };
