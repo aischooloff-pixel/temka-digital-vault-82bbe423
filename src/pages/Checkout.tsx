@@ -210,8 +210,8 @@ const Checkout = () => {
           )}
 
           <div className="border-t border-border/30 pt-2 flex justify-between font-display font-bold text-base">
-            <span>{toPay > 0 ? 'К оплате через CryptoBot' : 'Итого (баланс)'}</span>
-            <span>${toPay > 0 ? toPay.toFixed(2) : '0.00'}</span>
+            <span>{toPay > 0 ? 'К оплате через CryptoBot' : 'Итого'}</span>
+            <span>${toPay > 0 ? toPay.toFixed(2) : totalAfterDiscount.toFixed(2)}</span>
           </div>
 
           <Button variant="hero" size="lg" className="w-full" onClick={handleCheckout}

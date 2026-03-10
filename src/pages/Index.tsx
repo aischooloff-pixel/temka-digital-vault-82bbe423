@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Zap, Shield, ChevronRight, ArrowRight, CheckCircle2, Package, Clock, Star, Send } from 'lucide-react';
+import { Zap, Shield, ChevronRight, ArrowRight, CheckCircle2, Package, Clock, Star, Send, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ProductCard from '@/components/ProductCard';
 import ProductCardSkeleton from '@/components/ProductCardSkeleton';
@@ -22,6 +22,7 @@ const Index = () => {
   const { data: stats } = useProductStats();
   const { data: reviews, isLoading: reviewsLoading } = useReviews();
   const { user } = useTelegram();
+  const queryClient = useQueryClient();
 
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [reviewRating, setReviewRating] = useState(5);
@@ -29,6 +30,7 @@ const Index = () => {
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewSuccess, setReviewSuccess] = useState(false);
   const [reviewError, setReviewError] = useState('');
+  const [deletingReview, setDeletingReview] = useState(false);
 
   const featuredProducts = products?.filter(p => p.is_featured || p.is_popular).slice(0, 6) || [];
   const newProducts = products?.filter(p => p.is_new).slice(0, 6) || [];
@@ -37,15 +39,35 @@ const Index = () => {
   const { data: userReviewCheck } = useQuery({
     queryKey: ['user-review-check', user?.id],
     queryFn: async () => {
-      const { count } = await supabase
+      const { data } = await supabase
         .from('reviews')
-        .select('id', { count: 'exact', head: true })
-        .eq('telegram_id', user!.id);
-      return (count || 0) > 0;
+        .select('id')
+        .eq('telegram_id', user!.id)
+        .limit(1);
+      return data && data.length > 0 ? (data[0] as any).id : null;
     },
     enabled: !!user?.id,
   });
-  const userHasReview = userReviewCheck || false;
+  const userHasReview = !!userReviewCheck;
+  const userReviewId = userReviewCheck as string | null;
+
+  const handleDeleteReview = async () => {
+    if (!userReviewId || !user?.id) return;
+    setDeletingReview(true);
+    try {
+      const res = await supabase.functions.invoke('submit-review', {
+        body: { action: 'delete', telegramId: user.id, reviewId: userReviewId },
+      });
+      if (res.data?.error) throw new Error(res.data.error);
+      if (res.error) throw res.error;
+      queryClient.invalidateQueries({ queryKey: ['user-review-check'] });
+      queryClient.invalidateQueries({ queryKey: ['reviews'] });
+    } catch (e: any) {
+      console.error('Delete review error:', e);
+    } finally {
+      setDeletingReview(false);
+    }
+  };
 
   const handleSubmitReview = async () => {
     if (!reviewText.trim() || !user?.id) return;
@@ -57,6 +79,7 @@ const Index = () => {
           rating: reviewRating,
           text: reviewText.trim(),
           author: `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}`,
+          photoUrl: user.photoUrl || '',
         },
       });
       if (res.data?.error) {
@@ -230,9 +253,14 @@ const Index = () => {
         <div className="container-main mx-auto max-w-lg">
           <div className="flex items-center justify-between mb-5">
             <h2 className="font-display text-xl font-bold">Отзывы</h2>
-            {user && (
+            {user && !userHasReview && (
               <Button variant="outline" size="sm" onClick={() => setShowReviewForm(!showReviewForm)}>
                 ✍️ Оставить отзыв
+              </Button>
+            )}
+            {user && userHasReview && (
+              <Button variant="ghost" size="sm" onClick={handleDeleteReview} disabled={deletingReview} className="text-destructive hover:text-destructive">
+                <Trash2 className="w-3 h-3 mr-1" /> {deletingReview ? '...' : 'Удалить отзыв'}
               </Button>
             )}
           </div>
