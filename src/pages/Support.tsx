@@ -10,17 +10,17 @@ const Support = () => {
       </div>
       <h1 className="font-display text-xl sm:text-2xl font-bold">Поддержка</h1>
       <p className="text-sm text-muted-foreground mt-2">
-        Свяжитесь с нами напрямую в Telegram — мы отвечаем быстро.
+        Свяжитесь с нами в Telegram — отвечаем быстро.
       </p>
 
-      <a href="https://t.me/paveldurov" target="_blank" rel="noopener noreferrer" className="block mt-6">
+      <a href="https://t.me/temka_support" target="_blank" rel="noopener noreferrer" className="block mt-6">
         <Button variant="hero" size="lg" className="w-full">
           <MessageCircle className="w-4 h-4 mr-2" /> Написать в Telegram
         </Button>
       </a>
 
       <p className="text-xs text-muted-foreground mt-3 flex items-center justify-center gap-1">
-        ⚡ Среднее время ответа: 5-30 минут
+        ⚡ Среднее время ответа: 5–30 минут
       </p>
 
       <div className="mt-8 pt-6 border-t border-border/30">
