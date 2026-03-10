@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Package, CheckCircle2, Clock, MessageCircle, ChevronRight, AlertCircle, XCircle, Wallet, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import { Package, CheckCircle2, Clock, MessageCircle, ChevronRight, AlertCircle, XCircle, Wallet, ArrowDownCircle, ArrowUpCircle, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { useTelegram } from '@/contexts/TelegramContext';
@@ -9,8 +9,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { ORDER_STATUS_LABELS } from '@/types/database';
 import type { DbOrder, DbBalanceHistory } from '@/types/database';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '@/components/ui/drawer';
+import { Input } from '@/components/ui/input';
 import OrderDetailSheet from '@/components/OrderDetailSheet';
 import BalanceDetailSheet from '@/components/BalanceDetailSheet';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 
 type TimelineItem =
   | { type: 'order'; data: DbOrder; date: string }
@@ -44,21 +48,67 @@ const statusColor = (status: DbOrder['status']) => {
 const PREVIEW_COUNT = 5;
 
 const Account = () => {
-  const { user, isInTelegram } = useTelegram();
+  const { user, isInTelegram, openInvoice, haptic } = useTelegram();
   const { data: orders, isLoading: ordersLoading } = useOrders();
   const { data: balanceHistory, isLoading: balanceLoading } = useBalanceHistory();
   const { data: stats, isLoading: statsLoading } = useUserStats();
   const { data: profile, isLoading: profileLoading } = useUserProfile();
+  const queryClient = useQueryClient();
 
   const [showAll, setShowAll] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<DbOrder | null>(null);
   const [selectedBalance, setSelectedBalance] = useState<DbBalanceHistory | null>(null);
+  const [showTopup, setShowTopup] = useState(false);
+  const [topupAmount, setTopupAmount] = useState('');
+  const [topupProcessing, setTopupProcessing] = useState(false);
+
+  const TOPUP_PRESETS = [5, 10, 25, 50];
 
   const displayName = user
     ? `${user.firstName}${user.lastName ? ` ${user.lastName}` : ''}`
     : 'Telegram User';
   const username = user?.username ? `@${user.username}` : '';
   const avatar = user?.firstName?.[0]?.toUpperCase() || 'T';
+
+  const handleTopup = async () => {
+    const amount = Number(topupAmount);
+    if (!amount || amount <= 0 || !user?.id) return;
+    setTopupProcessing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-topup-invoice', {
+        body: { amount, telegramUserId: user.id },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+
+      if (isInTelegram && data?.miniAppUrl) {
+        openInvoice(data.miniAppUrl, (status) => {
+          if (status === 'paid') {
+            haptic.notification('success');
+            toast.success('Баланс пополнен!');
+            queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+            queryClient.invalidateQueries({ queryKey: ['balance-history'] });
+            setShowTopup(false);
+            setTopupAmount('');
+          } else if (status === 'failed') {
+            haptic.notification('error');
+            toast.error('Оплата не прошла');
+          }
+        });
+      } else if (data?.payUrl) {
+        window.open(data.payUrl, '_blank');
+        toast.info('Откройте ссылку для оплаты');
+        setShowTopup(false);
+        setTopupAmount('');
+      }
+    } catch (err: any) {
+      console.error('Topup error:', err);
+      toast.error(err.message || 'Ошибка пополнения');
+      haptic.notification('error');
+    } finally {
+      setTopupProcessing(false);
+    }
+  };
 
   const timeline = useMemo<TimelineItem[]>(() => {
     const items: TimelineItem[] = [];
@@ -190,6 +240,15 @@ const Account = () => {
               </div>
             )}
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs border-primary/30 text-primary hover:bg-primary/10"
+            onClick={() => setShowTopup(true)}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Пополнить
+          </Button>
         </div>
       </div>
 
@@ -289,6 +348,69 @@ const Account = () => {
         open={!!selectedBalance}
         onOpenChange={open => { if (!open) setSelectedBalance(null); }}
       />
+
+      {/* Top-up Drawer */}
+      <Drawer open={showTopup} onOpenChange={setShowTopup}>
+        <DrawerContent className="max-h-[85vh]">
+          <DrawerHeader className="pb-2">
+            <DrawerTitle className="flex items-center gap-2 text-base">
+              <Wallet className="w-4 h-4 text-primary" />
+              Пополнение баланса
+            </DrawerTitle>
+          </DrawerHeader>
+          <div className="px-4 pb-4 space-y-4">
+            <div className="grid grid-cols-4 gap-2">
+              {TOPUP_PRESETS.map(preset => (
+                <button
+                  key={preset}
+                  onClick={() => setTopupAmount(String(preset))}
+                  className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+                    topupAmount === String(preset)
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-secondary/50 border-border/50 hover:bg-secondary'
+                  }`}
+                >
+                  ${preset}
+                </button>
+              ))}
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Или введите сумму</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                <Input
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={topupAmount}
+                  onChange={e => setTopupAmount(e.target.value)}
+                  className="pl-7"
+                />
+              </div>
+            </div>
+            <Button
+              variant="default"
+              size="lg"
+              className="w-full gap-2"
+              onClick={handleTopup}
+              disabled={!topupAmount || Number(topupAmount) <= 0 || topupProcessing}
+            >
+              {topupProcessing ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Создание инвойса...</>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  Пополнить {topupAmount && Number(topupAmount) > 0 ? `$${Number(topupAmount).toFixed(2)}` : ''}
+                </>
+              )}
+            </Button>
+            <p className="text-[10px] text-muted-foreground text-center">
+              Оплата через CryptoBot · Криптовалюта
+            </p>
+          </div>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 };
