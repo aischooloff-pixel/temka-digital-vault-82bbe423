@@ -1049,6 +1049,10 @@ async function handleCallback(tg: ReturnType<typeof TG>, cb: any, adminId: numbe
 
     // Reviews moderation
     if (d.startsWith("a:rvl:")) { await tg.answer(cb.id); return await reviewsList(tg, cid, mid, parseInt(d.slice(6))); }
+    if (d.startsWith("a:rvf:")) {
+      const parts = d.split(":"); const filter = parts[2]; const page = parseInt(parts[3] || "0");
+      await tg.answer(cb.id); return await reviewsList(tg, cid, mid, page, filter);
+    }
     if (d.startsWith("a:rva:")) {
       const rid = d.slice(6);
       await db().from("reviews").update({ verified: true, moderation_status: "approved" }).eq("id", rid);
