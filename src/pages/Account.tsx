@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { useTelegram } from '@/contexts/TelegramContext';
 import { useOrders, useUserStats, useUserProfile, useBalanceHistory } from '@/hooks/useOrders';
+import { useSupportUsername } from '@/hooks/useSupportUsername';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ORDER_STATUS_LABELS } from '@/types/database';
