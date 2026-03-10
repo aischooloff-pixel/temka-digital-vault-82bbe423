@@ -13,7 +13,6 @@ const Checkout = () => {
   const { user, isInTelegram, openTelegramLink, haptic } = useTelegram();
   const { data: profile } = useUserProfile();
   const navigate = useNavigate();
-  const [agreed, setAgreed] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
 
