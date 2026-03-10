@@ -53,16 +53,62 @@ const Account = () => {
   const { data: balanceHistory, isLoading: balanceLoading } = useBalanceHistory();
   const { data: stats, isLoading: statsLoading } = useUserStats();
   const { data: profile, isLoading: profileLoading } = useUserProfile();
+  const queryClient = useQueryClient();
 
   const [showAll, setShowAll] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<DbOrder | null>(null);
   const [selectedBalance, setSelectedBalance] = useState<DbBalanceHistory | null>(null);
+  const [showTopup, setShowTopup] = useState(false);
+  const [topupAmount, setTopupAmount] = useState('');
+  const [topupProcessing, setTopupProcessing] = useState(false);
+
+  const TOPUP_PRESETS = [5, 10, 25, 50];
 
   const displayName = user
     ? `${user.firstName}${user.lastName ? ` ${user.lastName}` : ''}`
     : 'Telegram User';
   const username = user?.username ? `@${user.username}` : '';
   const avatar = user?.firstName?.[0]?.toUpperCase() || 'T';
+
+  const handleTopup = async () => {
+    const amount = Number(topupAmount);
+    if (!amount || amount <= 0 || !user?.id) return;
+    setTopupProcessing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-topup-invoice', {
+        body: { amount, telegramUserId: user.id },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+
+      if (isInTelegram && data?.miniAppUrl) {
+        openInvoice(data.miniAppUrl, (status) => {
+          if (status === 'paid') {
+            haptic.notification('success');
+            toast.success('Баланс пополнен!');
+            queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+            queryClient.invalidateQueries({ queryKey: ['balance-history'] });
+            setShowTopup(false);
+            setTopupAmount('');
+          } else if (status === 'failed') {
+            haptic.notification('error');
+            toast.error('Оплата не прошла');
+          }
+        });
+      } else if (data?.payUrl) {
+        window.open(data.payUrl, '_blank');
+        toast.info('Откройте ссылку для оплаты');
+        setShowTopup(false);
+        setTopupAmount('');
+      }
+    } catch (err: any) {
+      console.error('Topup error:', err);
+      toast.error(err.message || 'Ошибка пополнения');
+      haptic.notification('error');
+    } finally {
+      setTopupProcessing(false);
+    }
+  };
 
   const timeline = useMemo<TimelineItem[]>(() => {
     const items: TimelineItem[] = [];
