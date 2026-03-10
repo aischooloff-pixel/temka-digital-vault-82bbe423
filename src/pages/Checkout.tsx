@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 const Checkout = () => {
   const { cart, cartTotal, clearCart, discount, totalAfterDiscount, promoResult } = useStore();
-  const { user, isInTelegram, openInvoice, haptic } = useTelegram();
+  const { user, isInTelegram, openTelegramLink, haptic } = useTelegram();
   const { data: profile } = useUserProfile();
   const navigate = useNavigate();
   const [agreed, setAgreed] = useState(false);
