@@ -1192,7 +1192,11 @@ serve(async (req) => {
 
     // /start
     if (text === "/start") {
-      const webAppUrl = Deno.env.get("WEBAPP_URL") || "https://temka-digital-vault.lovable.app";
+      let webAppUrl = Deno.env.get("WEBAPP_URL") || "https://temka-digital-vault.lovable.app";
+      // Ensure URL has https:// prefix
+      if (!webAppUrl.startsWith("http://") && !webAppUrl.startsWith("https://")) {
+        webAppUrl = `https://${webAppUrl}`;
+      }
       const { data: supportSetting } = await db().from("shop_settings").select("value").eq("key", "support_username").maybeSingle();
       const support = supportSetting?.value || "paveldurov";
 
