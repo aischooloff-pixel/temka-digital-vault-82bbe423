@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Package, CheckCircle2, Clock, MessageCircle, ChevronRight, AlertCircle, XCircle, Wallet, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import { Package, CheckCircle2, Clock, MessageCircle, ChevronRight, AlertCircle, XCircle, Wallet, ArrowDownCircle, ArrowUpCircle, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { useTelegram } from '@/contexts/TelegramContext';
@@ -9,8 +9,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { ORDER_STATUS_LABELS } from '@/types/database';
 import type { DbOrder, DbBalanceHistory } from '@/types/database';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '@/components/ui/drawer';
+import { Input } from '@/components/ui/input';
 import OrderDetailSheet from '@/components/OrderDetailSheet';
 import BalanceDetailSheet from '@/components/BalanceDetailSheet';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 
 type TimelineItem =
   | { type: 'order'; data: DbOrder; date: string }
