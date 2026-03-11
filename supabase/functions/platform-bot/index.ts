@@ -112,10 +112,16 @@ async function connectBotToken(rawToken: string, shopId: string): Promise<{ ok: 
 
   // 2. Encrypt token
   const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
-  if (!encKey) return { ok: false, message: "❌ Ошибка конфигурации сервера." };
+  if (!encKey) {
+    console.error("connectBotToken: TOKEN_ENCRYPTION_KEY not set");
+    return { ok: false, message: "❌ Ошибка конфигурации сервера (ключ шифрования)." };
+  }
 
-  const { data: enc } = await db().rpc("encrypt_token", { p_token: rawToken, p_key: encKey });
-  if (!enc) return { ok: false, message: "❌ Ошибка шифрования токена." };
+  const { data: enc, error: encError } = await db().rpc("encrypt_token", { p_token: rawToken, p_key: encKey });
+  if (encError || !enc) {
+    console.error("connectBotToken: encryption failed", encError);
+    return { ok: false, message: `❌ Ошибка шифрования токена: ${encError?.message || "unknown"}` };
+  }
 
   // 3. Set webhook
   const webhookResult = await setupSellerWebhook(rawToken, shopId);
@@ -595,7 +601,8 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
   let webhookStatus = "none";
 
   if (sData.bot_token && sData.bot_valid && encKey) {
-    const { data: enc } = await db().rpc("encrypt_token", { p_token: sData.bot_token as string, p_key: encKey });
+    const { data: enc, error: encErr } = await db().rpc("encrypt_token", { p_token: sData.bot_token as string, p_key: encKey });
+    if (encErr) console.error("finalizeShop: encryption error", encErr);
     botTokenEnc = enc;
     botId = (sData.bot_id as number) || null;
     botUsername = (sData.bot_username as string) || null;
