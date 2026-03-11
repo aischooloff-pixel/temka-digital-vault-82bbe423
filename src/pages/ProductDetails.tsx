@@ -18,6 +18,7 @@ const ProductDetails = () => {
   const { data: product, isLoading, error } = useProduct(id || '');
   const { data: allProducts } = useProducts();
   const { addToCart } = useStore();
+  const { data: supportUsername } = useSupportUsername();
 
   if (isLoading) {
     return (
