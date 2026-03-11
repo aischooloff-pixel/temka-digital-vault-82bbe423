@@ -43,7 +43,7 @@ const ShopCart = () => {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <Link to={`${base}/product/${product.id}`} className="font-display font-semibold text-xs sm:text-sm hover:text-primary transition-colors line-clamp-1">{product.name}</Link>
+                  <Link to={buildPath(`/product/${product.id}`)} className="font-display font-semibold text-xs sm:text-sm hover:text-primary transition-colors line-clamp-1">{product.name}</Link>
                   {product.subtitle && <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">{product.subtitle}</p>}
                   <div className="flex items-center gap-1 mt-1">
                     <span className="text-[10px] text-primary flex items-center gap-0.5"><Zap className="w-3 h-3" /> Мгновенно</span>
