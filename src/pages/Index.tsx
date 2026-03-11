@@ -107,11 +107,9 @@ const Index = () => {
     try {
       const res = await supabase.functions.invoke('submit-review', {
         body: {
-          telegramId: user.id,
+          initData,
           rating: reviewRating,
           text: reviewText.trim(),
-          author: `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}`,
-          photoUrl: user.photoUrl || ''
         }
       });
       if (res.data?.error) {
