@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.check-payment]
 verify_jwt = false
+
+[functions.platform-bot]
+verify_jwt = false
