@@ -174,7 +174,7 @@ const ProductDetails = () => {
             <p className="text-xs sm:text-sm text-muted-foreground">Наша поддержка поможет вам 24/7</p>
           </div>
         </div>
-        <a href="https://t.me/paveldurov" target="_blank" rel="noopener noreferrer"><Button variant="outline">Связаться с поддержкой</Button></a>
+        <a href={`https://t.me/${supportUsername}`} target="_blank" rel="noopener noreferrer"><Button variant="outline">Связаться с поддержкой</Button></a>
       </div>
     </div>
   );

@@ -128,4 +128,5 @@ export const PAYMENT_STATUS_LABELS: Record<DbOrder['payment_status'], string> = 
   paid: 'Оплачен',
   failed: 'Ошибка оплаты',
   refunded: 'Возврат',
+  expired: 'Истёк',
 };

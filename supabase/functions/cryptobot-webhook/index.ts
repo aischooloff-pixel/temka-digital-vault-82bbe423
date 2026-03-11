@@ -122,7 +122,7 @@ async function handleOrderPayment(supabase: any, invoice: any, orderData: any) {
   // Idempotency check — skip if already paid
   const { data: existingOrder } = await supabase
     .from("orders")
-    .select("id, status, payment_status")
+    .select("id, status, payment_status, promo_code")
     .eq("id", orderData.orderId)
     .single();
 
