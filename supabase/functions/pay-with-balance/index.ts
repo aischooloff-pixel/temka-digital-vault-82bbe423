@@ -300,25 +300,16 @@ serve(async (req) => {
 
     if (oItems) {
       for (const item of oItems) {
-        const { data: invItems } = await supabase
-          .from("inventory_items")
-          .select("id, content")
-          .eq("product_id", item.product_id)
-          .eq("status", "available")
-          .limit(item.quantity);
+        const { data: reserved } = await supabase.rpc("reserve_inventory", {
+          p_product_id: item.product_id,
+          p_quantity: item.quantity,
+          p_order_id: order.id,
+        });
 
-        if (invItems && invItems.length > 0) {
-          const deliveredCount = Math.min(invItems.length, item.quantity);
-          const ids = invItems.slice(0, deliveredCount).map(i => i.id);
-
-          await supabase
-            .from("inventory_items")
-            .update({ status: "sold", order_id: order.id, sold_at: new Date().toISOString() })
-            .in("id", ids);
-
+        if (reserved && reserved.length > 0) {
           deliveredContent.push(
-            `📦 <b>${item.product_title}</b> (×${deliveredCount}):\n` +
-            invItems.slice(0, deliveredCount).map(i => `<code>${i.content}</code>`).join("\n")
+            `📦 <b>${item.product_title}</b> (×${reserved.length}):\n` +
+            reserved.map((i: any) => `<code>${i.content}</code>`).join("\n")
           );
 
           const { count: remaining } = await supabase
