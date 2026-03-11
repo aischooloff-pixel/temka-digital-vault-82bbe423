@@ -245,7 +245,7 @@ async function shopView(tg: ReturnType<typeof TG>, chatId: number, msgId: number
   const { count: productCount } = await db().from("shop_products").select("id", { count: "exact", head: true }).eq("shop_id", shopId);
   const { count: orderCount } = await db().from("shop_orders").select("id", { count: "exact", head: true }).eq("shop_id", shopId);
 
-  const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.slug}`;
+  const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
   const statusEmoji = shop.status === "active" ? "🟢" : "🔴";
 
   const text =
@@ -493,7 +493,7 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     return tg.edit(chatId, msgId, `❌ Ошибка: ${error?.message || "unknown"}`, ikb([[btn("◀️ Меню", "p:home")]]));
   }
 
-  const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.slug}`;
+  const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
   const text =
     `🎉 <b>Магазин создан!</b>\n\n` +
     `Вот твоя ссылка:\n${esc(shopUrl)}`;
@@ -733,9 +733,9 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
   // ─── Copy link ────────────────────────────
   if (cmd === "copylink") {
     const shopId = parts[2];
-    const { data: shop } = await db().from("shops").select("slug").eq("id", shopId).single();
+    const { data: shop } = await db().from("shops").select("id").eq("id", shopId).single();
     if (shop) {
-      const url = `${WEBAPP_DOMAIN}/shop/${shop.slug}`;
+      const url = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
       await tg.send(chatId, `📋 Ссылка на магазин:\n\n<code>${esc(url)}</code>\n\nНажми на ссылку выше чтобы скопировать.`);
     }
     return;

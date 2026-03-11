@@ -22,6 +22,18 @@ import About from "./pages/About";
 import Legal from "./pages/Legal";
 import { Delivery, Guarantees } from "./pages/InfoPages";
 import NotFound from "./pages/NotFound";
+import { Outlet } from "react-router-dom";
+
+const MainLayout = () => (
+  <div className="min-h-screen flex flex-col">
+    <Header />
+    <main className="flex-1 pb-14">
+      <Outlet />
+    </main>
+    <Footer />
+    <BottomNav />
+  </div>
+);
 
 // Shop (seller storefront)
 import ShopLayout from "./pages/ShopLayout";
@@ -50,34 +62,25 @@ const App = () => (
               </Route>
 
               {/* Main platform */}
-              <Route path="*" element={
-                <div className="min-h-screen flex flex-col">
-                  <Header />
-                  <main className="flex-1 pb-14">
-                    <Routes>
-                      <Route path="/" element={<Index />} />
-                      <Route path="/catalog" element={<Catalog />} />
-                      <Route path="/product/:id" element={<ProductDetails />} />
-                      <Route path="/cart" element={<Cart />} />
-                      <Route path="/checkout" element={<Checkout />} />
-                      <Route path="/order-success" element={<OrderSuccess />} />
-                      <Route path="/order-failed" element={<OrderFailed />} />
-                      <Route path="/account" element={<Account />} />
-                      <Route path="/faq" element={<FAQ />} />
-                      <Route path="/about" element={<About />} />
-                      <Route path="/terms" element={<Legal />} />
-                      <Route path="/privacy" element={<Legal />} />
-                      <Route path="/refund" element={<Legal />} />
-                      <Route path="/disclaimer" element={<Legal />} />
-                      <Route path="/delivery" element={<Delivery />} />
-                      <Route path="/guarantees" element={<Guarantees />} />
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </main>
-                  <Footer />
-                  <BottomNav />
-                </div>
-              } />
+              <Route element={<MainLayout />}>
+                <Route path="/" element={<Index />} />
+                <Route path="/catalog" element={<Catalog />} />
+                <Route path="/product/:id" element={<ProductDetails />} />
+                <Route path="/cart" element={<Cart />} />
+                <Route path="/checkout" element={<Checkout />} />
+                <Route path="/order-success" element={<OrderSuccess />} />
+                <Route path="/order-failed" element={<OrderFailed />} />
+                <Route path="/account" element={<Account />} />
+                <Route path="/faq" element={<FAQ />} />
+                <Route path="/about" element={<About />} />
+                <Route path="/terms" element={<Legal />} />
+                <Route path="/privacy" element={<Legal />} />
+                <Route path="/refund" element={<Legal />} />
+                <Route path="/disclaimer" element={<Legal />} />
+                <Route path="/delivery" element={<Delivery />} />
+                <Route path="/guarantees" element={<Guarantees />} />
+                <Route path="*" element={<NotFound />} />
+              </Route>
             </Routes>
           </BrowserRouter>
         </StoreProvider>
