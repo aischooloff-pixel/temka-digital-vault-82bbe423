@@ -68,6 +68,8 @@ interface ShopContextType {
   productsLoading: boolean;
   categories: ShopCategory[];
   categoriesLoading: boolean;
+  reviews: ShopReview[];
+  reviewsLoading: boolean;
   cart: ShopCartItem[];
   addToCart: (product: ShopProduct) => void;
   removeFromCart: (productId: string) => void;
