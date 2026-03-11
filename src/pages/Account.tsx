@@ -76,15 +76,33 @@ const Account = () => {
   const username = user?.username ? `@${user.username}` : '';
   const avatar = user?.firstName?.[0]?.toUpperCase() || 'T';
 
+  const MIN_TOPUP = 1;
+  const MAX_TOPUP = 1000;
+
   const handleTopup = async () => {
     const amount = Number(topupAmount);
     if (!amount || amount <= 0 || !user?.id) return;
+    if (amount < MIN_TOPUP) {
+      toast.error(`Минимальная сумма пополнения — $${MIN_TOPUP}`);
+      haptic.notification('error');
+      return;
+    }
+    if (amount > MAX_TOPUP) {
+      toast.error(`Максимальная сумма пополнения — $${MAX_TOPUP}`);
+      haptic.notification('error');
+      return;
+    }
     setTopupProcessing(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-topup-invoice', {
         body: { initData, amount },
       });
-      if (error) throw new Error(error.message);
+      // supabase.functions.invoke returns error for non-2xx but data may contain the actual message
+      if (error) {
+        // Try to extract meaningful message from the response
+        const msg = data?.error || error.message || 'Ошибка пополнения';
+        throw new Error(msg);
+      }
       if (data?.error) throw new Error(data.error);
 
       if (isInTelegram && data?.payUrl) {
