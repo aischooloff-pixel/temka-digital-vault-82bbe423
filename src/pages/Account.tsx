@@ -72,7 +72,7 @@ const Account = () => {
   const [topupAmount, setTopupAmount] = useState('');
   const [topupProcessing, setTopupProcessing] = useState(false);
 
-  const TOPUP_PRESETS = [5, 10, 25, 50];
+  const TOPUP_PRESETS = [1, 5, 10, 25];
 
   const displayName = user
     ? `${user.firstName}${user.lastName ? ` ${user.lastName}` : ''}`
