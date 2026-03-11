@@ -4,6 +4,7 @@ import { Package, CheckCircle2, Clock, MessageCircle, ChevronRight, AlertCircle,
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { useStorefront, useStorefrontPath } from '@/contexts/StorefrontContext';
+import { useShopOptional } from '@/contexts/ShopContext';
 import { useTelegram } from '@/contexts/TelegramContext';
 import { useOrders, useUserStats, useUserProfile, useBalanceHistory } from '@/hooks/useOrders';
 import { useSupportUsername } from '@/hooks/useSupportUsername';

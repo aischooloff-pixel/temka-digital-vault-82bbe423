@@ -258,3 +258,6 @@ export const useShop = () => {
   if (!ctx) throw new Error('useShop must be used within ShopProvider');
   return ctx;
 };
+
+/** Safe version that returns null outside ShopProvider */
+export const useShopOptional = () => useContext(ShopContext) ?? null;
