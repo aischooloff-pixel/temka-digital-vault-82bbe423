@@ -135,7 +135,7 @@ const Index = () => {
     <div>
       {/* Hero */}
       <section className="relative overflow-hidden px-4 pt-10 pb-10">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(270,84%,60%,0.08),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(0,84%,60%,0.08),transparent_60%)]" />
         <div className="container-main mx-auto relative">
           <motion.div initial="hidden" animate="visible" className="max-w-lg mx-auto text-center">
             <motion.div variants={fadeIn} custom={0} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-primary/30 bg-primary/5 text-primary text-sm mb-4">
