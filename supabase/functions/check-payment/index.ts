@@ -43,25 +43,142 @@ async function resolveTokens(supabase: any, shopId?: string) {
   };
 }
 
+async function notifyTopup(botToken: string | null, telegramId: number, amount: number, newBalance: number) {
+  if (!botToken) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: telegramId,
+        parse_mode: "HTML",
+        text: `✅ <b>Баланс пополнен!</b>\n\n💰 Сумма: $${amount.toFixed(2)}\n💳 Новый баланс: $${Number(newBalance).toFixed(2)}`,
+      }),
+    });
+  } catch (e) {
+    console.error("Topup notification failed:", e);
+  }
+}
+
+async function checkTopupPayment(params: {
+  supabase: any;
+  tokens: { botToken: string | null; cryptobotToken: string | null };
+  invoiceId: string;
+  telegramId: number;
+  shopId?: string;
+}) {
+  const { supabase, tokens, invoiceId, telegramId, shopId } = params;
+
+  if (!tokens.cryptobotToken) {
+    return jsonRes({ topupStatus: "awaiting", paymentStatus: "awaiting" });
+  }
+
+  const response = await fetch(`${CRYPTOBOT_API_URL}/getInvoices`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Crypto-Pay-API-Token": tokens.cryptobotToken },
+    body: JSON.stringify({ invoice_ids: invoiceId }),
+  });
+
+  const data = await response.json();
+  if (!data.ok || !data.result?.items?.length) {
+    return jsonRes({ topupStatus: "awaiting", paymentStatus: "awaiting" });
+  }
+
+  const invoice = data.result.items[0];
+  let payload: any = {};
+  try { payload = JSON.parse(invoice.payload || "{}"); } catch {}
+
+  if (payload.type !== "topup") {
+    return jsonRes({ error: "Invalid invoice type" }, 400);
+  }
+
+  if (Number(payload.telegramUserId) !== telegramId) {
+    return jsonRes({ error: "Invoice owner mismatch" }, 403);
+  }
+
+  if (shopId && (payload.shopId || null) !== shopId) {
+    return jsonRes({ error: "Invoice shop mismatch" }, 403);
+  }
+
+  if (invoice.status === "paid") {
+    const topupAmount = Number(payload.amount ?? invoice.amount ?? 0);
+    if (!topupAmount || topupAmount <= 0) {
+      return jsonRes({ error: "Invalid invoice amount" }, 400);
+    }
+
+    const { error: dedupError } = await supabase.from("processed_invoices").insert({
+      invoice_id: String(invoice.invoice_id),
+      type: "topup",
+      order_id: null,
+      telegram_id: telegramId,
+      amount: Number(invoice.amount) || topupAmount,
+    });
+
+    if (!dedupError) {
+      const { data: newBalance, error: balanceError } = await supabase.rpc("credit_balance", {
+        p_telegram_id: telegramId,
+        p_amount: topupAmount,
+      });
+
+      if (balanceError) {
+        console.error("Topup credit error:", balanceError);
+        return jsonRes({ error: "Failed to credit balance" }, 500);
+      }
+
+      await supabase.from("balance_history").insert({
+        telegram_id: telegramId,
+        amount: topupAmount,
+        balance_after: newBalance,
+        type: "credit",
+        comment: "Пополнение через CryptoBot",
+        admin_telegram_id: telegramId,
+      });
+
+      await notifyTopup(tokens.botToken, telegramId, topupAmount, Number(newBalance) || 0);
+
+      return jsonRes({ topupStatus: "paid", paymentStatus: "paid", amount: topupAmount, balance: newBalance });
+    }
+
+    return jsonRes({ topupStatus: "paid", paymentStatus: "paid" });
+  }
+
+  if (invoice.status === "expired") {
+    return jsonRes({ topupStatus: "expired", paymentStatus: "expired" });
+  }
+
+  return jsonRes({ topupStatus: invoice.status || "awaiting", paymentStatus: "awaiting" });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { orderId, initData, shopId } = await req.json();
+    const { orderId, invoiceId, initData, shopId } = await req.json();
     const isShop = !!shopId;
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     let tokens;
     try { tokens = await resolveTokens(supabase, shopId); }
-    catch (e) { return jsonRes({ error: e.message }, 500); }
+    catch (e) { return jsonRes({ error: (e as Error).message }, 500); }
 
     if (!tokens.botToken) return jsonRes({ error: "Not configured" }, 500);
     if (!initData) return jsonRes({ error: "Authentication required" }, 401);
 
     const tgUser = verifyAndExtractUser(initData, tokens.botToken);
     if (!tgUser) return jsonRes({ error: "Invalid authentication" }, 401);
-    if (!orderId) return jsonRes({ error: "Missing orderId" }, 400);
+
+    if (!orderId && !invoiceId) return jsonRes({ error: "Missing orderId or invoiceId" }, 400);
+
+    if (invoiceId) {
+      return await checkTopupPayment({
+        supabase,
+        tokens,
+        invoiceId: String(invoiceId),
+        telegramId: tgUser.id,
+        shopId,
+      });
+    }
 
     // Get order from correct table
     const orderTable = isShop ? "shop_orders" : "orders";

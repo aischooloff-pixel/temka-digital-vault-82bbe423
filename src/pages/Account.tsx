@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import cryptobotLogo from '@/assets/cryptobot-logo.jpeg';
 import { Package, CheckCircle2, Clock, MessageCircle, ChevronRight, AlertCircle, XCircle, Wallet, ArrowDownCircle, ArrowUpCircle, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -72,6 +72,7 @@ const Account = () => {
   const [showTopup, setShowTopup] = useState(false);
   const [topupAmount, setTopupAmount] = useState('');
   const [topupProcessing, setTopupProcessing] = useState(false);
+  const [pendingTopupInvoiceId, setPendingTopupInvoiceId] = useState<string | null>(null);
 
   const TOPUP_PRESETS = [1, 5, 10, 25];
 
@@ -83,6 +84,59 @@ const Account = () => {
 
   const MIN_TOPUP = 0.1;
   const MAX_TOPUP = 1000;
+  const pendingTopupStorageKey = useMemo(
+    () => `pending-topup-${shopId || 'platform'}-${user?.id || 'anon'}`,
+    [shopId, user?.id],
+  );
+
+  useEffect(() => {
+    try {
+      const pendingId = localStorage.getItem(pendingTopupStorageKey);
+      if (pendingId) setPendingTopupInvoiceId(pendingId);
+    } catch {}
+  }, [pendingTopupStorageKey]);
+
+  const clearPendingTopup = useCallback(() => {
+    setPendingTopupInvoiceId(null);
+    try {
+      localStorage.removeItem(pendingTopupStorageKey);
+    } catch {}
+  }, [pendingTopupStorageKey]);
+
+  const checkTopupPayment = useCallback(async () => {
+    if (!pendingTopupInvoiceId || !initData) return;
+
+    try {
+      const { data, error } = await supabase.functions.invoke('check-payment', {
+        body: { invoiceId: pendingTopupInvoiceId, initData, shopId },
+      });
+
+      if (error || data?.error) return;
+
+      if (data?.paymentStatus === 'paid' || data?.topupStatus === 'paid') {
+        clearPendingTopup();
+        queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+        queryClient.invalidateQueries({ queryKey: ['balance-history'] });
+        queryClient.invalidateQueries({ queryKey: ['user-stats'] });
+        toast.success('Баланс успешно пополнен');
+        haptic.notification('success');
+        return;
+      }
+
+      if (data?.paymentStatus === 'expired' || data?.topupStatus === 'expired') {
+        clearPendingTopup();
+        toast.error('Инвойс пополнения истёк');
+      }
+    } catch {}
+  }, [pendingTopupInvoiceId, initData, shopId, clearPendingTopup, queryClient, haptic]);
+
+  useEffect(() => {
+    if (!pendingTopupInvoiceId || !initData) return;
+
+    checkTopupPayment();
+    const interval = setInterval(checkTopupPayment, 5000);
+    return () => clearInterval(interval);
+  }, [pendingTopupInvoiceId, initData, checkTopupPayment]);
 
   const handleTopup = async () => {
     const amount = Number(topupAmount);
@@ -108,6 +162,14 @@ const Account = () => {
         throw new Error(msg);
       }
       if (data?.error) throw new Error(data.error);
+
+      if (data?.invoiceId) {
+        const invoiceId = String(data.invoiceId);
+        setPendingTopupInvoiceId(invoiceId);
+        try {
+          localStorage.setItem(pendingTopupStorageKey, invoiceId);
+        } catch {}
+      }
 
       if (isInTelegram && data?.payUrl) {
         openTelegramLink(data.payUrl);
