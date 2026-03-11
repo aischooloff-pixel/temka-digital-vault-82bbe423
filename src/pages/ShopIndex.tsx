@@ -32,7 +32,7 @@ const ShopIndex = () => {
               <Zap className="w-4 h-4" /> Мгновенная доставка
             </motion.div>
             <motion.h1 variants={fadeIn} custom={1} className="font-display text-3xl sm:text-4xl font-bold leading-tight tracking-tight">
-              <span className="gradient-text">{shop.hero_title || shop.name}</span>
+              {shop.hero_title || shop.name}
             </motion.h1>
             <motion.p variants={fadeIn} custom={2} className="text-muted-foreground text-base mt-4 max-w-sm mx-auto">
               {shop.hero_description}
@@ -53,38 +53,40 @@ const ShopIndex = () => {
         </div>
       </section>
 
-      {/* Stats — always visible */}
-      <section className="border-y border-border/30 bg-card/30">
-        <div className="container-main mx-auto px-4 py-6 grid grid-cols-3 gap-2">
-          {productsLoading ? (
-            Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="text-center space-y-1">
-                <Skeleton className="w-5 h-5 mx-auto rounded-full" />
-                <Skeleton className="h-6 w-12 mx-auto" />
-                <Skeleton className="h-4 w-14 mx-auto" />
-              </div>
-            ))
-          ) : (
-            <>
-              <div className="text-center">
-                <Package className="w-5 h-5 text-primary mx-auto mb-1.5" />
-                <div className="font-display text-lg sm:text-xl font-bold">{products.length}</div>
-                <div className="text-xs text-muted-foreground">Товаров</div>
-              </div>
-              <div className="text-center">
-                <CheckCircle2 className="w-5 h-5 text-primary mx-auto mb-1.5" />
-                <div className="font-display text-lg sm:text-xl font-bold">{inStock}</div>
-                <div className="text-xs text-muted-foreground">В наличии</div>
-              </div>
-              <div className="text-center">
-                <Clock className="w-5 h-5 text-primary mx-auto mb-1.5" />
-                <div className="font-display text-lg sm:text-xl font-bold">&lt;2с</div>
-                <div className="text-xs text-muted-foreground">Доставка</div>
-              </div>
-            </>
-          )}
-        </div>
-      </section>
+      {/* Stats */}
+      {(products.length > 0 || productsLoading) && (
+        <section className="border-y border-border/30 bg-card/30">
+          <div className="container-main mx-auto px-4 py-6 grid grid-cols-3 gap-2">
+            {productsLoading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="text-center space-y-1">
+                  <Skeleton className="w-5 h-5 mx-auto rounded-full" />
+                  <Skeleton className="h-6 w-12 mx-auto" />
+                  <Skeleton className="h-4 w-14 mx-auto" />
+                </div>
+              ))
+            ) : (
+              <>
+                <div className="text-center">
+                  <Package className="w-5 h-5 text-primary mx-auto mb-1.5" />
+                  <div className="font-display text-lg sm:text-xl font-bold">{products.length}</div>
+                  <div className="text-xs text-muted-foreground">Товаров</div>
+                </div>
+                <div className="text-center">
+                  <CheckCircle2 className="w-5 h-5 text-primary mx-auto mb-1.5" />
+                  <div className="font-display text-lg sm:text-xl font-bold">{inStock}</div>
+                  <div className="text-xs text-muted-foreground">В наличии</div>
+                </div>
+                <div className="text-center">
+                  <Clock className="w-5 h-5 text-primary mx-auto mb-1.5" />
+                  <div className="font-display text-lg sm:text-xl font-bold">&lt;2с</div>
+                  <div className="text-xs text-muted-foreground">Доставка</div>
+                </div>
+              </>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Products */}
       <section className="px-4 py-8">

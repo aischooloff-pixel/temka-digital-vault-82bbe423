@@ -22,17 +22,10 @@ const ShopCatalog = () => {
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 500]);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Read type filter from URL
-  const searchParams = new URLSearchParams(window.location.search);
-  const typeFilter = searchParams.get('type');
-
   const q = localSearch || searchQuery;
 
   const filtered = useMemo(() => {
     let result = [...products];
-    if (typeFilter) {
-      result = result.filter(p => p.type === typeFilter);
-    }
     if (q.trim()) {
       const lower = q.toLowerCase();
       result = result.filter(p =>
@@ -50,7 +43,7 @@ const ShopCatalog = () => {
       default: result.sort((a, b) => a.sort_order - b.sort_order);
     }
     return result;
-  }, [products, q, sortBy, priceRange, typeFilter]);
+  }, [products, q, sortBy, priceRange]);
 
   const clearFilters = () => {
     setLocalSearch('');
