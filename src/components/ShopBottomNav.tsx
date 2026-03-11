@@ -1,21 +1,19 @@
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { Home, Search, ShoppingCart, MessageCircle } from 'lucide-react';
+import { Home, Search, ShoppingCart, User } from 'lucide-react';
 import { useShop } from '@/contexts/ShopContext';
 
 const ShopBottomNav = () => {
   const { shopId } = useParams();
   const location = useLocation();
-  const { cartCount, shop } = useShop();
+  const { cartCount } = useShop();
   const base = `/shop/${shopId}`;
 
   const navItems = [
     { path: base, icon: Home, label: 'Главная', exact: true },
     { path: `${base}/catalog`, icon: Search, label: 'Каталог' },
     { path: `${base}/cart`, icon: ShoppingCart, label: 'Корзина' },
+    { path: `${base}/account`, icon: User, label: 'Профиль' },
   ];
-
-  // Add support link if available
-  const supportLink = shop?.support_link;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 glass-strong border-t border-border/30 safe-area-bottom">
@@ -45,17 +43,6 @@ const ShopBottomNav = () => {
             </Link>
           );
         })}
-        {supportLink && (
-          <a
-            href={supportLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors text-muted-foreground"
-          >
-            <MessageCircle className="w-5 h-5" />
-            <span className="text-[10px] font-medium">Поддержка</span>
-          </a>
-        )}
       </div>
     </nav>
   );

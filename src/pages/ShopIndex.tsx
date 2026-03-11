@@ -23,7 +23,7 @@ const ShopIndex = () => {
 
   return (
     <div>
-      {/* Hero */}
+      {/* Hero — identical structure to platform Index */}
       <section className="relative overflow-hidden px-4 pt-10 pb-10">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.08),transparent_60%)]" />
         <div className="container-main mx-auto relative">
@@ -53,42 +53,40 @@ const ShopIndex = () => {
         </div>
       </section>
 
-      {/* Stats */}
-      {(products.length > 0 || productsLoading) && (
-        <section className="border-y border-border/30 bg-card/30">
-          <div className="container-main mx-auto px-4 py-6 grid grid-cols-3 gap-2">
-            {productsLoading ? (
-              Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="text-center space-y-1">
-                  <Skeleton className="w-5 h-5 mx-auto rounded-full" />
-                  <Skeleton className="h-6 w-12 mx-auto" />
-                  <Skeleton className="h-4 w-14 mx-auto" />
-                </div>
-              ))
-            ) : (
-              <>
-                <div className="text-center">
-                  <Package className="w-5 h-5 text-primary mx-auto mb-1.5" />
-                  <div className="font-display text-lg sm:text-xl font-bold">{products.length}</div>
-                  <div className="text-xs text-muted-foreground">Товаров</div>
-                </div>
-                <div className="text-center">
-                  <CheckCircle2 className="w-5 h-5 text-primary mx-auto mb-1.5" />
-                  <div className="font-display text-lg sm:text-xl font-bold">{inStock}</div>
-                  <div className="text-xs text-muted-foreground">В наличии</div>
-                </div>
-                <div className="text-center">
-                  <Clock className="w-5 h-5 text-primary mx-auto mb-1.5" />
-                  <div className="font-display text-lg sm:text-xl font-bold">&lt;2с</div>
-                  <div className="text-xs text-muted-foreground">Доставка</div>
-                </div>
-              </>
-            )}
-          </div>
-        </section>
-      )}
+      {/* Stats — identical structure to platform Index */}
+      <section className="border-y border-border/30 bg-card/30">
+        <div className="container-main mx-auto px-4 py-6 grid grid-cols-3 gap-2">
+          {productsLoading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="text-center space-y-1">
+                <Skeleton className="w-5 h-5 mx-auto rounded-full" />
+                <Skeleton className="h-6 w-12 mx-auto" />
+                <Skeleton className="h-4 w-14 mx-auto" />
+              </div>
+            ))
+          ) : (
+            <>
+              <div className="text-center">
+                <Package className="w-5 h-5 text-primary mx-auto mb-1.5" />
+                <div className="font-display text-lg sm:text-xl font-bold">{products.length}</div>
+                <div className="text-xs text-muted-foreground">Товаров</div>
+              </div>
+              <div className="text-center">
+                <CheckCircle2 className="w-5 h-5 text-primary mx-auto mb-1.5" />
+                <div className="font-display text-lg sm:text-xl font-bold">{inStock}</div>
+                <div className="text-xs text-muted-foreground">В наличии</div>
+              </div>
+              <div className="text-center">
+                <Clock className="w-5 h-5 text-primary mx-auto mb-1.5" />
+                <div className="font-display text-lg sm:text-xl font-bold">&lt;2с</div>
+                <div className="text-xs text-muted-foreground">Доставка</div>
+              </div>
+            </>
+          )}
+        </div>
+      </section>
 
-      {/* Products */}
+      {/* Products — identical carousel structure to platform Index "Популярные" section */}
       <section className="px-4 py-8">
         <div className="container-main mx-auto">
           <div className="flex items-center justify-between mb-5">
@@ -114,8 +112,31 @@ const ShopIndex = () => {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground text-center py-8">Товары скоро появятся</p>
+            <div className="text-center py-8">
+              <Package className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-50" />
+              <p className="text-sm text-muted-foreground">Товары скоро появятся</p>
+              <p className="text-xs text-muted-foreground mt-1">Магазин готовится к запуску</p>
+            </div>
           )}
+        </div>
+      </section>
+
+      {/* FAQ — identical structure to platform Index */}
+      <section className="px-4 py-8">
+        <div className="container-main mx-auto max-w-lg">
+          <h2 className="font-display text-xl font-bold mb-4">Частые вопросы</h2>
+          <div className="space-y-2">
+            {[
+              { q: 'Как быстро доставка?', a: 'Большинство товаров доставляется мгновенно после оплаты.' },
+              { q: 'Как проходит оплата?', a: 'Оплата через CryptoBot прямо в Telegram.' },
+              { q: 'Что делать, если проблема?', a: 'Напишите в поддержку — мы заменим или вернём деньги.' },
+            ].map((faq, i) => (
+              <div key={i} className="p-4 bg-card border border-border/50 rounded-xl">
+                <h4 className="font-display font-semibold text-sm">{faq.q}</h4>
+                <p className="text-sm text-muted-foreground mt-1">{faq.a}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
     </div>
