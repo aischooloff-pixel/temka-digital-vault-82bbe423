@@ -6,6 +6,7 @@ import { useStorefrontPath } from '@/contexts/StorefrontContext';
 
 const OrderFailed = () => {
   const { data: supportUsername } = useSupportUsername();
+  const buildPath = useStorefrontPath();
   return (
     <div className="container-main mx-auto px-4 py-12 sm:py-16 text-center max-w-md">
       <div className="animate-fade-in">
