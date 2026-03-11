@@ -104,34 +104,26 @@ const About = () => {
           </div>
         ) : stats.data && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-8">
-            {(stats.data.users ?? 0) > 0 && (
-              <div className="text-center">
-                <Users className="w-5 h-5 text-primary mx-auto mb-1" />
-                <div className="font-display text-2xl sm:text-3xl font-bold text-primary">{stats.data.users}</div>
-                <div className="text-xs text-muted-foreground mt-1">Пользователей</div>
-              </div>
-            )}
-            {(stats.data.completedOrders ?? 0) > 0 && (
-              <div className="text-center">
-                <CheckCircle2 className="w-5 h-5 text-primary mx-auto mb-1" />
-                <div className="font-display text-2xl sm:text-3xl font-bold text-primary">{stats.data.completedOrders}</div>
-                <div className="text-xs text-muted-foreground mt-1">Заказов выполнено</div>
-              </div>
-            )}
-            {(stats.data.activeProducts ?? 0) > 0 && (
-              <div className="text-center">
-                <Package className="w-5 h-5 text-primary mx-auto mb-1" />
-                <div className="font-display text-2xl sm:text-3xl font-bold text-primary">{stats.data.activeProducts}</div>
-                <div className="text-xs text-muted-foreground mt-1">Товаров</div>
-              </div>
-            )}
-            {(stats.data.approvedReviews ?? 0) > 0 && (
-              <div className="text-center">
-                <MessageCircle className="w-5 h-5 text-primary mx-auto mb-1" />
-                <div className="font-display text-2xl sm:text-3xl font-bold text-primary">{stats.data.approvedReviews}</div>
-                <div className="text-xs text-muted-foreground mt-1">Отзывов</div>
-              </div>
-            )}
+            <div className="text-center">
+              <Users className="w-5 h-5 text-primary mx-auto mb-1" />
+              <div className="font-display text-2xl sm:text-3xl font-bold text-primary">{stats.data.users ?? 0}</div>
+              <div className="text-xs text-muted-foreground mt-1">Пользователей</div>
+            </div>
+            <div className="text-center">
+              <CheckCircle2 className="w-5 h-5 text-primary mx-auto mb-1" />
+              <div className="font-display text-2xl sm:text-3xl font-bold text-primary">{stats.data.completedOrders ?? 0}</div>
+              <div className="text-xs text-muted-foreground mt-1">Заказов выполнено</div>
+            </div>
+            <div className="text-center">
+              <Package className="w-5 h-5 text-primary mx-auto mb-1" />
+              <div className="font-display text-2xl sm:text-3xl font-bold text-primary">{stats.data.activeProducts ?? 0}</div>
+              <div className="text-xs text-muted-foreground mt-1">Товаров</div>
+            </div>
+            <div className="text-center">
+              <MessageCircle className="w-5 h-5 text-primary mx-auto mb-1" />
+              <div className="font-display text-2xl sm:text-3xl font-bold text-primary">{stats.data.approvedReviews ?? 0}</div>
+              <div className="text-xs text-muted-foreground mt-1">Отзывов</div>
+            </div>
           </div>
         )}
 
