@@ -292,7 +292,7 @@ const Account = () => {
           <div className="text-center py-8">
             <Package className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">Пока нет записей</p>
-            <Link to="/catalog"><Button variant="outline" size="sm" className="mt-3">Перейти в каталог</Button></Link>
+            <Link to={buildPath('/catalog')}><Button variant="outline" size="sm" className="mt-3">Перейти в каталог</Button></Link>
           </div>
         ) : (
           <div className="space-y-2">
