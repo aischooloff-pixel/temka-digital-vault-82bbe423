@@ -599,7 +599,50 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      public_reviews: {
+        Row: {
+          author: string | null
+          avatar: string | null
+          created_at: string | null
+          id: string | null
+          moderation_status: string | null
+          product_id: string | null
+          rating: number | null
+          text: string | null
+          verified: boolean | null
+        }
+        Insert: {
+          author?: string | null
+          avatar?: string | null
+          created_at?: string | null
+          id?: string | null
+          moderation_status?: string | null
+          product_id?: string | null
+          rating?: number | null
+          text?: string | null
+          verified?: boolean | null
+        }
+        Update: {
+          author?: string | null
+          avatar?: string | null
+          created_at?: string | null
+          id?: string | null
+          moderation_status?: string | null
+          product_id?: string | null
+          rating?: number | null
+          text?: string | null
+          verified?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       credit_balance: {
@@ -618,6 +661,7 @@ export type Database = {
           id: string
         }[]
       }
+      validate_promo_code: { Args: { p_code: string }; Returns: Json }
     }
     Enums: {
       [_ in never]: never
