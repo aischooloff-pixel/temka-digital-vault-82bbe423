@@ -85,6 +85,11 @@ const ShopCart = () => {
                 <span>Итого</span><span>${cartTotal.toFixed(2)}</span>
               </div>
             </div>
+            <Link to={buildPath('/checkout')}>
+              <Button variant="hero" size="lg" className="w-full">
+                Перейти к оплате <ArrowRight className="w-4 h-4 ml-1" />
+              </Button>
+            </Link>
             <p className="text-xs text-muted-foreground">
               Оплата через CryptoBot. Товары будут выданы мгновенно после оплаты.
             </p>

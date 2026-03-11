@@ -58,10 +58,10 @@ const Account = () => {
   // Extract shopId from basePath for multi-tenant context
   const isTenant = basePath.startsWith('/shop/');
   const shopId = isTenant ? basePath.split('/')[2] : undefined;
-  const { data: orders, isLoading: ordersLoading } = useOrders();
-  const { data: balanceHistory, isLoading: balanceLoading } = useBalanceHistory();
-  const { data: stats, isLoading: statsLoading } = useUserStats();
-  const { data: profile, isLoading: profileLoading } = useUserProfile();
+  const { data: orders, isLoading: ordersLoading } = useOrders(shopId);
+  const { data: balanceHistory, isLoading: balanceLoading } = useBalanceHistory(shopId);
+  const { data: stats, isLoading: statsLoading } = useUserStats(shopId);
+  const { data: profile, isLoading: profileLoading } = useUserProfile(shopId);
   const queryClient = useQueryClient();
   const { data: supportUsername } = useSupportUsername();
 
