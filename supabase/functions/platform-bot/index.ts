@@ -245,7 +245,7 @@ async function shopView(tg: ReturnType<typeof TG>, chatId: number, msgId: number
   const { count: productCount } = await db().from("shop_products").select("id", { count: "exact", head: true }).eq("shop_id", shopId);
   const { count: orderCount } = await db().from("shop_orders").select("id", { count: "exact", head: true }).eq("shop_id", shopId);
 
-  const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.slug}`;
+  const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
   const statusEmoji = shop.status === "active" ? "🟢" : "🔴";
 
   const text =
