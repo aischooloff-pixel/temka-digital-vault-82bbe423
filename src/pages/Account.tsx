@@ -80,7 +80,7 @@ const Account = () => {
   const username = user?.username ? `@${user.username}` : '';
   const avatar = user?.firstName?.[0]?.toUpperCase() || 'T';
 
-  const MIN_TOPUP = 1;
+  const MIN_TOPUP = 0.1;
   const MAX_TOPUP = 1000;
 
   const handleTopup = async () => {

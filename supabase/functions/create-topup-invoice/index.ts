@@ -10,7 +10,7 @@ const corsHeaders = {
 
 const CRYPTOBOT_API_URL = "https://pay.crypt.bot/api";
 const MAX_TOPUP_AMOUNT = 1000;
-const MIN_TOPUP_AMOUNT = 1;
+const MIN_TOPUP_AMOUNT = 0.1;
 
 function verifyAndExtractUser(initData: string, botToken: string): { id: number } | null {
   const params = new URLSearchParams(initData);
