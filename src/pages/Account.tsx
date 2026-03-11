@@ -393,11 +393,12 @@ const Account = () => {
               <label className="text-xs text-muted-foreground mb-1.5 block">Или введите сумму</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                <Input
+              <Input
                   type="number"
-                  min="1"
+                  min={MIN_TOPUP}
+                  max={MAX_TOPUP}
                   step="0.01"
-                  placeholder="0.00"
+                  placeholder={`от $${MIN_TOPUP}`}
                   value={topupAmount}
                   onChange={e => setTopupAmount(e.target.value)}
                   className="pl-7"
