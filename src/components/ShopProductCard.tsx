@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { ShoppingCart, Zap, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useShop, ShopProduct } from '@/contexts/ShopContext';
+import { useStorefrontPath } from '@/contexts/StorefrontContext';
 import { toast } from 'sonner';
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
 
 const ShopProductCard = ({ product, shopId }: Props) => {
   const { addToCart } = useShop();
+  const buildPath = useStorefrontPath();
   const outOfStock = product.stock <= 0;
   const discount = product.old_price ? Math.round((1 - Number(product.price) / Number(product.old_price)) * 100) : 0;
 
