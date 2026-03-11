@@ -260,12 +260,20 @@ serve(async (req) => {
     }));
     await supabase.from("order_items").insert(orderItems);
 
-    // ─── Deduct balance ──────────────────────────
-    const newBalance = serverBalance - balanceUsed;
-    await supabase
-      .from("user_profiles")
-      .update({ balance: newBalance, updated_at: new Date().toISOString() })
-      .eq("telegram_id", telegramUserId);
+    // ─── Atomic balance deduction ───────────────
+    const { data: newBalance, error: balError } = await supabase.rpc("deduct_balance", {
+      p_telegram_id: telegramUserId,
+      p_amount: balanceUsed,
+    });
+
+    if (balError) {
+      // Rollback order
+      await supabase.from("orders").delete().eq("id", order.id);
+      return new Response(
+        JSON.stringify({ error: "Insufficient balance (concurrent deduction)" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     await supabase.from("balance_history").insert({
       telegram_id: telegramUserId,
@@ -276,19 +284,9 @@ serve(async (req) => {
       admin_telegram_id: telegramUserId,
     });
 
-    // Increment promo used_count
+    // Atomic promo increment
     if (validatedPromoCode) {
-      const { data: promo } = await supabase
-        .from("promocodes")
-        .select("id, used_count")
-        .eq("code", validatedPromoCode)
-        .maybeSingle();
-      if (promo) {
-        await supabase
-          .from("promocodes")
-          .update({ used_count: (promo.used_count || 0) + 1 })
-          .eq("id", promo.id);
-      }
+      await supabase.rpc("increment_promo_usage", { p_code: validatedPromoCode });
     }
 
     // ─── Auto-deliver inventory items ─────────────
