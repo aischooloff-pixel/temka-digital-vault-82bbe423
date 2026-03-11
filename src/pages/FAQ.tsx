@@ -122,10 +122,12 @@ const FAQ = () => {
         )}
       </div>
 
-      <div className="text-center mt-10 sm:mt-12">
-        <p className="text-muted-foreground text-sm">Не нашли ответ?</p>
-        <a href={resolvedSupportLink} target="_blank" rel="noopener noreferrer"><Button variant="hero" className="mt-3"><Headphones className="w-4 h-4 mr-1" /> Связаться с поддержкой</Button></a>
-      </div>
+      {resolvedSupportLink && (
+        <div className="text-center mt-10 sm:mt-12">
+          <p className="text-muted-foreground text-sm">Не нашли ответ?</p>
+          <a href={resolvedSupportLink} target="_blank" rel="noopener noreferrer"><Button variant="hero" className="mt-3"><Headphones className="w-4 h-4 mr-1" /> Связаться с поддержкой</Button></a>
+        </div>
+      )}
     </div>
   );
 };
