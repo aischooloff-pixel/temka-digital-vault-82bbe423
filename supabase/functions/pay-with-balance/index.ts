@@ -260,12 +260,20 @@ serve(async (req) => {
     }));
     await supabase.from("order_items").insert(orderItems);
 
-    // ─── Deduct balance ──────────────────────────
-    const newBalance = serverBalance - balanceUsed;
-    await supabase
-      .from("user_profiles")
-      .update({ balance: newBalance, updated_at: new Date().toISOString() })
-      .eq("telegram_id", telegramUserId);
+    // ─── Atomic balance deduction ───────────────
+    const { data: newBalance, error: balError } = await supabase.rpc("deduct_balance", {
+      p_telegram_id: telegramUserId,
+      p_amount: balanceUsed,
+    });
+
+    if (balError) {
+      // Rollback order
+      await supabase.from("orders").delete().eq("id", order.id);
+      return new Response(
+        JSON.stringify({ error: "Insufficient balance (concurrent deduction)" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     await supabase.from("balance_history").insert({
       telegram_id: telegramUserId,
@@ -276,19 +284,9 @@ serve(async (req) => {
       admin_telegram_id: telegramUserId,
     });
 
-    // Increment promo used_count
+    // Atomic promo increment
     if (validatedPromoCode) {
-      const { data: promo } = await supabase
-        .from("promocodes")
-        .select("id, used_count")
-        .eq("code", validatedPromoCode)
-        .maybeSingle();
-      if (promo) {
-        await supabase
-          .from("promocodes")
-          .update({ used_count: (promo.used_count || 0) + 1 })
-          .eq("id", promo.id);
-      }
+      await supabase.rpc("increment_promo_usage", { p_code: validatedPromoCode });
     }
 
     // ─── Auto-deliver inventory items ─────────────
@@ -302,25 +300,16 @@ serve(async (req) => {
 
     if (oItems) {
       for (const item of oItems) {
-        const { data: invItems } = await supabase
-          .from("inventory_items")
-          .select("id, content")
-          .eq("product_id", item.product_id)
-          .eq("status", "available")
-          .limit(item.quantity);
+        const { data: reserved } = await supabase.rpc("reserve_inventory", {
+          p_product_id: item.product_id,
+          p_quantity: item.quantity,
+          p_order_id: order.id,
+        });
 
-        if (invItems && invItems.length > 0) {
-          const deliveredCount = Math.min(invItems.length, item.quantity);
-          const ids = invItems.slice(0, deliveredCount).map(i => i.id);
-
-          await supabase
-            .from("inventory_items")
-            .update({ status: "sold", order_id: order.id, sold_at: new Date().toISOString() })
-            .in("id", ids);
-
+        if (reserved && reserved.length > 0) {
           deliveredContent.push(
-            `📦 <b>${item.product_title}</b> (×${deliveredCount}):\n` +
-            invItems.slice(0, deliveredCount).map(i => `<code>${i.content}</code>`).join("\n")
+            `📦 <b>${item.product_title}</b> (×${reserved.length}):\n` +
+            reserved.map((i: any) => `<code>${i.content}</code>`).join("\n")
           );
 
           const { count: remaining } = await supabase
@@ -334,7 +323,7 @@ serve(async (req) => {
             .update({ stock: remaining || 0, updated_at: new Date().toISOString() })
             .eq("id", item.product_id);
 
-          if (deliveredCount < item.quantity) allDelivered = false;
+          if (reserved.length < item.quantity) allDelivered = false;
         } else {
           allDelivered = false;
         }

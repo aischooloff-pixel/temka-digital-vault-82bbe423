@@ -1110,27 +1110,29 @@ serve(async (req) => {
     const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
     if (!botToken) return json({ error: "No token" }, 500);
 
-    const url = new URL(req.url);
-    if (req.method === "GET" && url.searchParams.get("setup") === "true") {
-      const origin = url.origin.replace("http://", "https://");
-      const webhookUrl = `${origin}/functions/v1/telegram-bot`;
-      const result = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: webhookUrl }),
-      }).then(r => r.json());
-      return json({ webhook: webhookUrl, result });
+    // ─── Webhook secret token verification ───────
+    const secretToken = Deno.env.get("TELEGRAM_WEBHOOK_SECRET");
+    if (secretToken) {
+      const headerToken = req.headers.get("x-telegram-bot-api-secret-token");
+      if (headerToken !== secretToken) {
+        return json({ error: "Forbidden" }, 403);
+      }
+    }
+
+    // Setup endpoint removed for security — use CLI or manual API call to set webhook
+
+    if (req.method !== "POST") {
+      return json({ error: "Method not allowed" }, 405);
     }
 
     const rawBody = await req.text();
-    console.log("Incoming webhook, body length:", rawBody.length);
     let body: any;
     try {
       body = JSON.parse(rawBody);
-    } catch (e) {
-      console.error("Failed to parse body:", rawBody.substring(0, 200));
+    } catch (_e) {
       return json({ error: "Invalid JSON" }, 400);
     }
-    console.log("Update type:", body.message ? "message" : body.callback_query ? "callback" : "other", "from:", body.message?.from?.id || body.callback_query?.from?.id);
+    console.log("Update type:", body.message ? "message" : body.callback_query ? "callback" : "other");
     const tg = TG(botToken);
 
     // Callback queries

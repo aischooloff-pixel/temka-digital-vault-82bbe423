@@ -6,6 +6,7 @@ import { useOrders } from '@/hooks/useOrders';
 import { useSupportUsername } from '@/hooks/useSupportUsername';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
+import { useTelegram } from '@/contexts/TelegramContext';
 
 const OrderSuccess = () => {
   const [searchParams] = useSearchParams();
@@ -13,6 +14,7 @@ const OrderSuccess = () => {
   const { data: orders } = useOrders();
   const queryClient = useQueryClient();
   const { data: supportUsername } = useSupportUsername();
+  const { initData } = useTelegram();
   const [polling, setPolling] = useState(true);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [expired, setExpired] = useState(false);
@@ -29,7 +31,7 @@ const OrderSuccess = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke('check-payment', {
-        body: { orderId: order.id },
+        body: { orderId: order.id, initData },
       });
 
       if (error) {

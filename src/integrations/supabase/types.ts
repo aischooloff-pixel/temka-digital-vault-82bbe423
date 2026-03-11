@@ -296,6 +296,33 @@ export type Database = {
         }
         Relationships: []
       }
+      processed_invoices: {
+        Row: {
+          amount: number | null
+          invoice_id: string
+          order_id: string | null
+          processed_at: string
+          telegram_id: number | null
+          type: string
+        }
+        Insert: {
+          amount?: number | null
+          invoice_id: string
+          order_id?: string | null
+          processed_at?: string
+          telegram_id?: number | null
+          type?: string
+        }
+        Update: {
+          amount?: number | null
+          invoice_id?: string
+          order_id?: string | null
+          processed_at?: string
+          telegram_id?: number | null
+          type?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           category_id: string | null
@@ -575,7 +602,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      credit_balance: {
+        Args: { p_amount: number; p_telegram_id: number }
+        Returns: number
+      }
+      deduct_balance: {
+        Args: { p_amount: number; p_telegram_id: number }
+        Returns: number
+      }
+      increment_promo_usage: { Args: { p_code: string }; Returns: undefined }
+      reserve_inventory: {
+        Args: { p_order_id: string; p_product_id: string; p_quantity: number }
+        Returns: {
+          content: string
+          id: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
