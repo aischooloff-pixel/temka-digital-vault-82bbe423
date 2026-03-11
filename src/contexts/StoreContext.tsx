@@ -111,14 +111,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setPromoLoading(true);
     setPromoError('');
     try {
-      const { data, error } = await supabase
-        .from('promocodes')
-        .select('*')
-        .eq('code', trimmed)
-        .eq('is_active', true)
-        .maybeSingle();
+      const { data: rpcResult, error } = await supabase.rpc('validate_promo_code', { p_code: trimmed });
       if (error) throw error;
-      if (!data) { setPromoError('Промокод не найден'); setPromoResult(null); return; }
+      const data = rpcResult as any;
+      if (!data || !data.found) { setPromoError('Промокод не найден'); setPromoResult(null); return; }
       const now = new Date().toISOString();
       if (data.valid_from && now < data.valid_from) { setPromoError('Промокод ещё не активен'); return; }
       if (data.valid_until && now > data.valid_until) { setPromoError('Промокод истёк'); return; }
