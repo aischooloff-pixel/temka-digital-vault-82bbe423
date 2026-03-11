@@ -25,14 +25,11 @@ serve(async (req) => {
     const body = await req.text();
     const signature = req.headers.get("crypto-pay-api-signature");
 
-    // CryptoBot signature verification:
-    // 1. SHA-256 hash of the API token (NOT HMAC with "WebAppData")
-    // 2. HMAC-SHA-256 of the body using that hash as key
     const secret = createHash("sha256").update(cryptobotToken).digest();
     const expectedSignature = createHmac("sha256", secret).update(body).digest("hex");
 
     if (signature !== expectedSignature) {
-      console.error("Invalid webhook signature. Got:", signature, "Expected:", expectedSignature);
+      console.error("Invalid webhook signature");
       return new Response(
         JSON.stringify({ error: "Invalid signature" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -40,7 +37,6 @@ serve(async (req) => {
     }
 
     const data = JSON.parse(body);
-    console.log("CryptoBot webhook received:", JSON.stringify(data));
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -48,18 +44,37 @@ serve(async (req) => {
 
     if (data.update_type === "invoice_paid") {
       const invoice = data.payload;
+      const invoiceId = String(invoice.invoice_id);
       const orderData = JSON.parse(invoice.payload || "{}");
 
-      // Handle balance top-up
-      if (orderData.type === "topup") {
-        await handleTopup(supabase, orderData);
+      // ─── Idempotency check via processed_invoices ───
+      const { error: dedupError } = await supabase
+        .from("processed_invoices")
+        .insert({
+          invoice_id: invoiceId,
+          type: orderData.type === "topup" ? "topup" : "payment",
+          order_id: orderData.orderId || null,
+          telegram_id: orderData.telegramUserId || null,
+          amount: Number(invoice.amount) || 0,
+        });
+
+      if (dedupError) {
+        // Unique constraint violation = already processed
+        console.log("Invoice already processed (dedup):", invoiceId);
         return new Response(
           JSON.stringify({ ok: true }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Handle order payment
+      if (orderData.type === "topup") {
+        await handleTopup(supabase, orderData, invoiceId);
+        return new Response(
+          JSON.stringify({ ok: true }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       if (orderData.orderId) {
         await handleOrderPayment(supabase, invoice, orderData);
       }
@@ -70,33 +85,30 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Webhook error:", error);
+    console.error("Webhook error:", error.message);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "Internal error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
 
-async function handleTopup(supabase: any, orderData: any) {
+async function handleTopup(supabase: any, orderData: any, _invoiceId: string) {
   const topupAmount = Number(orderData.amount);
   const telegramUserId = orderData.telegramUserId;
 
-  console.log("Top-up payment confirmed:", { telegramUserId, topupAmount });
+  if (!telegramUserId || !topupAmount || topupAmount <= 0) return;
 
-  const { data: profile } = await supabase
-    .from("user_profiles")
-    .select("balance")
-    .eq("telegram_id", telegramUserId)
-    .single();
+  // Atomic balance credit
+  const { data: newBalance, error } = await supabase.rpc("credit_balance", {
+    p_telegram_id: telegramUserId,
+    p_amount: topupAmount,
+  });
 
-  const currentBalance = Number(profile?.balance || 0);
-  const newBalance = currentBalance + topupAmount;
-
-  await supabase
-    .from("user_profiles")
-    .update({ balance: newBalance, updated_at: new Date().toISOString() })
-    .eq("telegram_id", telegramUserId);
+  if (error) {
+    console.error("Balance credit error:", error.message);
+    return;
+  }
 
   await supabase.from("balance_history").insert({
     telegram_id: telegramUserId,
@@ -109,7 +121,7 @@ async function handleTopup(supabase: any, orderData: any) {
 
   const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
   if (botToken) {
-    const message = `✅ <b>Баланс пополнен!</b>\n\n💰 Сумма: $${topupAmount.toFixed(2)}\n💳 Новый баланс: $${newBalance.toFixed(2)}`;
+    const message = `✅ <b>Баланс пополнен!</b>\n\n💰 Сумма: $${topupAmount.toFixed(2)}\n💳 Новый баланс: $${Number(newBalance).toFixed(2)}`;
     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -119,32 +131,16 @@ async function handleTopup(supabase: any, orderData: any) {
 }
 
 async function handleOrderPayment(supabase: any, invoice: any, orderData: any) {
-  // Idempotency check — skip if already paid
   const { data: existingOrder } = await supabase
     .from("orders")
-    .select("id, status, payment_status, promo_code")
+    .select("id, status, payment_status, promo_code, balance_used, telegram_id, order_number")
     .eq("id", orderData.orderId)
     .single();
 
-  if (!existingOrder) {
-    console.error("Order not found:", orderData.orderId);
-    return;
-  }
+  if (!existingOrder || existingOrder.payment_status === "paid") return;
 
-  if (existingOrder.payment_status === "paid") {
-    console.log("Order already paid, skipping:", orderData.orderId);
-    return;
-  }
-
-  console.log("Payment confirmed:", {
-    invoiceId: invoice.invoice_id,
-    amount: invoice.amount,
-    orderId: orderData.orderId,
-    balanceUsed: orderData.balanceUsed,
-  });
-
-  // Update order status — only if not already paid (idempotency guard)
-  const { data: updatedRows, error: updateError } = await supabase
+  // Atomic status update with idempotency guard
+  const { data: updatedRows } = await supabase
     .from("orders")
     .update({
       status: "paid",
@@ -155,55 +151,35 @@ async function handleOrderPayment(supabase: any, invoice: any, orderData: any) {
     .neq("payment_status", "paid")
     .select("id");
 
-  if (!updatedRows || updatedRows.length === 0) {
-    console.log("Order already processed (race condition prevented):", orderData.orderId);
-    return;
+  if (!updatedRows || updatedRows.length === 0) return;
+
+  // Atomic promo increment
+  if (existingOrder.promo_code) {
+    await supabase.rpc("increment_promo_usage", { p_code: existingOrder.promo_code });
   }
 
-  // Increment promo used_count on successful payment
-  if (existingOrder && (existingOrder as any).promo_code) {
-    const promoCode = (existingOrder as any).promo_code;
-    const { data: promo } = await supabase
-      .from("promocodes")
-      .select("id, used_count")
-      .eq("code", promoCode)
-      .maybeSingle();
-    if (promo) {
-      await supabase
-        .from("promocodes")
-        .update({ used_count: (promo.used_count || 0) + 1 })
-        .eq("id", promo.id);
-    }
-  }
-
-  // Deduct balance if balanceUsed > 0
-  const balanceUsed = Number(orderData.balanceUsed || 0);
-  if (balanceUsed > 0 && orderData.telegramUserId) {
-    const { data: profile } = await supabase
-      .from("user_profiles")
-      .select("balance")
-      .eq("telegram_id", orderData.telegramUserId)
-      .single();
-
-    if (profile) {
-      const newBalance = Math.max(0, Number(profile.balance) - balanceUsed);
-      await supabase
-        .from("user_profiles")
-        .update({ balance: newBalance, updated_at: new Date().toISOString() })
-        .eq("telegram_id", orderData.telegramUserId);
-
+  // Atomic balance deduction
+  const balanceUsed = Number(existingOrder.balance_used || 0);
+  let newBalance: number | null = null;
+  if (balanceUsed > 0) {
+    const { data, error } = await supabase.rpc("deduct_balance", {
+      p_telegram_id: existingOrder.telegram_id,
+      p_amount: balanceUsed,
+    });
+    if (!error) {
+      newBalance = data;
       await supabase.from("balance_history").insert({
-        telegram_id: orderData.telegramUserId,
+        telegram_id: existingOrder.telegram_id,
         amount: -balanceUsed,
         balance_after: newBalance,
         type: "purchase",
-        comment: `Заказ ${orderData.orderNumber || orderData.orderId}`,
-        admin_telegram_id: orderData.telegramUserId,
+        comment: `Заказ ${existingOrder.order_number}`,
+        admin_telegram_id: existingOrder.telegram_id,
       });
     }
   }
 
-  // Auto-deliver inventory items
+  // Atomic inventory reservation via DB function
   const { data: orderItems } = await supabase
     .from("order_items")
     .select("product_id, quantity, product_title")
@@ -214,31 +190,19 @@ async function handleOrderPayment(supabase: any, invoice: any, orderData: any) {
 
   if (orderItems) {
     for (const item of orderItems) {
-      const { data: invItems } = await supabase
-        .from("inventory_items")
-        .select("id, content")
-        .eq("product_id", item.product_id)
-        .eq("status", "available")
-        .limit(item.quantity);
+      const { data: reserved } = await supabase.rpc("reserve_inventory", {
+        p_product_id: item.product_id,
+        p_quantity: item.quantity,
+        p_order_id: orderData.orderId,
+      });
 
-      if (invItems && invItems.length > 0) {
-        const deliveredCount = Math.min(invItems.length, item.quantity);
-        const ids = invItems.slice(0, deliveredCount).map((i: any) => i.id);
-
-        await supabase
-          .from("inventory_items")
-          .update({
-            status: "sold",
-            order_id: orderData.orderId,
-            sold_at: new Date().toISOString(),
-          })
-          .in("id", ids);
-
+      if (reserved && reserved.length > 0) {
         deliveredContent.push(
-          `📦 <b>${item.product_title}</b> (×${deliveredCount}):\n` +
-          invItems.slice(0, deliveredCount).map((i: any) => `<code>${i.content}</code>`).join("\n")
+          `📦 <b>${item.product_title}</b> (×${reserved.length}):\n` +
+          reserved.map((i: any) => `<code>${i.content}</code>`).join("\n")
         );
 
+        // Update stock count
         const { count: remaining } = await supabase
           .from("inventory_items")
           .select("id", { count: "exact", head: true })
@@ -250,7 +214,7 @@ async function handleOrderPayment(supabase: any, invoice: any, orderData: any) {
           .update({ stock: remaining || 0, updated_at: new Date().toISOString() })
           .eq("id", item.product_id);
 
-        if (deliveredCount < item.quantity) allDelivered = false;
+        if (reserved.length < item.quantity) allDelivered = false;
       } else {
         allDelivered = false;
       }
@@ -265,31 +229,22 @@ async function handleOrderPayment(supabase: any, invoice: any, orderData: any) {
       .eq("id", orderData.orderId);
   }
 
-  // Send confirmation via Telegram Bot
+  // TG notification
   const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
-  if (botToken && orderData.telegramUserId) {
-    let message = `✅ <b>Оплата подтверждена!</b>\n\n📦 Заказ: <code>${orderData.orderNumber || orderData.orderId}</code>\n💰 Сумма: ${invoice.amount} ${invoice.fiat || 'USD'}\n`;
-
-    if (balanceUsed > 0) {
-      message += `💳 С баланса: $${balanceUsed.toFixed(2)}\n`;
-    }
-
+  if (botToken && existingOrder.telegram_id) {
+    let message = `✅ <b>Оплата подтверждена!</b>\n\n📦 Заказ: <code>${existingOrder.order_number}</code>\n💰 Сумма: ${invoice.amount} ${invoice.fiat || 'USD'}\n`;
+    if (balanceUsed > 0) message += `💳 С баланса: $${balanceUsed.toFixed(2)}\n`;
     if (deliveredContent.length > 0) {
-      message += `\n🎁 <b>Ваши товары:</b>\n\n${deliveredContent.join("\n\n")}\n\n⚠️ Сохраните данные! Сообщение может быть удалено.`;
+      message += `\n🎁 <b>Ваши товары:</b>\n\n${deliveredContent.join("\n\n")}\n\n⚠️ Сохраните данные!`;
     } else {
       message += `\nВаш товар будет доставлен в ближайшее время.`;
     }
-
     message += `\n\nСпасибо за покупку!`;
 
     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: orderData.telegramUserId,
-        text: message,
-        parse_mode: "HTML",
-      }),
+      body: JSON.stringify({ chat_id: existingOrder.telegram_id, text: message, parse_mode: "HTML" }),
     });
   }
 }
