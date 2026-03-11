@@ -215,7 +215,7 @@ const Index = () => {
           categories && categories.length > 0 ?
           <div className="grid grid-cols-4 gap-2">
               {categories.map((cat) =>
-            <Link key={cat.id} to={`/catalog?category=${cat.id}`}
+            <Link key={cat.id} to={`${buildPath('/catalog')}?category=${cat.id}`}
             className="p-3 bg-card border border-border/50 rounded-xl text-center hover:border-primary/30 transition-all">
                   <div className="text-2xl mb-1.5">{cat.icon}</div>
                   <h3 className="font-display font-medium text-xs leading-tight">{cat.name}</h3>
