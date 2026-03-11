@@ -5,8 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useShop } from '@/contexts/ShopContext';
 import { useStorefrontPath } from '@/contexts/StorefrontContext';
-import ShopProductCard from '@/components/ShopProductCard';
-import ProductCardSkeleton from '@/components/ProductCardSkeleton';
 
 const fadeIn = {
   hidden: { opacity: 0, y: 16 },
