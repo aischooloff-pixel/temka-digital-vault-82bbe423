@@ -53,8 +53,8 @@ export const useReviews = (productId?: string) => {
     queryKey: ['reviews', productId],
     queryFn: async () => {
       let query = supabase
-        .from('reviews')
-        .select('id, product_id, author, avatar, rating, text, verified, moderation_status, created_at')
+        .from('public_reviews' as any)
+        .select('*')
         .eq('verified', true)
         .order('created_at', { ascending: false });
       if (productId) query = query.eq('product_id', productId);
