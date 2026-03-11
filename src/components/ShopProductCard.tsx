@@ -50,7 +50,7 @@ const ShopProductCard = ({ product, shopId }: Props) => {
       </Link>
 
       <div className="p-3 sm:p-4">
-        <Link to={`/shop/${shopId}/product/${product.id}`}>
+        <Link to={buildPath(`/product/${product.id}`)}>
           <h3 className="font-display font-semibold text-sm sm:text-base mt-1 line-clamp-1 group-hover:text-primary transition-colors">{product.name}</h3>
         </Link>
         {product.subtitle && (
