@@ -5,6 +5,7 @@ import { Shield, Zap, Lock, CheckCircle2, ArrowLeft, Wallet } from 'lucide-react
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/contexts/StoreContext';
 import { useTelegram } from '@/contexts/TelegramContext';
+
 import { useUserProfile } from '@/hooks/useOrders';
 import { supabase } from '@/integrations/supabase/client';
 
