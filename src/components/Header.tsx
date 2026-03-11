@@ -1,30 +1,45 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useStore } from '@/contexts/StoreContext';
+import { useStorefrontPath } from '@/contexts/StorefrontContext';
 import { useState } from 'react';
 
-const Header = () => {
-  const { searchQuery, setSearchQuery } = useStore();
+interface HeaderProps {
+  name?: string;
+  nameInitial?: string;
+  nameHighlight?: string;
+  searchQuery: string;
+  setSearchQuery: (q: string) => void;
+}
+
+const Header = ({ name, nameInitial, nameHighlight, searchQuery, setSearchQuery }: HeaderProps) => {
   const [searchOpen, setSearchOpen] = useState(false);
   const navigate = useNavigate();
+  const buildPath = useStorefrontPath();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) navigate(`/catalog?search=${encodeURIComponent(searchQuery)}`);
+    if (searchQuery.trim()) navigate(`${buildPath('/catalog')}?search=${encodeURIComponent(searchQuery)}`);
   };
 
   return (
     <header className="sticky top-0 z-50 glass-strong">
       <div className="container-main mx-auto flex items-center justify-between gap-3 px-4 py-2.5">
-        <Link to="/" className="flex items-center gap-2 shrink-0">
+        <Link to={buildPath('/')} className="flex items-center gap-2 shrink-0">
           <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-xs font-display">T</span>
+            <span className="text-primary-foreground font-bold text-xs font-display">
+              {nameInitial || 'T'}
+            </span>
           </div>
-          <span className="font-display font-bold text-base tracking-tight">TEMKA<span className="text-primary">.STORE</span></span>
+          <span className="font-display font-bold text-base tracking-tight">
+            {nameHighlight ? (
+              <>{name}<span className="text-primary">{nameHighlight}</span></>
+            ) : (
+              name || 'Магазин'
+            )}
+          </span>
         </Link>
 
-        {/* Search bar */}
         {searchOpen ? (
           <form onSubmit={handleSearch} className="flex-1">
             <div className="relative">

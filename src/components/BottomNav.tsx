@@ -1,40 +1,38 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Home, Search, ShoppingCart, User } from 'lucide-react';
-import { useStore } from '@/contexts/StoreContext';
-import { useTelegram } from '@/contexts/TelegramContext';
-
-const navItems = [
-  { path: '/', icon: Home, label: 'Главная' },
-  { path: '/catalog', icon: Search, label: 'Каталог' },
-  { path: '/cart', icon: ShoppingCart, label: 'Корзина' },
-  { path: '/account', icon: User, label: 'Профиль' },
-];
+import { useStorefront, useStorefrontPath } from '@/contexts/StorefrontContext';
 
 const BottomNav = () => {
   const location = useLocation();
-  const { cartCount } = useStore();
-  const { haptic } = useTelegram();
+  const { cartCount } = useStorefront();
+  const buildPath = useStorefrontPath();
+
+  const navItems = [
+    { path: buildPath('/'), icon: Home, label: 'Главная', exact: true },
+    { path: buildPath('/catalog'), icon: Search, label: 'Каталог' },
+    { path: buildPath('/cart'), icon: ShoppingCart, label: 'Корзина' },
+    { path: buildPath('/account'), icon: User, label: 'Профиль' },
+  ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 glass-strong border-t border-border/30 safe-area-bottom">
       <div className="flex items-center justify-around h-14 max-w-lg mx-auto">
         {navItems.map((item) => {
-          const isActive = item.path === '/'
-            ? location.pathname === '/'
+          const isActive = item.exact
+            ? location.pathname === item.path
             : location.pathname.startsWith(item.path);
 
           return (
             <Link
               key={item.path}
               to={item.path}
-              onClick={() => haptic.selection()}
-              className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors relative ${
+              className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${
                 isActive ? 'text-primary' : 'text-muted-foreground'
               }`}
             >
               <div className="relative">
                 <item.icon className="w-5 h-5" />
-                {item.path === '/cart' && cartCount > 0 && (
+                {item.label === 'Корзина' && cartCount > 0 && (
                   <span className="absolute -top-1.5 -right-2.5 w-4 h-4 bg-primary text-primary-foreground text-[9px] font-bold rounded-full flex items-center justify-center">
                     {cartCount}
                   </span>
