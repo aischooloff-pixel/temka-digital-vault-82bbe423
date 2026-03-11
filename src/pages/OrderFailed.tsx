@@ -26,7 +26,7 @@ const OrderFailed = () => {
         </div>
 
         <div className="flex flex-col gap-2 mt-5">
-          <Link to="/checkout"><Button variant="hero" size="sm" className="w-full"><RefreshCcw className="w-4 h-4 mr-1" /> Попробовать снова</Button></Link>
+          <Link to={buildPath('/checkout')}><Button variant="hero" size="sm" className="w-full"><RefreshCcw className="w-4 h-4 mr-1" /> Попробовать снова</Button></Link>
           <a href={`https://t.me/${supportUsername}`} target="_blank" rel="noopener noreferrer"><Button variant="outline" size="sm" className="w-full"><MessageCircle className="w-4 h-4 mr-1" /> Поддержка в Telegram</Button></a>
         </div>
       </div>
