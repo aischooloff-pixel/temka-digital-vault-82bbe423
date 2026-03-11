@@ -1,13 +1,14 @@
-import { useParams, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Trash2, Plus, Minus, ArrowRight, Shield, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useShop } from '@/contexts/ShopContext';
+import { useStorefrontPath } from '@/contexts/StorefrontContext';
 import ShopProductCard from '@/components/ShopProductCard';
 
 const ShopCart = () => {
-  const { shopId } = useParams();
-  const { cart, updateQuantity, removeFromCart, clearCart, cartTotal, cartCount, products } = useShop();
-  const base = `/shop/${shopId}`;
+  const { cart, updateQuantity, removeFromCart, clearCart, cartTotal, cartCount, products, shop } = useShop();
+  const buildPath = useStorefrontPath();
+  const shopId = shop?.id || '';
 
   const recommended = products.filter(p => !cart.some(c => c.product.id === p.id) && p.stock > 0).slice(0, 4);
 
