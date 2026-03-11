@@ -149,7 +149,7 @@ const Index = () => {
               Аккаунты, ключи ПО и подписки. Оплата через CryptoBot.
             </motion.p>
             <motion.div variants={fadeIn} custom={3} className="mt-6">
-              <Link to="/catalog">
+              <Link to={buildPath('/catalog')}>
                 <Button variant="hero" size="xl" className="w-full sm:w-auto text-base px-8 py-3">
                   Перейти в каталог <ArrowRight className="w-5 h-5 ml-1" />
                 </Button>
