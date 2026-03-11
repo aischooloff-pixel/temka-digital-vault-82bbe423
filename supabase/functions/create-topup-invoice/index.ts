@@ -49,33 +49,89 @@ serve(async (req) => {
   }
 
   try {
-    const { initData, amount } = await req.json();
+    const { initData, amount, shopId } = await req.json();
 
     // ─── Validate initData ───────────────────────
-    const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Determine which bot token to use for initData validation
+    let botToken: string | null = null;
+
+    if (shopId) {
+      // Multi-tenant: Mini App opened via seller bot — use seller's bot token
+      console.log(`[topup] Tenant context: shopId=${shopId}`);
+      const encryptionKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
+      if (!encryptionKey) {
+        console.error("[topup] TOKEN_ENCRYPTION_KEY not set");
+        return new Response(
+          JSON.stringify({ error: "Ошибка конфигурации сервера" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: shop, error: shopErr } = await supabase
+        .from("shops")
+        .select("bot_token_encrypted")
+        .eq("id", shopId)
+        .maybeSingle();
+
+      if (shopErr || !shop?.bot_token_encrypted) {
+        console.error("[topup] Shop not found or no bot token:", shopErr);
+        return new Response(
+          JSON.stringify({ error: "Бот магазина не подключён. Обратитесь к продавцу." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Decrypt seller bot token
+      const { data: decrypted, error: decryptErr } = await supabase.rpc("decrypt_token", {
+        p_encrypted: shop.bot_token_encrypted,
+        p_key: encryptionKey,
+      });
+
+      if (decryptErr || !decrypted) {
+        console.error("[topup] Failed to decrypt seller bot token:", decryptErr);
+        return new Response(
+          JSON.stringify({ error: "Ошибка расшифровки токена магазина" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      botToken = decrypted;
+    } else {
+      // Platform context: use global bot token
+      botToken = Deno.env.get("TELEGRAM_BOT_TOKEN") || null;
+    }
+
     if (!botToken) {
+      console.error("[topup] No bot token available (shopId:", shopId, ")");
       return new Response(
-        JSON.stringify({ error: "Bot token not configured" }),
+        JSON.stringify({ error: "Бот не настроен. Обратитесь в поддержку." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     if (!initData) {
+      console.error("[topup] No initData provided");
       return new Response(
-        JSON.stringify({ error: "Authentication required" }),
+        JSON.stringify({ error: "Откройте приложение через Telegram" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const tgUser = verifyAndExtractUser(initData, botToken);
     if (!tgUser) {
+      console.error("[topup] initData validation failed");
       return new Response(
-        JSON.stringify({ error: "Invalid authentication data" }),
+        JSON.stringify({ error: "Ошибка авторизации. Перезапустите Mini App." }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const telegramUserId = tgUser.id;
+    console.log(`[topup] Authenticated user: ${telegramUserId}`);
 
     // ─── Validate amount ─────────────────────────
     const numAmount = Number(amount);
@@ -87,10 +143,6 @@ serve(async (req) => {
     }
 
     // ─── Check user is not blocked ───────────────
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
     // ─── Rate limiting ─────────────────────────
     await supabase.from("rate_limits").delete().lt("created_at", new Date(Date.now() - 3600000).toISOString());
     const { count: recentTopups } = await supabase
@@ -128,11 +180,14 @@ serve(async (req) => {
     // ─── Create CryptoBot invoice ────────────────
     const cryptobotToken = Deno.env.get("CRYPTOBOT_API_TOKEN");
     if (!cryptobotToken) {
+      console.error("[topup] CRYPTOBOT_API_TOKEN not set");
       return new Response(
-        JSON.stringify({ error: "CryptoBot token not configured" }),
+        JSON.stringify({ error: "Платёжная система не настроена. Обратитесь в поддержку." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    console.log(`[topup] Creating CryptoBot invoice for $${numAmount.toFixed(2)}`);
 
     const response = await fetch(`${CRYPTOBOT_API_URL}/createInvoice`, {
       method: "POST",
@@ -158,12 +213,15 @@ serve(async (req) => {
     const data = await response.json();
 
     if (!data.ok) {
-      console.error("CryptoBot API error:", data);
+      console.error("[topup] CryptoBot API error:", JSON.stringify(data));
+      const errorName = data.error?.name || "UNKNOWN";
       return new Response(
-        JSON.stringify({ error: data.error?.name || "Failed to create invoice" }),
+        JSON.stringify({ error: `Ошибка платёжной системы (${errorName}). Попробуйте позже.` }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    console.log(`[topup] Invoice created: ${data.result.invoice_id}`);
 
     return new Response(
       JSON.stringify({
@@ -175,9 +233,9 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Topup invoice error:", error);
+    console.error("[topup] Unexpected error:", error);
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
+      JSON.stringify({ error: "Внутренняя ошибка сервера. Попробуйте позже." }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
