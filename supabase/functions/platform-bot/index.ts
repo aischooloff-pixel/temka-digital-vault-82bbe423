@@ -1,25 +1,25 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// ─── Telegram API helper ──────────────────────
+// ─── Telegram API ─────────────────────────────
 const TG = (token: string) => {
   const call = (method: string, body: Record<string, unknown>) =>
     fetch(`https://api.telegram.org/bot${token}/${method}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    });
+    }).then(r => r.json());
   return {
     send: (chatId: number, text: string, markup?: unknown) =>
-      call("sendMessage", { chat_id: chatId, text, parse_mode: "HTML", ...(markup ? { reply_markup: markup } : {}) }),
+      call("sendMessage", { chat_id: chatId, text, parse_mode: "HTML", disable_web_page_preview: true, ...(markup ? { reply_markup: markup } : {}) }),
     edit: (chatId: number, msgId: number, text: string, markup?: unknown) =>
-      call("editMessageText", { chat_id: chatId, message_id: msgId, text, parse_mode: "HTML", ...(markup ? { reply_markup: markup } : {}) }),
+      call("editMessageText", { chat_id: chatId, message_id: msgId, text, parse_mode: "HTML", disable_web_page_preview: true, ...(markup ? { reply_markup: markup } : {}) }),
     answer: (cbId: string, text?: string) =>
       call("answerCallbackQuery", { callback_query_id: cbId, ...(text ? { text, show_alert: true } : {}) }),
     getChatMember: (chatId: string, userId: number) =>
-      call("getChatMember", { chat_id: chatId, user_id: userId }).then(r => r.json()),
+      call("getChatMember", { chat_id: chatId, user_id: userId }),
     deleteMessage: (chatId: number, msgId: number) =>
-      call("deleteMessage", { chat_id: chatId, message_id: msgId }),
+      call("deleteMessage", { chat_id: chatId, message_id: msgId }).catch(() => {}),
   };
 };
 
@@ -33,6 +33,10 @@ const urlBtn = (t: string, url: string): Btn => ({ text: t, url });
 const ikb = (rows: Btn[][]) => ({ inline_keyboard: rows });
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+const PLATFORM_NAME = "ShopBot Platform";
+const WEBAPP_DOMAIN = Deno.env.get("WEBAPP_URL") || "https://temka-digital-vault.lovable.app";
+const SUPPORT_LINK = "https://t.me/support";
+
 // ─── Session FSM ──────────────────────────────
 async function getSession(tgId: number) {
   const { data } = await db().from("platform_sessions").select("*").eq("telegram_id", tgId).maybeSingle();
@@ -41,7 +45,7 @@ async function getSession(tgId: number) {
 async function setSession(tgId: number, state: string, data: Record<string, unknown> = {}) {
   await db().from("platform_sessions").upsert(
     { telegram_id: tgId, state, data, updated_at: new Date().toISOString() },
-    { onConflict: "telegram_id" }
+    { onConflict: "telegram_id" },
   );
 }
 async function clearSession(tgId: number) {
@@ -49,114 +53,171 @@ async function clearSession(tgId: number) {
 }
 
 // ─── Channel subscription check ───────────────
-async function checkSubscription(tg: ReturnType<typeof TG>, userId: number): Promise<boolean> {
-  const channelId = Deno.env.get("PLATFORM_CHANNEL_ID");
-  if (!channelId) return true; // skip if not configured
-  try {
-    const result = await tg.getChatMember(channelId, userId);
-    const status = result?.result?.status;
-    return ["member", "administrator", "creator"].includes(status);
-  } catch {
-    return true; // allow if check fails
+async function checkAllChannels(tg: ReturnType<typeof TG>, userId: number): Promise<boolean> {
+  const raw = Deno.env.get("PLATFORM_CHANNEL_ID") || "";
+  const channels = raw.split(",").map(s => s.trim()).filter(Boolean);
+  if (!channels.length) return true;
+  for (const ch of channels) {
+    try {
+      const result = await tg.getChatMember(ch, userId);
+      const status = result?.result?.status;
+      if (!["member", "administrator", "creator"].includes(status)) return false;
+    } catch {
+      // skip failed checks
+    }
   }
+  return true;
 }
 
-// ─── Upsert user profile ─────────────────────
+function channelButtons(): Btn[][] {
+  const raw = Deno.env.get("PLATFORM_CHANNEL_ID") || "";
+  const channels = raw.split(",").map(s => s.trim()).filter(Boolean);
+  const row: Btn[] = channels.map((ch, i) => {
+    const link = ch.startsWith("@") ? `https://t.me/${ch.slice(1)}` : ch.startsWith("-100") ? `https://t.me/c/${ch.slice(4)}` : `https://t.me/${ch}`;
+    return urlBtn(`📢 Канал ${channels.length > 1 ? i + 1 : ""}`.trim(), link);
+  });
+  return row.length ? [row, [btn("✅ Проверить подписку", "p:checksub")]] : [];
+}
+
+// ─── Upsert platform user ─────────────────────
 async function upsertUser(from: { id: number; first_name: string; last_name?: string; username?: string; is_premium?: boolean; language_code?: string }) {
   const { data: existing } = await db().from("platform_users").select("id").eq("telegram_id", from.id).maybeSingle();
-  if (existing) {
-    await db().from("platform_users").update({
-      first_name: from.first_name,
-      last_name: from.last_name || null,
-      username: from.username || null,
-      is_premium: from.is_premium || false,
-      language_code: from.language_code || null,
-      updated_at: new Date().toISOString(),
-    }).eq("telegram_id", from.id);
-    return existing;
-  }
-  const { data } = await db().from("platform_users").insert({
-    telegram_id: from.id,
-    first_name: from.first_name,
+  const fields = {
+    first_name: from.first_name || "",
     last_name: from.last_name || null,
     username: from.username || null,
     is_premium: from.is_premium || false,
     language_code: from.language_code || null,
-  }).select("id").single();
+    updated_at: new Date().toISOString(),
+  };
+  if (existing) {
+    await db().from("platform_users").update(fields).eq("telegram_id", from.id);
+    return existing;
+  }
+  const { data } = await db().from("platform_users").insert({ telegram_id: from.id, ...fields }).select("id").single();
   return data;
 }
 
-// ─── Get user with shops ─────────────────────
-async function getUserData(tgId: number) {
-  const { data: user } = await db().from("platform_users").select("*").eq("telegram_id", tgId).maybeSingle();
-  if (!user) return null;
+// ─── Bottom panel (keyboard) ──────────────────
+const bottomPanel = () => ({
+  keyboard: [[{ text: "👤 Профиль" }, { text: "🆘 Поддержка" }, { text: "🏪 Мои магазины" }]],
+  resize_keyboard: true,
+  is_persistent: true,
+});
+
+// ═══════════════════════════════════════════════
+// WELCOME / START
+// ═══════════════════════════════════════════════
+async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName: string) {
+  const text =
+    `👋 Привет, <b>${esc(firstName)}</b>!\n` +
+    `Добро пожаловать в <b>${PLATFORM_NAME}</b>\n\n` +
+    `Создай свой Telegram магазин\nс автовыдачей за 5 минут.\n\n` +
+    `— Никакого кода и хостинга\n` +
+    `— Автовыдача товаров 24/7\n` +
+    `— Приём крипты через CryptoBot\n` +
+    `— Полная настройка под себя`;
+
+  await tg.send(chatId, text, {
+    ...ikb([
+      [btn("🏪 Создать магазин", "p:create"), btn("📖 Как это работает", "p:howitworks")],
+      [btn("👤 Мой профиль", "p:profile")],
+    ]),
+  });
+  // Also set persistent bottom panel
+  await tg.send(chatId, "⬇️ Используй меню внизу для навигации", bottomPanel());
+}
+
+// ═══════════════════════════════════════════════
+// HOW IT WORKS
+// ═══════════════════════════════════════════════
+function howItWorks(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
+  const text =
+    `📖 <b>Как это работает?</b>\n\n` +
+    `1️⃣ <b>Создай магазин</b> — пройди простой онбординг из 7 шагов\n\n` +
+    `2️⃣ <b>Добавь товары</b> — загрузи инвентарь прямо в бота\n\n` +
+    `3️⃣ <b>Подключи оплату</b> — CryptoBot принимает крипту автоматически\n\n` +
+    `4️⃣ <b>Поделись ссылкой</b> — клиенты покупают через твоего бота\n\n` +
+    `5️⃣ <b>Автовыдача 24/7</b> — товар доставляется мгновенно после оплаты\n\n` +
+    `💰 Стоимость: <b>$9/мес</b> — неограниченные магазины и товары`;
+
+  return tg.edit(chatId, msgId, text, ikb([
+    [btn("🏪 Создать магазин", "p:create")],
+    [btn("◀️ Назад", "p:home")],
+  ]));
+}
+
+// ═══════════════════════════════════════════════
+// PROFILE
+// ═══════════════════════════════════════════════
+async function showProfile(tg: ReturnType<typeof TG>, chatId: number, msgId?: number) {
+  const { data: user } = await db().from("platform_users").select("*").eq("telegram_id", chatId).maybeSingle();
+  if (!user) return;
+
+  const { count: shopCount } = await db().from("shops").select("id", { count: "exact", head: true }).eq("owner_id", user.id);
+
+  const subMap: Record<string, string> = { active: "✅ Активна", trial: "🆓 Пробный", expired: "❌ Истекла", cancelled: "❌ Отменена" };
+  let daysLeft = "";
+  if (user.subscription_expires_at) {
+    const diff = Math.ceil((new Date(user.subscription_expires_at).getTime() - Date.now()) / 86400000);
+    daysLeft = diff > 0 ? `\n⏳ Осталось: <b>${diff}</b> дней` : "\n⏳ Истекла";
+  }
+
+  const text =
+    `👤 <b>Профиль</b>\n\n` +
+    `🆔 ID: <code>${user.telegram_id}</code>\n` +
+    `👤 Имя: <b>${esc(user.first_name)}${user.last_name ? " " + esc(user.last_name) : ""}</b>\n` +
+    `📱 Юзернейм: ${user.username ? "@" + esc(user.username) : "—"}\n` +
+    `📅 Регистрация: ${new Date(user.created_at).toLocaleDateString("ru-RU")}\n` +
+    `💳 Подписка: ${subMap[user.subscription_status] || user.subscription_status}${daysLeft}\n` +
+    `🏪 Магазинов: ${shopCount || 0}`;
+
+  const kb = ikb([
+    [btn("🏪 Мои магазины", "p:myshops:0")],
+    [btn("💳 Подписка", "p:sub")],
+    [btn("◀️ Назад", "p:home")],
+  ]);
+
+  if (msgId) return tg.edit(chatId, msgId, text, kb);
+  return tg.send(chatId, text, kb);
+}
+
+// ═══════════════════════════════════════════════
+// MY SHOPS
+// ═══════════════════════════════════════════════
+async function myShops(tg: ReturnType<typeof TG>, chatId: number, msgId?: number, page = 0) {
+  const { data: user } = await db().from("platform_users").select("id").eq("telegram_id", chatId).maybeSingle();
+  if (!user) return;
+
   const { data: shops } = await db().from("shops").select("*").eq("owner_id", user.id).order("created_at");
-  return { ...user, shops: shops || [] };
-}
-
-// ═══════════════════════════════════════════════
-// MAIN MENU
-// ═══════════════════════════════════════════════
-async function showMainMenu(tg: ReturnType<typeof TG>, chatId: number, msgId?: number) {
-  const userData = await getUserData(chatId);
-  if (!userData) return;
-
-  const shopCount = userData.shops.length;
-  const subStatus = userData.subscription_status === "active" ? "✅ Активна" : userData.subscription_status === "trial" ? "🆓 Пробный" : "❌ Неактивна";
-
-  let text = `🏪 <b>Платформа магазинов</b>\n\n`;
-  text += `👤 ${esc(userData.first_name)}`;
-  if (userData.username) text += ` (@${esc(userData.username)})`;
-  text += `\n📊 Подписка: ${subStatus}\n`;
-  text += `🏪 Магазинов: ${shopCount}\n`;
-
-  const rows: Btn[][] = [];
-  if (shopCount > 0) {
-    rows.push([btn("🏪 Мои магазины", "p:shops:0")]);
-  }
-  rows.push([btn("➕ Создать магазин", "p:create")]);
-  rows.push([btn("💳 Подписка", "p:sub"), btn("ℹ️ Помощь", "p:help")]);
-
-  if (msgId) {
-    await tg.edit(chatId, msgId, text, ikb(rows));
-  } else {
-    await tg.send(chatId, text, ikb(rows));
-  }
-}
-
-// ═══════════════════════════════════════════════
-// SHOP LIST
-// ═══════════════════════════════════════════════
-async function shopsList(tg: ReturnType<typeof TG>, chatId: number, msgId: number, page: number) {
-  const userData = await getUserData(chatId);
-  if (!userData || !userData.shops.length) {
-    return tg.edit(chatId, msgId, "🏪 <b>Мои магазины</b>\n\nУ вас пока нет магазинов.", ikb([
-      [btn("➕ Создать", "p:create")],
-      [btn("◀️ Меню", "p:menu")],
-    ]));
+  if (!shops?.length) {
+    const text = "🏪 <b>Мои магазины</b>\n\nУ тебя пока нет магазинов.";
+    const kb = ikb([[btn("➕ Создать магазин", "p:create")], [btn("◀️ Назад", "p:home")]]);
+    return msgId ? tg.edit(chatId, msgId, text, kb) : tg.send(chatId, text, kb);
   }
 
   const perPage = 5;
-  const total = Math.ceil(userData.shops.length / perPage);
-  const p = Math.min(Math.max(0, page), total - 1);
-  const slice = userData.shops.slice(p * perPage, (p + 1) * perPage);
+  const totalP = Math.ceil(shops.length / perPage);
+  const p = Math.min(Math.max(0, page), totalP - 1);
+  const slice = shops.slice(p * perPage, (p + 1) * perPage);
 
-  let text = `🏪 <b>Мои магазины</b> (${userData.shops.length})\n\n`;
-  slice.forEach(s => {
-    const status = s.status === "active" ? "✅" : "⏸";
-    text += `${status} <b>${esc(s.name)}</b>\n   🔗 /${s.slug}\n\n`;
+  let text = `🏪 <b>Мои магазины</b> (${shops.length})\n\n`;
+  const rows: Btn[][] = slice.map(s => {
+    const dot = s.status === "active" ? "🟢" : "🔴";
+    return [btn(`${dot} ${s.name}`, `p:shop:${s.id}`)];
   });
 
-  const rows: Btn[][] = slice.map(s => [btn(`${s.status === "active" ? "✅" : "⏸"} ${s.name}`, `p:shop:${s.id}`)]);
-  if (total > 1) {
+  if (totalP > 1) {
     const nav: Btn[] = [];
-    if (p > 0) nav.push(btn("◀️", `p:shops:${p - 1}`));
-    nav.push(btn(`${p + 1}/${total}`, "p:noop"));
-    if (p < total - 1) nav.push(btn("▶️", `p:shops:${p + 1}`));
+    if (p > 0) nav.push(btn("◀️", `p:myshops:${p - 1}`));
+    nav.push(btn(`${p + 1}/${totalP}`, "p:noop"));
+    if (p < totalP - 1) nav.push(btn("▶️", `p:myshops:${p + 1}`));
     rows.push(nav);
   }
-  rows.push([btn("➕ Создать", "p:create"), btn("◀️ Меню", "p:menu")]);
-  return tg.edit(chatId, msgId, text, ikb(rows));
+  rows.push([btn("➕ Создать магазин", "p:create")]);
+  rows.push([btn("◀️ Назад", "p:home")]);
+
+  return msgId ? tg.edit(chatId, msgId, text, ikb(rows)) : tg.send(chatId, text, ikb(rows));
 }
 
 // ═══════════════════════════════════════════════
@@ -164,38 +225,27 @@ async function shopsList(tg: ReturnType<typeof TG>, chatId: number, msgId: numbe
 // ═══════════════════════════════════════════════
 async function shopView(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string) {
   const { data: shop } = await db().from("shops").select("*").eq("id", shopId).single();
-  if (!shop) return tg.edit(chatId, msgId, "❌ Магазин не найден", ikb([[btn("◀️ Назад", "p:shops:0")]]));
+  if (!shop) return tg.edit(chatId, msgId, "❌ Магазин не найден", ikb([[btn("◀️ Назад", "p:myshops:0")]]));
 
   const { count: productCount } = await db().from("shop_products").select("id", { count: "exact", head: true }).eq("shop_id", shopId);
   const { count: orderCount } = await db().from("shop_orders").select("id", { count: "exact", head: true }).eq("shop_id", shopId);
 
-  let text = `🏪 <b>${esc(shop.name)}</b>\n\n`;
-  text += `🔗 Slug: <code>${esc(shop.slug)}</code>\n`;
-  text += `📊 Статус: ${shop.status === "active" ? "✅ Активен" : "⏸ Неактивен"}\n`;
-  text += `🎨 Цвет: ${shop.color}\n`;
-  text += `📦 Товаров: ${productCount || 0}\n`;
-  text += `🛒 Заказов: ${orderCount || 0}\n`;
-  text += `🤖 Бот: ${shop.bot_token_encrypted ? "✅ Подключён" : "❌ Не подключён"}\n`;
-  text += `💰 CryptoBot: ${shop.cryptobot_token_encrypted ? "✅ Подключён" : "❌ Не подключён"}\n`;
+  const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.slug}`;
+  const statusEmoji = shop.status === "active" ? "🟢" : "🔴";
+
+  const text =
+    `🏪 <b>${esc(shop.name)}</b>\n\n` +
+    `📊 Статус: ${shop.status === "active" ? "активен" : "остановлен"} ${statusEmoji}\n` +
+    `🔗 ${esc(shopUrl)}\n` +
+    `📦 Товаров: ${productCount || 0}\n` +
+    `🛍 Продаж: ${orderCount || 0}`;
 
   return tg.edit(chatId, msgId, text, ikb([
-    [btn("📦 Товары", `p:prods:${shopId}:0`), btn("🛒 Заказы", `p:ords:${shopId}:0`)],
-    [btn("⚙️ Настройки", `p:sett:${shopId}`), btn("🎨 Оформление", `p:design:${shopId}`)],
-    [btn("🤖 Бот-токен", `p:setbot:${shopId}`), btn("💰 CryptoBot", `p:setcb:${shopId}`)],
-    [btn(shop.status === "active" ? "⏸ Остановить" : "✅ Запустить", `p:toggle:${shopId}`)],
-    [btn("◀️ К магазинам", "p:shops:0")],
+    [btn("📋 Скопировать ссылку", `p:copylink:${shopId}`)],
+    [btn("⚙️ Настройки", `p:settings:${shopId}`), btn("📊 Статистика", `p:stats:${shopId}`)],
+    [btn("💳 Подписка", "p:sub"), btn("🗑 Удалить", `p:delshop:${shopId}`)],
+    [btn("◀️ К магазинам", "p:myshops:0")],
   ]));
-}
-
-// ═══════════════════════════════════════════════
-// SHOP CREATION WIZARD
-// ═══════════════════════════════════════════════
-async function startCreateShop(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
-  await setSession(chatId, "create_shop_name", {});
-  return tg.edit(chatId, msgId,
-    "🏪 <b>Создание магазина</b>\n\n📝 Введите название вашего магазина:",
-    ikb([[btn("❌ Отмена", "p:menu")]]),
-  );
 }
 
 // ═══════════════════════════════════════════════
@@ -203,150 +253,52 @@ async function startCreateShop(tg: ReturnType<typeof TG>, chatId: number, msgId:
 // ═══════════════════════════════════════════════
 async function shopSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string) {
   const { data: shop } = await db().from("shops").select("*").eq("id", shopId).single();
-  if (!shop) return tg.edit(chatId, msgId, "❌ Не найден", ikb([[btn("◀️ Назад", "p:shops:0")]]));
+  if (!shop) return tg.edit(chatId, msgId, "❌ Не найден", ikb([[btn("◀️ Назад", "p:myshops:0")]]));
 
-  let text = `⚙️ <b>Настройки: ${esc(shop.name)}</b>\n\n`;
-  text += `📛 Название: ${esc(shop.name)}\n`;
-  text += `🔗 Slug: <code>${esc(shop.slug)}</code>\n`;
-  text += `💬 Приветствие: ${shop.welcome_message ? esc(shop.welcome_message.slice(0, 50)) + "..." : "—"}\n`;
-  text += `🆘 Поддержка: ${shop.support_link || "—"}\n`;
+  const text =
+    `⚙️ <b>Настройки: ${esc(shop.name)}</b>\n\n` +
+    `📛 Название: ${esc(shop.name)}\n` +
+    `🎨 Цвет: ${shop.color}\n` +
+    `📌 Заголовок: ${shop.hero_title || "—"}\n` +
+    `📝 Описание: ${shop.hero_description ? esc(shop.hero_description.slice(0, 60)) + "…" : "—"}\n` +
+    `👋 Приветствие: ${shop.welcome_message ? esc(shop.welcome_message.slice(0, 50)) + "…" : "—"}\n` +
+    `🔗 Поддержка: ${shop.support_link || "—"}\n` +
+    `🤖 Бот: ${shop.bot_token_encrypted ? "✅ подключён" : "❌ не подключён"}\n` +
+    `💰 CryptoBot: ${shop.cryptobot_token_encrypted ? "✅ подключён" : "❌ не подключён"}`;
 
   return tg.edit(chatId, msgId, text, ikb([
-    [btn("✏️ Название", `p:edit:${shopId}:name`), btn("✏️ Slug", `p:edit:${shopId}:slug`)],
-    [btn("✏️ Приветствие", `p:edit:${shopId}:welcome`), btn("✏️ Поддержка", `p:edit:${shopId}:support`)],
+    [btn("✏️ Название", `p:edit:${shopId}:name`), btn("🎨 Цвет", `p:edit:${shopId}:color`)],
+    [btn("📌 Заголовок витрины", `p:edit:${shopId}:hero_title`)],
+    [btn("📝 Описание витрины", `p:edit:${shopId}:hero_desc`)],
+    [btn("👋 Приветствие", `p:edit:${shopId}:welcome`), btn("🔗 Поддержка", `p:edit:${shopId}:support`)],
+    [btn("🤖 Токен бота", `p:setbot:${shopId}`), btn("💰 CryptoBot", `p:setcb:${shopId}`)],
     [btn("◀️ К магазину", `p:shop:${shopId}`)],
   ]));
 }
 
 // ═══════════════════════════════════════════════
-// SHOP DESIGN
+// STATISTICS
 // ═══════════════════════════════════════════════
-async function shopDesign(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string) {
-  const { data: shop } = await db().from("shops").select("*").eq("id", shopId).single();
-  if (!shop) return;
+async function shopStats(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string) {
+  const { data: shop } = await db().from("shops").select("name").eq("id", shopId).single();
+  const { count: totalOrders } = await db().from("shop_orders").select("id", { count: "exact", head: true }).eq("shop_id", shopId);
+  const { count: paidOrders } = await db().from("shop_orders").select("id", { count: "exact", head: true }).eq("shop_id", shopId).eq("payment_status", "paid");
+  const { data: revenue } = await db().from("shop_orders").select("total_amount").eq("shop_id", shopId).eq("payment_status", "paid");
+  const totalRevenue = revenue?.reduce((sum, o) => sum + Number(o.total_amount), 0) || 0;
+  const { count: productCount } = await db().from("shop_products").select("id", { count: "exact", head: true }).eq("shop_id", shopId);
+  const { count: invCount } = await db().from("shop_inventory").select("id", { count: "exact", head: true })
+    .eq("status", "available")
+    .in("product_id", (await db().from("shop_products").select("id").eq("shop_id", shopId)).data?.map(p => p.id) || []);
 
-  let text = `🎨 <b>Оформление: ${esc(shop.name)}</b>\n\n`;
-  text += `🎨 Цвет: ${shop.color}\n`;
-  text += `📝 Заголовок: ${shop.hero_title || "—"}\n`;
-  text += `📄 Описание: ${shop.hero_description ? esc(shop.hero_description.slice(0, 60)) + "..." : "—"}\n`;
+  const text =
+    `📊 <b>Статистика: ${esc(shop?.name || "")}</b>\n\n` +
+    `🛍 Всего заказов: ${totalOrders || 0}\n` +
+    `✅ Оплаченных: ${paidOrders || 0}\n` +
+    `💰 Выручка: <b>$${totalRevenue.toFixed(2)}</b>\n\n` +
+    `📦 Товаров: ${productCount || 0}\n` +
+    `🗃 На складе: ${invCount || 0} единиц`;
 
-  return tg.edit(chatId, msgId, text, ikb([
-    [btn("🎨 Цвет", `p:edit:${shopId}:color`), btn("📝 Заголовок", `p:edit:${shopId}:hero_title`)],
-    [btn("📄 Описание", `p:edit:${shopId}:hero_desc`)],
-    [btn("◀️ К магазину", `p:shop:${shopId}`)],
-  ]));
-}
-
-// ═══════════════════════════════════════════════
-// PRODUCTS LIST
-// ═══════════════════════════════════════════════
-async function shopProductsList(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string, page: number) {
-  const { data: products } = await db().from("shop_products").select("*").eq("shop_id", shopId).order("sort_order");
-  if (!products?.length) {
-    return tg.edit(chatId, msgId, "📦 <b>Товары</b>\n\nТоваров нет.", ikb([
-      [btn("➕ Добавить", `p:addprod:${shopId}`)],
-      [btn("◀️ К магазину", `p:shop:${shopId}`)],
-    ]));
-  }
-
-  const perPage = 6;
-  const total = Math.ceil(products.length / perPage);
-  const p = Math.min(Math.max(0, page), total - 1);
-  const slice = products.slice(p * perPage, (p + 1) * perPage);
-
-  let text = `📦 <b>Товары</b> (${products.length})\n\n`;
-  slice.forEach(pr => {
-    text += `${pr.is_active ? "✅" : "❌"} <b>${esc(pr.name)}</b> — $${Number(pr.price).toFixed(2)} | 📦 ${pr.stock}\n`;
-  });
-
-  const rows: Btn[][] = slice.map(pr => [btn(`${pr.is_active ? "✅" : "❌"} ${pr.name.slice(0, 28)}`, `p:prod:${pr.id}`)]);
-  if (total > 1) {
-    const nav: Btn[] = [];
-    if (p > 0) nav.push(btn("◀️", `p:prods:${shopId}:${p - 1}`));
-    nav.push(btn(`${p + 1}/${total}`, "p:noop"));
-    if (p < total - 1) nav.push(btn("▶️", `p:prods:${shopId}:${p + 1}`));
-    rows.push(nav);
-  }
-  rows.push([btn("➕ Добавить", `p:addprod:${shopId}`), btn("◀️ К магазину", `p:shop:${shopId}`)]);
-  return tg.edit(chatId, msgId, text, ikb(rows));
-}
-
-// ═══════════════════════════════════════════════
-// PRODUCT VIEW
-// ═══════════════════════════════════════════════
-async function shopProductView(tg: ReturnType<typeof TG>, chatId: number, msgId: number, prodId: string) {
-  const { data: pr } = await db().from("shop_products").select("*").eq("id", prodId).single();
-  if (!pr) return tg.edit(chatId, msgId, "❌ Не найден", ikb([[btn("◀️ Назад", "p:shops:0")]]));
-
-  const { count: invCount } = await db().from("shop_inventory").select("id", { count: "exact", head: true }).eq("product_id", prodId).eq("status", "available");
-
-  let text = `📦 <b>${esc(pr.name)}</b>\n\n`;
-  text += `📝 ${esc(pr.subtitle || "—")}\n`;
-  text += `💰 <b>$${Number(pr.price).toFixed(2)}</b>`;
-  if (pr.old_price) text += ` <s>$${Number(pr.old_price).toFixed(2)}</s>`;
-  text += `\n📦 Остаток: <b>${pr.stock}</b> | Единиц: <b>${invCount || 0}</b>\n`;
-  text += `${pr.is_active ? "✅ Активен" : "❌ Скрыт"}\n`;
-  if (pr.description) text += `\n📄 ${esc(pr.description.slice(0, 200))}\n`;
-
-  return tg.edit(chatId, msgId, text, ikb([
-    [btn("✏️ Название", `p:eprod:${prodId}:name`), btn("✏️ Цена", `p:eprod:${prodId}:price`)],
-    [btn("✏️ Описание", `p:eprod:${prodId}:desc`), btn("✏️ Подзаголовок", `p:eprod:${prodId}:sub`)],
-    [btn(pr.is_active ? "❌ Скрыть" : "✅ Показать", `p:tprod:${prodId}`)],
-    [btn("🗃 Склад", `p:inv:${prodId}:0`), btn("🗑 Удалить", `p:dprod:${prodId}`)],
-    [btn("◀️ К товарам", `p:prods:${pr.shop_id}:0`)],
-  ]));
-}
-
-// ═══════════════════════════════════════════════
-// INVENTORY
-// ═══════════════════════════════════════════════
-async function shopInventory(tg: ReturnType<typeof TG>, chatId: number, msgId: number, prodId: string, page: number) {
-  const { data: items } = await db().from("shop_inventory").select("*").eq("product_id", prodId).eq("status", "available").order("created_at").limit(100);
-  const { data: pr } = await db().from("shop_products").select("name, shop_id").eq("id", prodId).single();
-  const total = items?.length || 0;
-
-  let text = `🗃 <b>Склад: ${esc(pr?.name || "")}</b>\n\n`;
-  text += `📦 Доступно: ${total}\n\n`;
-  text += `Для добавления отправьте единицы товара — каждая строка = 1 единица.`;
-
-  await setSession(chatId, "add_inventory", { product_id: prodId, shop_id: pr?.shop_id });
-
-  return tg.edit(chatId, msgId, text, ikb([
-    [btn("🗑 Очистить всё", `p:clearinv:${prodId}`)],
-    [btn("◀️ К товару", `p:prod:${prodId}`)],
-  ]));
-}
-
-// ═══════════════════════════════════════════════
-// ORDERS
-// ═══════════════════════════════════════════════
-async function shopOrdersList(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string, page: number) {
-  const { data: orders } = await db().from("shop_orders").select("*").eq("shop_id", shopId).order("created_at", { ascending: false }).limit(100);
-  if (!orders?.length) {
-    return tg.edit(chatId, msgId, "🛒 <b>Заказы</b>\n\nЗаказов нет.", ikb([[btn("◀️ К магазину", `p:shop:${shopId}`)]]));
-  }
-
-  const se: Record<string, string> = { pending: "⏳", paid: "✅", delivered: "📬", completed: "✅", cancelled: "❌" };
-  const perPage = 6;
-  const totalPages = Math.ceil(orders.length / perPage);
-  const p = Math.min(Math.max(0, page), totalPages - 1);
-  const slice = orders.slice(p * perPage, (p + 1) * perPage);
-
-  let text = `🛒 <b>Заказы</b> (${orders.length})\n\n`;
-  slice.forEach(o => {
-    text += `${se[o.status] || "❓"} <b>${esc(o.order_number)}</b> — $${Number(o.total_amount).toFixed(2)}\n👤 ${o.buyer_telegram_id} | 📅 ${new Date(o.created_at).toLocaleDateString("ru-RU")}\n\n`;
-  });
-
-  const rows: Btn[][] = slice.map(o => [btn(`${se[o.status] || "❓"} ${o.order_number}`, `p:ord:${o.id}`)]);
-  if (totalPages > 1) {
-    const nav: Btn[] = [];
-    if (p > 0) nav.push(btn("◀️", `p:ords:${shopId}:${p - 1}`));
-    nav.push(btn(`${p + 1}/${totalPages}`, "p:noop"));
-    if (p < totalPages - 1) nav.push(btn("▶️", `p:ords:${shopId}:${p + 1}`));
-    rows.push(nav);
-  }
-  rows.push([btn("◀️ К магазину", `p:shop:${shopId}`)]);
-  return tg.edit(chatId, msgId, text, ikb(rows));
+  return tg.edit(chatId, msgId, text, ikb([[btn("◀️ К магазину", `p:shop:${shopId}`)]]));
 }
 
 // ═══════════════════════════════════════════════
@@ -356,88 +308,289 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
   const { data: user } = await db().from("platform_users").select("*").eq("telegram_id", chatId).maybeSingle();
   if (!user) return;
 
-  let text = `💳 <b>Подписка</b>\n\n`;
-  text += `📊 Статус: <b>${user.subscription_status === "active" ? "✅ Активна" : user.subscription_status === "trial" ? "🆓 Пробный период" : "❌ Неактивна"}</b>\n`;
+  const subMap: Record<string, string> = { active: "✅ Активна", trial: "🆓 Пробный", expired: "❌ Истекла" };
+  let daysLeft = "";
   if (user.subscription_expires_at) {
-    text += `📅 Истекает: ${new Date(user.subscription_expires_at).toLocaleDateString("ru-RU")}\n`;
+    const diff = Math.ceil((new Date(user.subscription_expires_at).getTime() - Date.now()) / 86400000);
+    daysLeft = diff > 0 ? `\n⏳ Осталось: <b>${diff}</b> дней` : "";
   }
-  text += `\n💰 Стоимость: <b>$9/мес</b>\n`;
-  text += `\nВключает:\n`;
-  text += `• Неограниченное кол-во магазинов\n`;
-  text += `• Приём платежей через CryptoBot\n`;
-  text += `• Собственный Telegram-бот\n`;
-  text += `• Авто-доставка цифровых товаров\n`;
+
+  const text =
+    `💳 <b>Подписка</b>\n\n` +
+    `📊 Статус: <b>${subMap[user.subscription_status] || user.subscription_status}</b>${daysLeft}\n\n` +
+    `💰 Стоимость: <b>$9/мес</b>\n\n` +
+    `Включает:\n` +
+    `• Неограниченное кол-во магазинов\n` +
+    `• Приём платежей через CryptoBot\n` +
+    `• Собственный Telegram-бот\n` +
+    `• Авто-доставка цифровых товаров`;
 
   const rows: Btn[][] = [];
   if (user.subscription_status !== "active") {
     rows.push([btn("💳 Оплатить $9", "p:pay_sub")]);
   }
-  rows.push([btn("◀️ Меню", "p:menu")]);
+  rows.push([btn("◀️ Назад", "p:home")]);
   return tg.edit(chatId, msgId, text, ikb(rows));
 }
 
 // ═══════════════════════════════════════════════
-// HELP
+// CREATE SHOP — 7-STEP WIZARD
 // ═══════════════════════════════════════════════
-function showHelp(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
-  const text = `ℹ️ <b>Помощь</b>\n\n` +
-    `Эта платформа позволяет создавать магазины цифровых товаров прямо в Telegram.\n\n` +
-    `<b>Как начать:</b>\n` +
-    `1. Создайте магазин\n` +
-    `2. Добавьте товары и загрузите инвентарь\n` +
-    `3. Подключите своего Telegram-бота\n` +
-    `4. Подключите CryptoBot для приёма платежей\n` +
-    `5. Клиенты покупают через вашего бота!\n\n` +
-    `<b>Команды:</b>\n` +
-    `/start — Главное меню\n` +
-    `/help — Помощь\n`;
+const COLORS: Record<string, string> = {
+  red: "#E53935", blue: "#2B7FFF", green: "#43A047",
+  purple: "#8E24AA", black: "#212121", orange: "#FB8C00",
+};
 
-  return tg.edit(chatId, msgId, text, ikb([[btn("◀️ Меню", "p:menu")]]));
+async function wizardStep(tg: ReturnType<typeof TG>, chatId: number, step: number, sData: Record<string, unknown>, msgId?: number) {
+  let text = "";
+  let kb: Btn[][] = [];
+  const cancelRow = [btn("❌ Отмена", "p:home")];
+
+  switch (step) {
+    case 1:
+      text = `📝 <b>Шаг 1 из 7</b>\n\nВведи название своего магазина\n\nНапример: <i>NickShop, Digital Store</i>`;
+      kb = [cancelRow];
+      await setSession(chatId, "wiz_1", sData);
+      break;
+    case 2:
+      text = `🎨 <b>Шаг 2 из 7</b>\n\nВыбери цвет интерфейса магазина`;
+      kb = [
+        [btn("🔴 Красный", "p:wcolor:red"), btn("🔵 Синий", "p:wcolor:blue")],
+        [btn("🟢 Зелёный", "p:wcolor:green"), btn("🟣 Фиолетовый", "p:wcolor:purple")],
+        [btn("⚫ Чёрный", "p:wcolor:black"), btn("🟠 Оранжевый", "p:wcolor:orange")],
+        [btn("✏️ Ввести HEX", "p:wcolor:custom")],
+        [btn("◀️ Назад", "p:wback:1")],
+        cancelRow,
+      ];
+      await setSession(chatId, "wiz_2", sData);
+      break;
+    case 3:
+      text = `📌 <b>Шаг 3 из 7</b>\n\nВведи заголовок витрины\n<i>(крупный текст на главной странице магазина)</i>\n\nНапример: <i>Премиум цифровой маркетплейс</i>`;
+      kb = [[btn("◀️ Назад", "p:wback:2")], cancelRow];
+      await setSession(chatId, "wiz_3", sData);
+      break;
+    case 4:
+      text = `📝 <b>Шаг 4 из 7</b>\n\nВведи описание витрины\n<i>(подзаголовок под заголовком)</i>\n\nНапример: <i>Проверенные аккаунты и скрипты.\nМгновенная доставка.</i>`;
+      kb = [[btn("◀️ Назад", "p:wback:3")], cancelRow];
+      await setSession(chatId, "wiz_4", sData);
+      break;
+    case 5:
+      text = `👋 <b>Шаг 5 из 7</b>\n\nВведи приветственное сообщение для покупателей`;
+      kb = [[btn("◀️ Назад", "p:wback:4")], cancelRow];
+      await setSession(chatId, "wiz_5", sData);
+      break;
+    case 6:
+      text = `🔗 <b>Шаг 6 из 7</b>\n\nВведи ссылку на поддержку\n\nНапример: <i>https://t.me/nickname</i>`;
+      kb = [[btn("◀️ Назад", "p:wback:5")], cancelRow];
+      await setSession(chatId, "wiz_6", sData);
+      break;
+    case 7:
+      text =
+        `🤖 <b>Шаг 7 из 7</b>\n\nВведи API токен своего Telegram бота\n\n` +
+        `Как получить:\n` +
+        `1. Открой @BotFather\n` +
+        `2. Напиши /newbot\n` +
+        `3. Следуй инструкции\n` +
+        `4. Скопируй токен`;
+      kb = [
+        [urlBtn("📖 Подробная инструкция", "https://core.telegram.org/bots/tutorial")],
+        [btn("◀️ Назад", "p:wback:6")],
+        cancelRow,
+      ];
+      await setSession(chatId, "wiz_7", sData);
+      break;
+  }
+
+  if (msgId) {
+    return tg.edit(chatId, msgId, text, ikb(kb));
+  }
+  return tg.send(chatId, text, ikb(kb));
+}
+
+async function showConfirmation(tg: ReturnType<typeof TG>, chatId: number, sData: Record<string, unknown>, msgId?: number) {
+  const colorName = Object.entries(COLORS).find(([, v]) => v === sData.color)?.[0] || sData.color;
+
+  const text =
+    `✅ <b>Проверь данные магазина:</b>\n\n` +
+    `🏪 Название: <b>${esc(sData.name as string)}</b>\n` +
+    `🎨 Цвет: ${colorName}\n` +
+    `📌 Заголовок: ${esc(sData.hero_title as string || "—")}\n` +
+    `📝 Описание: ${esc(sData.hero_desc as string || "—")}\n` +
+    `👋 Приветствие: ${esc((sData.welcome as string || "—").slice(0, 80))}\n` +
+    `🔗 Поддержка: ${esc(sData.support as string || "—")}\n` +
+    `🤖 Бот: подключён ✅`;
+
+  const kb = ikb([
+    [btn("✅ Всё верно", "p:confirm_create"), btn("✏️ Изменить", "p:wback:1")],
+    [btn("❌ Отмена", "p:home")],
+  ]);
+
+  await setSession(chatId, "wiz_confirm", sData);
+
+  if (msgId) return tg.edit(chatId, msgId, text, kb);
+  return tg.send(chatId, text, kb);
+}
+
+async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
+  const session = await getSession(chatId);
+  if (!session) return tg.edit(chatId, msgId, "❌ Сессия истекла", ikb([[btn("◀️ Меню", "p:home")]]));
+
+  const sData = session.data as Record<string, unknown>;
+  const { data: user } = await db().from("platform_users").select("id").eq("telegram_id", chatId).maybeSingle();
+  if (!user) return;
+
+  // Generate slug
+  const name = sData.name as string;
+  let slug = name.toLowerCase().replace(/[^a-zа-яё0-9]/gi, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 30) || `shop-${Date.now()}`;
+  // Transliterate cyrillic
+  const tr: Record<string, string> = { а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "yo", ж: "zh", з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya" };
+  slug = slug.split("").map(c => tr[c] || c).join("").replace(/[^a-z0-9-]/g, "").replace(/-+/g, "-");
+  if (slug.length < 2) slug = `shop-${Date.now()}`;
+
+  // Ensure unique
+  const { data: existing } = await db().from("shops").select("id").eq("slug", slug).maybeSingle();
+  if (existing) slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
+
+  // Encrypt bot token
+  const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
+  let botTokenEnc: string | null = null;
+  if (sData.bot_token && encKey) {
+    const { data: enc } = await db().rpc("encrypt_token", { p_token: sData.bot_token as string, p_key: encKey });
+    botTokenEnc = enc;
+  }
+
+  const { data: shop, error } = await db().from("shops").insert({
+    name,
+    slug,
+    owner_id: user.id,
+    status: "active",
+    color: (sData.color as string) || "#2B7FFF",
+    hero_title: (sData.hero_title as string) || "",
+    hero_description: (sData.hero_desc as string) || "",
+    welcome_message: (sData.welcome as string) || "",
+    support_link: (sData.support as string) || "",
+    bot_token_encrypted: botTokenEnc,
+  }).select("id, slug").single();
+
+  await clearSession(chatId);
+
+  if (error || !shop) {
+    return tg.edit(chatId, msgId, `❌ Ошибка: ${error?.message || "unknown"}`, ikb([[btn("◀️ Меню", "p:home")]]));
+  }
+
+  const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.slug}`;
+  const text =
+    `🎉 <b>Магазин создан!</b>\n\n` +
+    `Вот твоя ссылка:\n${esc(shopUrl)}`;
+
+  return tg.edit(chatId, msgId, text, ikb([
+    [btn("📋 Скопировать ссылку", `p:copylink:${shop.id}`)],
+    [btn("📦 Как добавить товары", `p:howaddprod:${shop.id}`)],
+    [btn("⚙️ Настройки", `p:settings:${shop.id}`)],
+    [btn("◀️ Меню", "p:home")],
+  ]));
 }
 
 // ═══════════════════════════════════════════════
-// FSM TEXT HANDLER
+// DELETE SHOP
 // ═══════════════════════════════════════════════
-async function handleTextMessage(tg: ReturnType<typeof TG>, chatId: number, text: string, from: { id: number; first_name: string; last_name?: string; username?: string }) {
+async function deleteShopConfirm(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string) {
+  const { data: shop } = await db().from("shops").select("name").eq("id", shopId).single();
+  return tg.edit(chatId, msgId,
+    `🗑 <b>Удаление магазина</b>\n\nВы уверены что хотите удалить <b>${esc(shop?.name || "")}</b>?\n\n⚠️ Это действие необратимо. Все товары и заказы будут удалены.`,
+    ikb([
+      [btn("🗑 Да, удалить", `p:confirmdelete:${shopId}`), btn("❌ Нет", `p:shop:${shopId}`)],
+    ]),
+  );
+}
+
+async function deleteShopExecute(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string) {
+  // Delete related data
+  const { data: products } = await db().from("shop_products").select("id").eq("shop_id", shopId);
+  const prodIds = products?.map(p => p.id) || [];
+  if (prodIds.length) {
+    await db().from("shop_inventory").delete().in("product_id", prodIds);
+    await db().from("shop_order_items").delete().in("product_id", prodIds);
+  }
+  await db().from("shop_products").delete().eq("shop_id", shopId);
+  await db().from("shop_orders").delete().eq("shop_id", shopId);
+  await db().from("shops").delete().eq("id", shopId);
+
+  return tg.edit(chatId, msgId, "✅ Магазин удалён.", ikb([[btn("◀️ К магазинам", "p:myshops:0")]]));
+}
+
+// ═══════════════════════════════════════════════
+// HOW TO ADD PRODUCTS
+// ═══════════════════════════════════════════════
+function howToAddProducts(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string) {
+  const text =
+    `📦 <b>Как добавить товары</b>\n\n` +
+    `1. Перейди в ⚙️ <b>Настройки</b> магазина\n` +
+    `2. Управление товарами будет доступно через бот продавца\n` +
+    `3. Загрузи инвентарь — каждая строка = 1 единица товара\n\n` +
+    `💡 Товары появятся в твоём магазине автоматически!`;
+
+  return tg.edit(chatId, msgId, text, ikb([
+    [btn("⚙️ Настройки", `p:settings:${shopId}`)],
+    [btn("◀️ К магазину", `p:shop:${shopId}`)],
+  ]));
+}
+
+// ═══════════════════════════════════════════════
+// TEXT FSM HANDLER
+// ═══════════════════════════════════════════════
+async function handleText(tg: ReturnType<typeof TG>, chatId: number, text: string, from: { id: number; first_name: string; last_name?: string; username?: string; is_premium?: boolean; language_code?: string }) {
   const session = await getSession(chatId);
   if (!session) return;
 
   const state = session.state;
-  const sData = (session.data || {}) as Record<string, unknown>;
+  const sData = { ...(session.data || {}) } as Record<string, unknown>;
+  const val = text.trim();
 
-  // ─── Shop Creation Wizard ─────────────────
-  if (state === "create_shop_name") {
-    const name = text.trim();
-    if (name.length < 2 || name.length > 50) {
-      return tg.send(chatId, "❌ Название должно быть от 2 до 50 символов. Попробуйте ещё:");
+  // ─── Wizard steps ─────────────────────────
+  if (state === "wiz_1") {
+    if (val.length < 2 || val.length > 50) return tg.send(chatId, "❌ Название: от 2 до 50 символов. Попробуй ещё:");
+    sData.name = val;
+    return wizardStep(tg, chatId, 2, sData);
+  }
+  if (state === "wiz_2_custom") {
+    if (!/^#?[0-9A-Fa-f]{6}$/.test(val)) return tg.send(chatId, "❌ Введи HEX цвет, например: #FF5500");
+    sData.color = val.startsWith("#") ? val : `#${val}`;
+    return wizardStep(tg, chatId, 3, sData);
+  }
+  if (state === "wiz_3") {
+    if (val.length < 2 || val.length > 100) return tg.send(chatId, "❌ Заголовок: от 2 до 100 символов:");
+    sData.hero_title = val;
+    return wizardStep(tg, chatId, 4, sData);
+  }
+  if (state === "wiz_4") {
+    if (val.length < 2 || val.length > 300) return tg.send(chatId, "❌ Описание: от 2 до 300 символов:");
+    sData.hero_desc = val;
+    return wizardStep(tg, chatId, 5, sData);
+  }
+  if (state === "wiz_5") {
+    if (val.length < 2) return tg.send(chatId, "❌ Минимум 2 символа:");
+    sData.welcome = val;
+    return wizardStep(tg, chatId, 6, sData);
+  }
+  if (state === "wiz_6") {
+    sData.support = val;
+    return wizardStep(tg, chatId, 7, sData);
+  }
+  if (state === "wiz_7") {
+    if (!/^\d+:[A-Za-z0-9_-]{30,}$/.test(val)) {
+      return tg.send(chatId, "❌ Неверный формат токена. Скопируй токен из @BotFather:");
     }
-    const slug = name.toLowerCase().replace(/[^a-zа-яё0-9]/gi, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 30) || `shop-${Date.now()}`;
-    await setSession(chatId, "create_shop_slug", { ...sData, name, slug });
-    return tg.send(chatId,
-      `📝 Название: <b>${esc(name)}</b>\n\n🔗 Предлагаемый slug: <code>${esc(slug)}</code>\n\nОтправьте свой slug или нажмите кнопку ниже для использования предложенного:`,
-      ikb([[btn(`✅ Использовать: ${slug}`, `p:useslug:${slug}`)], [btn("❌ Отмена", "p:menu")]]),
-    );
+    sData.bot_token = val;
+    // Delete message with token for security
+    // Show confirmation
+    return showConfirmation(tg, chatId, sData);
   }
 
-  if (state === "create_shop_slug") {
-    const slug = text.trim().toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 30);
-    if (slug.length < 2) {
-      return tg.send(chatId, "❌ Slug должен содержать минимум 2 латинских символа. Попробуйте ещё:");
-    }
-    const { data: existing } = await db().from("shops").select("id").eq("slug", slug).maybeSingle();
-    if (existing) {
-      return tg.send(chatId, `❌ Slug <code>${esc(slug)}</code> уже занят. Попробуйте другой:`);
-    }
-    // create shop
-    return await finalizeShopCreation(tg, chatId, sData.name as string, slug);
-  }
-
-  // ─── Edit shop fields ─────────────────────
-  if (state === "edit_shop_field") {
+  // ─── Edit shop field ──────────────────────
+  if (state === "edit_field") {
     const shopId = sData.shop_id as string;
     const field = sData.field as string;
-    const value = text.trim();
-
     const fieldMap: Record<string, string> = {
       name: "name", slug: "slug", welcome: "welcome_message",
       support: "support_link", color: "color",
@@ -446,310 +599,187 @@ async function handleTextMessage(tg: ReturnType<typeof TG>, chatId: number, text
     const dbField = fieldMap[field];
     if (!dbField) { await clearSession(chatId); return; }
 
-    if (field === "slug") {
-      const clean = value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 30);
-      if (clean.length < 2) return tg.send(chatId, "❌ Slug минимум 2 символа:");
-      const { data: ex } = await db().from("shops").select("id").eq("slug", clean).neq("id", shopId).maybeSingle();
-      if (ex) return tg.send(chatId, "❌ Этот slug уже занят:");
-      await db().from("shops").update({ [dbField]: clean, updated_at: new Date().toISOString() }).eq("id", shopId);
-    } else {
-      await db().from("shops").update({ [dbField]: value, updated_at: new Date().toISOString() }).eq("id", shopId);
+    if (field === "color" && !/^#?[0-9A-Fa-f]{6}$/.test(val)) {
+      return tg.send(chatId, "❌ Введи HEX цвет, например: #FF5500");
     }
 
+    const updateVal = field === "color" ? (val.startsWith("#") ? val : `#${val}`) : val;
+    await db().from("shops").update({ [dbField]: updateVal, updated_at: new Date().toISOString() }).eq("id", shopId);
     await clearSession(chatId);
-    await tg.send(chatId, `✅ Обновлено!`);
-    // Resend shop view as new message
-    const fakeMsg = await tg.send(chatId, "⏳");
-    const resp = await fakeMsg.json();
-    const newMsgId = resp?.result?.message_id;
-    if (newMsgId) {
-      if (["name", "slug", "welcome", "support"].includes(field)) {
-        return shopSettings(tg, chatId, newMsgId, shopId);
-      } else {
-        return shopDesign(tg, chatId, newMsgId, shopId);
-      }
-    }
+    const resp = await tg.send(chatId, "✅ Обновлено!");
+    const mid = resp?.result?.message_id;
+    if (mid) return shopSettings(tg, chatId, mid, shopId);
     return;
   }
 
   // ─── Set bot token ────────────────────────
   if (state === "set_bot_token") {
     const shopId = sData.shop_id as string;
-    const token = text.trim();
-    if (!/^\d+:[A-Za-z0-9_-]{30,}$/.test(token)) {
-      return tg.send(chatId, "❌ Неверный формат токена. Отправьте токен от @BotFather:");
-    }
+    if (!/^\d+:[A-Za-z0-9_-]{30,}$/.test(val)) return tg.send(chatId, "❌ Неверный формат токена:");
     const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
-    if (!encKey) {
-      await clearSession(chatId);
-      return tg.send(chatId, "❌ Ошибка конфигурации. Обратитесь к администратору.");
-    }
-    const { data: encrypted } = await db().rpc("encrypt_token", { p_token: token, p_key: encKey });
-    await db().from("shops").update({ bot_token_encrypted: encrypted, updated_at: new Date().toISOString() }).eq("id", shopId);
-    // Delete the message with the token for security
+    if (!encKey) return tg.send(chatId, "❌ Ошибка конфигурации.");
+    const { data: enc } = await db().rpc("encrypt_token", { p_token: val, p_key: encKey });
+    await db().from("shops").update({ bot_token_encrypted: enc, updated_at: new Date().toISOString() }).eq("id", shopId);
     await clearSession(chatId);
-    await tg.send(chatId, "✅ Бот-токен сохранён и зашифрован!");
-    return;
+    return tg.send(chatId, "✅ Бот-токен сохранён и зашифрован!", ikb([[btn("◀️ К настройкам", `p:settings:${shopId}`)]]));
   }
 
   // ─── Set CryptoBot token ──────────────────
   if (state === "set_cryptobot_token") {
     const shopId = sData.shop_id as string;
-    const token = text.trim();
-    if (token.length < 10) {
-      return tg.send(chatId, "❌ Неверный формат токена CryptoBot:");
-    }
+    if (val.length < 10) return tg.send(chatId, "❌ Неверный формат:");
     const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
-    if (!encKey) {
-      await clearSession(chatId);
-      return tg.send(chatId, "❌ Ошибка конфигурации.");
-    }
-    const { data: encrypted } = await db().rpc("encrypt_token", { p_token: token, p_key: encKey });
-    await db().from("shops").update({ cryptobot_token_encrypted: encrypted, updated_at: new Date().toISOString() }).eq("id", shopId);
+    if (!encKey) return tg.send(chatId, "❌ Ошибка конфигурации.");
+    const { data: enc } = await db().rpc("encrypt_token", { p_token: val, p_key: encKey });
+    await db().from("shops").update({ cryptobot_token_encrypted: enc, updated_at: new Date().toISOString() }).eq("id", shopId);
     await clearSession(chatId);
-    await tg.send(chatId, "✅ CryptoBot-токен сохранён и зашифрован!");
-    return;
+    return tg.send(chatId, "✅ CryptoBot-токен сохранён!", ikb([[btn("◀️ К настройкам", `p:settings:${shopId}`)]]));
   }
-
-  // ─── Add product ──────────────────────────
-  if (state === "add_product_name") {
-    const name = text.trim();
-    if (name.length < 2) return tg.send(chatId, "❌ Минимум 2 символа:");
-    await setSession(chatId, "add_product_price", { ...sData, name });
-    return tg.send(chatId, `📝 Название: <b>${esc(name)}</b>\n\n💰 Введите цену (в USD):`, ikb([[btn("❌ Отмена", "p:menu")]]));
-  }
-
-  if (state === "add_product_price") {
-    const price = parseFloat(text.trim().replace(",", "."));
-    if (isNaN(price) || price <= 0) return tg.send(chatId, "❌ Введите корректную цену:");
-    const shopId = sData.shop_id as string;
-    const name = sData.name as string;
-    const { data: product } = await db().from("shop_products").insert({
-      shop_id: shopId, name, price, stock: 0,
-    }).select("id").single();
-    await clearSession(chatId);
-    if (product) {
-      await tg.send(chatId, `✅ Товар <b>${esc(name)}</b> создан!\n💰 Цена: $${price.toFixed(2)}\n\nТеперь загрузите инвентарь — отправьте единицы товара (каждая строка = 1 единица).`);
-      await setSession(chatId, "add_inventory", { product_id: product.id, shop_id: shopId });
-    }
-    return;
-  }
-
-  // ─── Edit product fields ──────────────────
-  if (state === "edit_product_field") {
-    const prodId = sData.product_id as string;
-    const field = sData.field as string;
-    const value = text.trim();
-    const map: Record<string, string> = { name: "name", price: "price", desc: "description", sub: "subtitle" };
-    const dbField = map[field];
-    if (!dbField) { await clearSession(chatId); return; }
-
-    let updateVal: unknown = value;
-    if (field === "price") {
-      const p = parseFloat(value.replace(",", "."));
-      if (isNaN(p) || p <= 0) return tg.send(chatId, "❌ Введите корректную цену:");
-      updateVal = p;
-    }
-
-    await db().from("shop_products").update({ [dbField]: updateVal, updated_at: new Date().toISOString() }).eq("id", prodId);
-    await clearSession(chatId);
-    await tg.send(chatId, "✅ Обновлено!");
-    return;
-  }
-
-  // ─── Add inventory ────────────────────────
-  if (state === "add_inventory") {
-    const prodId = sData.product_id as string;
-    const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
-    if (!lines.length) return tg.send(chatId, "❌ Отправьте хотя бы одну строку:");
-
-    const items = lines.map(content => ({
-      product_id: prodId, content, status: "available" as const,
-    }));
-    await db().from("shop_inventory").insert(items);
-    // Update stock count
-    const { count } = await db().from("shop_inventory").select("id", { count: "exact", head: true }).eq("product_id", prodId).eq("status", "available");
-    await db().from("shop_products").update({ stock: count || 0, updated_at: new Date().toISOString() }).eq("id", prodId);
-
-    return tg.send(chatId, `✅ Добавлено ${lines.length} единиц!\n📦 Всего на складе: ${count || 0}\n\nОтправьте ещё или нажмите готово:`,
-      ikb([[btn("✅ Готово", `p:prod:${prodId}`)]]));
-  }
-}
-
-// ═══════════════════════════════════════════════
-// FINALIZE SHOP CREATION
-// ═══════════════════════════════════════════════
-async function finalizeShopCreation(tg: ReturnType<typeof TG>, chatId: number, name: string, slug: string) {
-  const { data: user } = await db().from("platform_users").select("id").eq("telegram_id", chatId).maybeSingle();
-  if (!user) return tg.send(chatId, "❌ Ошибка: пользователь не найден.");
-
-  const { data: shop, error } = await db().from("shops").insert({
-    name, slug, owner_id: user.id, status: "active",
-  }).select("id").single();
-
-  await clearSession(chatId);
-
-  if (error) {
-    return tg.send(chatId, `❌ Ошибка: ${error.message}`, ikb([[btn("◀️ Меню", "p:menu")]]));
-  }
-
-  return tg.send(chatId,
-    `✅ Магазин <b>${esc(name)}</b> создан!\n\n🔗 Slug: <code>${esc(slug)}</code>\n\nТеперь настройте магазин:`,
-    ikb([
-      [btn("📦 Добавить товар", `p:addprod:${shop!.id}`)],
-      [btn("⚙️ Настройки", `p:sett:${shop!.id}`)],
-      [btn("◀️ Меню", "p:menu")],
-    ]),
-  );
 }
 
 // ═══════════════════════════════════════════════
 // CALLBACK HANDLER
 // ═══════════════════════════════════════════════
-async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: number, data: string, cbId: string) {
+async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: number, data: string, cbId: string, from: { id: number; first_name: string; last_name?: string; username?: string; is_premium?: boolean; language_code?: string }) {
   await tg.answer(cbId);
   const parts = data.split(":");
   const cmd = parts[1];
 
-  // For useslug we need session data before clearing
-  if (cmd === "useslug") {
-    const session = await getSession(chatId);
-    const slug = parts.slice(2).join(":");
-    const name = (session?.data as Record<string, unknown>)?.name as string;
-    if (!name) {
-      await clearSession(chatId);
-      return tg.edit(chatId, msgId, "❌ Сессия истекла. Начните заново.", ikb([[btn("◀️ Меню", "p:menu")]]));
+  // ─── Channel check ────────────────────────
+  if (cmd === "checksub") {
+    const ok = await checkAllChannels(tg, chatId);
+    if (!ok) {
+      return tg.edit(chatId, msgId,
+        "❌ Ты ещё не подписался на все каналы.\nПодпишись и нажми кнопку снова.",
+        ikb([...channelButtons()]),
+      );
     }
-    // Check slug availability
-    const { data: existing } = await db().from("shops").select("id").eq("slug", slug).maybeSingle();
-    if (existing) {
-      return tg.edit(chatId, msgId, `❌ Slug <code>${esc(slug)}</code> занят. Отправьте другой:`, ikb([[btn("❌ Отмена", "p:menu")]]));
-    }
-    return await finalizeShopCreation(tg, chatId, name, slug);
-  }
-
-  // Check subscription callback
-  if (cmd === "checksubscribe") {
-    const subscribed = await checkSubscription(tg, chatId);
-    if (!subscribed) {
-      return tg.edit(chatId, msgId, "❌ Вы ещё не подписались на канал. Подпишитесь и нажмите кнопку снова.");
-    }
-    await upsertUser({ id: chatId, first_name: "" });
+    await upsertUser(from);
     await clearSession(chatId);
-    return showMainMenu(tg, chatId, msgId);
+    // Delete subscription check message and send welcome
+    await tg.deleteMessage(chatId, msgId);
+    return sendWelcome(tg, chatId, from.first_name || "друг");
   }
 
-  // Clear session for all other callbacks
-  await clearSession(chatId);
+  // ─── Home ─────────────────────────────────
+  if (cmd === "home") {
+    await clearSession(chatId);
+    const text =
+      `👋 <b>${esc(from.first_name || "")}</b>, ты в главном меню\n\n` +
+      `Выбери действие:`;
+    return tg.edit(chatId, msgId, text, ikb([
+      [btn("🏪 Создать магазин", "p:create"), btn("📖 Как это работает", "p:howitworks")],
+      [btn("👤 Мой профиль", "p:profile")],
+      [btn("🏪 Мои магазины", "p:myshops:0")],
+    ]));
+  }
 
-  if (cmd === "menu") return showMainMenu(tg, chatId, msgId);
   if (cmd === "noop") return;
-  if (cmd === "help") return showHelp(tg, chatId, msgId);
+  if (cmd === "howitworks") return howItWorks(tg, chatId, msgId);
+  if (cmd === "profile") return showProfile(tg, chatId, msgId);
   if (cmd === "sub") return showSubscription(tg, chatId, msgId);
-
-  // Shop list
-  if (cmd === "shops") return shopsList(tg, chatId, msgId, parseInt(parts[2]) || 0);
+  if (cmd === "myshops") return myShops(tg, chatId, msgId, parseInt(parts[2]) || 0);
   if (cmd === "shop") return shopView(tg, chatId, msgId, parts[2]);
-  if (cmd === "create") return startCreateShop(tg, chatId, msgId);
+  if (cmd === "settings") return shopSettings(tg, chatId, msgId, parts[2]);
+  if (cmd === "stats") return shopStats(tg, chatId, msgId, parts[2]);
 
-  // Shop settings
-  if (cmd === "sett") return shopSettings(tg, chatId, msgId, parts[2]);
-  if (cmd === "design") return shopDesign(tg, chatId, msgId, parts[2]);
+  // ─── Create shop wizard ───────────────────
+  if (cmd === "create") {
+    return wizardStep(tg, chatId, 1, {}, msgId);
+  }
 
-  // Edit shop field
+  // Wizard color selection
+  if (cmd === "wcolor") {
+    const session = await getSession(chatId);
+    if (!session) return;
+    const sData = { ...(session.data || {}) } as Record<string, unknown>;
+    const colorKey = parts[2];
+    if (colorKey === "custom") {
+      await setSession(chatId, "wiz_2_custom", sData);
+      return tg.edit(chatId, msgId, "🎨 Введи HEX цвет, например: <code>#FF5500</code>", ikb([[btn("◀️ Назад", "p:wback:2")]]));
+    }
+    sData.color = COLORS[colorKey] || "#2B7FFF";
+    return wizardStep(tg, chatId, 3, sData, msgId);
+  }
+
+  // Wizard back
+  if (cmd === "wback") {
+    const session = await getSession(chatId);
+    const sData = session?.data ? { ...session.data } as Record<string, unknown> : {};
+    const step = parseInt(parts[2]) || 1;
+    return wizardStep(tg, chatId, step, sData, msgId);
+  }
+
+  // Confirm creation
+  if (cmd === "confirm_create") {
+    return finalizeShop(tg, chatId, msgId);
+  }
+
+  // ─── Copy link ────────────────────────────
+  if (cmd === "copylink") {
+    const shopId = parts[2];
+    const { data: shop } = await db().from("shops").select("slug").eq("id", shopId).single();
+    if (shop) {
+      const url = `${WEBAPP_DOMAIN}/shop/${shop.slug}`;
+      await tg.send(chatId, `📋 Ссылка на магазин:\n\n<code>${esc(url)}</code>\n\nНажми на ссылку выше чтобы скопировать.`);
+    }
+    return;
+  }
+
+  // How to add products
+  if (cmd === "howaddprod") return howToAddProducts(tg, chatId, msgId, parts[2]);
+
+  // ─── Edit shop field ──────────────────────
   if (cmd === "edit") {
     const shopId = parts[2];
     const field = parts[3];
     const labels: Record<string, string> = {
-      name: "название", slug: "slug", welcome: "приветствие",
-      support: "ссылку поддержки", color: "цвет (HEX)",
-      hero_title: "заголовок", hero_desc: "описание",
+      name: "📛 название магазина", color: "🎨 HEX цвет (например #FF5500)",
+      hero_title: "📌 заголовок витрины", hero_desc: "📝 описание витрины",
+      welcome: "👋 приветственное сообщение", support: "🔗 ссылку на поддержку",
     };
-    await setSession(chatId, "edit_shop_field", { shop_id: shopId, field });
-    return tg.edit(chatId, msgId, `✏️ Введите новое ${labels[field] || field}:`, ikb([[btn("❌ Отмена", `p:sett:${shopId}`)]]));
+    await setSession(chatId, "edit_field", { shop_id: shopId, field });
+    return tg.edit(chatId, msgId, `✏️ Введи новое ${labels[field] || field}:`, ikb([[btn("❌ Отмена", `p:settings:${shopId}`)]]));
   }
 
-  // Toggle shop status
-  if (cmd === "toggle") {
-    const shopId = parts[2];
-    const { data: shop } = await db().from("shops").select("status").eq("id", shopId).single();
-    if (shop) {
-      const newStatus = shop.status === "active" ? "paused" : "active";
-      await db().from("shops").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", shopId);
-    }
-    return shopView(tg, chatId, msgId, shopId);
-  }
-
-  // Set bot token
+  // ─── Set bot token ────────────────────────
   if (cmd === "setbot") {
     const shopId = parts[2];
     await setSession(chatId, "set_bot_token", { shop_id: shopId });
     return tg.edit(chatId, msgId,
-      "🤖 <b>Подключение бота</b>\n\nОтправьте токен вашего бота от @BotFather:\n\n⚠️ Токен будет зашифрован и надёжно сохранён.",
-      ikb([[btn("❌ Отмена", `p:shop:${shopId}`)]]),
+      "🤖 <b>Подключение бота</b>\n\nОтправь токен своего бота от @BotFather:\n\n⚠️ Токен будет зашифрован и надёжно сохранён.",
+      ikb([[urlBtn("📖 Как получить токен", "https://core.telegram.org/bots/tutorial")], [btn("❌ Отмена", `p:settings:${shopId}`)]]),
     );
   }
 
-  // Set CryptoBot token
+  // ─── Set CryptoBot token ──────────────────
   if (cmd === "setcb") {
     const shopId = parts[2];
     await setSession(chatId, "set_cryptobot_token", { shop_id: shopId });
     return tg.edit(chatId, msgId,
-      "💰 <b>Подключение CryptoBot</b>\n\nОтправьте API-токен от @CryptoBot:\n\n⚠️ Токен будет зашифрован.",
-      ikb([[btn("❌ Отмена", `p:shop:${shopId}`)]]),
+      "💰 <b>Подключение CryptoBot</b>\n\nОтправь API-токен от @CryptoBot:\n\n⚠️ Токен будет зашифрован.",
+      ikb([[btn("❌ Отмена", `p:settings:${shopId}`)]]),
     );
   }
 
-  // Products
-  if (cmd === "prods") return shopProductsList(tg, chatId, msgId, parts[2], parseInt(parts[3]) || 0);
-  if (cmd === "prod") return shopProductView(tg, chatId, msgId, parts[2]);
-
-  // Add product
-  if (cmd === "addprod") {
+  // Toggle shop
+  if (cmd === "toggle") {
     const shopId = parts[2];
-    await setSession(chatId, "add_product_name", { shop_id: shopId });
-    return tg.edit(chatId, msgId, "📦 <b>Новый товар</b>\n\n📝 Введите название товара:", ikb([[btn("❌ Отмена", `p:prods:${shopId}:0`)]]));
+    const { data: shop } = await db().from("shops").select("status").eq("id", shopId).single();
+    if (shop) {
+      await db().from("shops").update({ status: shop.status === "active" ? "paused" : "active", updated_at: new Date().toISOString() }).eq("id", shopId);
+    }
+    return shopView(tg, chatId, msgId, shopId);
   }
 
-  // Edit product field
-  if (cmd === "eprod") {
-    const prodId = parts[2];
-    const field = parts[3];
-    const labels: Record<string, string> = { name: "название", price: "цену (USD)", desc: "описание", sub: "подзаголовок" };
-    await setSession(chatId, "edit_product_field", { product_id: prodId, field });
-    return tg.edit(chatId, msgId, `✏️ Введите новое ${labels[field] || field}:`, ikb([[btn("❌ Отмена", `p:prod:${prodId}`)]]));
+  // Delete shop
+  if (cmd === "delshop") return deleteShopConfirm(tg, chatId, msgId, parts[2]);
+  if (cmd === "confirmdelete") return deleteShopExecute(tg, chatId, msgId, parts[2]);
+
+  // Pay subscription (placeholder)
+  if (cmd === "pay_sub") {
+    return tg.edit(chatId, msgId, "💳 Оплата подписки будет доступна в ближайшее время.", ikb([[btn("◀️ Назад", "p:sub")]]));
   }
-
-  // Toggle product
-  if (cmd === "tprod") {
-    const prodId = parts[2];
-    const { data: pr } = await db().from("shop_products").select("is_active").eq("id", prodId).single();
-    if (pr) await db().from("shop_products").update({ is_active: !pr.is_active, updated_at: new Date().toISOString() }).eq("id", prodId);
-    return shopProductView(tg, chatId, msgId, prodId);
-  }
-
-  // Delete product
-  if (cmd === "dprod") {
-    const prodId = parts[2];
-    const { data: pr } = await db().from("shop_products").select("name, shop_id").eq("id", prodId).single();
-    await db().from("shop_inventory").delete().eq("product_id", prodId);
-    await db().from("shop_products").delete().eq("id", prodId);
-    return tg.edit(chatId, msgId, `✅ Товар удалён.`, ikb([[btn("◀️ К товарам", `p:prods:${pr?.shop_id}:0`)]]));
-  }
-
-  // Inventory
-  if (cmd === "inv") return shopInventory(tg, chatId, msgId, parts[2], parseInt(parts[3]) || 0);
-
-  // Clear inventory
-  if (cmd === "clearinv") {
-    const prodId = parts[2];
-    await db().from("shop_inventory").delete().eq("product_id", prodId).eq("status", "available");
-    await db().from("shop_products").update({ stock: 0, updated_at: new Date().toISOString() }).eq("id", prodId);
-    return tg.edit(chatId, msgId, "✅ Склад очищен.", ikb([[btn("◀️ К товару", `p:prod:${prodId}`)]]));
-  }
-
-  // Orders
-  if (cmd === "ords") return shopOrdersList(tg, chatId, msgId, parts[2], parseInt(parts[3]) || 0);
 }
 
 // ═══════════════════════════════════════════════
@@ -775,7 +805,7 @@ serve(async (req) => {
       const msgId = cb.message?.message_id;
       const data = cb.data;
       if (chatId && msgId && data && data.startsWith("p:")) {
-        await handleCallback(tg, chatId, msgId, data, cb.id);
+        await handleCallback(tg, chatId, msgId, data, cb.id, cb.from);
       }
       return new Response("ok");
     }
@@ -783,42 +813,53 @@ serve(async (req) => {
     // ─── Text message ───────────────────────
     if (msg) {
       const chatId = msg.chat.id;
-      const text = msg.text || "";
+      const text = (msg.text || "").trim();
       const from = msg.from;
 
-      // /start command
-      if (text === "/start" || text === "/start ") {
+      // ─── /start ───────────────────────────
+      if (text === "/start" || text.startsWith("/start ")) {
         // Check channel subscription
-        const subscribed = await checkSubscription(tg, chatId);
+        const subscribed = await checkAllChannels(tg, chatId);
         if (!subscribed) {
-          const channelId = Deno.env.get("PLATFORM_CHANNEL_ID") || "";
-          const channelLink = channelId.startsWith("@") ? `https://t.me/${channelId.slice(1)}` : `https://t.me/c/${channelId}`;
-          return new Response("ok", { status: 200 }) && await tg.send(chatId,
-            "👋 <b>Добро пожаловать!</b>\n\nДля использования платформы подпишитесь на наш канал:",
-            ikb([
-              [urlBtn("📢 Подписаться", channelLink)],
-              [btn("✅ Я подписался", "p:checksubscribe")],
-            ]),
+          await tg.send(chatId,
+            "👋 <b>Добро пожаловать!</b>\n\nДля использования платформы подпишись на наши каналы:",
+            ikb(channelButtons()),
           );
+          return new Response("ok");
         }
-
-        // Upsert user
+        // Upsert & welcome
         await upsertUser(from);
         await clearSession(chatId);
-        await showMainMenu(tg, chatId);
+        await sendWelcome(tg, chatId, from.first_name || "друг");
         return new Response("ok");
       }
 
+      // ─── /help ────────────────────────────
       if (text === "/help") {
-        const fakeResp = await tg.send(chatId, "⏳");
-        const resp = await fakeResp.json();
+        const resp = await tg.send(chatId, "⏳");
         const mid = resp?.result?.message_id;
-        if (mid) await showHelp(tg, chatId, mid);
+        if (mid) {
+          await howItWorks(tg, chatId, mid);
+        }
         return new Response("ok");
       }
 
-      // FSM text handler
-      await handleTextMessage(tg, chatId, text, from);
+      // ─── Bottom panel buttons ─────────────
+      if (text === "👤 Профиль") {
+        await showProfile(tg, chatId);
+        return new Response("ok");
+      }
+      if (text === "🆘 Поддержка") {
+        await tg.send(chatId, `🆘 Свяжитесь с поддержкой:\n${SUPPORT_LINK}`, ikb([[urlBtn("🆘 Написать в поддержку", SUPPORT_LINK)]]));
+        return new Response("ok");
+      }
+      if (text === "🏪 Мои магазины") {
+        await myShops(tg, chatId);
+        return new Response("ok");
+      }
+
+      // ─── FSM handler ──────────────────────
+      await handleText(tg, chatId, text, from);
       return new Response("ok");
     }
 
