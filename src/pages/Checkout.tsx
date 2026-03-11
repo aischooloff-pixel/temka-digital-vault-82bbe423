@@ -55,13 +55,10 @@ const Checkout = () => {
         // Full balance payment
         const { data, error: fnError } = await supabase.functions.invoke('pay-with-balance', {
           body: {
-            telegramUserId: user?.id,
+            initData,
             orderNumber,
             items: itemsPayload,
-            totalAmount: totalAfterDiscount,
-            discountAmount: discount,
             promoCode: promoResult?.code || null,
-            balanceUsed: balanceUsed,
           },
         });
         if (fnError) throw new Error(fnError.message);
