@@ -1,7 +1,8 @@
-import { Outlet, useParams } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import { ShopProvider, useShop } from '@/contexts/ShopContext';
 import ShopHeader from '@/components/ShopHeader';
 import ShopBottomNav from '@/components/ShopBottomNav';
+import ShopFooter from '@/components/ShopFooter';
 import { Loader2 } from 'lucide-react';
 
 const ShopContent = () => {
@@ -30,6 +31,7 @@ const ShopContent = () => {
       <main className="flex-1 pb-14">
         <Outlet />
       </main>
+      <ShopFooter />
       <ShopBottomNav />
     </div>
   );
