@@ -53,7 +53,7 @@ export const useReviews = (productId?: string) => {
     queryKey: ['reviews', productId],
     queryFn: async () => {
       let query = supabase
-        .from('reviews')
+        .from('public_reviews' as any)
         .select('*')
         .eq('verified', true)
         .order('created_at', { ascending: false });
