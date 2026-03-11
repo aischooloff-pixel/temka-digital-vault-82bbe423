@@ -51,7 +51,7 @@ const Index = () => {
   const { data: categories, isLoading: categoriesLoading } = useCategories();
   const { data: stats } = useProductStats();
   const { data: reviews, isLoading: reviewsLoading } = useReviews();
-  const { user } = useTelegram();
+  const { user, initData } = useTelegram();
   const queryClient = useQueryClient();
 
   const [showReviewForm, setShowReviewForm] = useState(false);
