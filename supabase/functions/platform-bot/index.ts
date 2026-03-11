@@ -6,10 +6,11 @@ async function setupWebhook(): Promise<Response> {
   const token = Deno.env.get("PLATFORM_BOT_TOKEN");
   if (!token) return new Response(JSON.stringify({ error: "PLATFORM_BOT_TOKEN not set" }), { status: 500 });
   const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/platform-bot`;
+  const secret = Deno.env.get("TELEGRAM_WEBHOOK_SECRET") || "";
   const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, allowed_updates: ["message", "callback_query"], drop_pending_updates: true }),
+    body: JSON.stringify({ url, allowed_updates: ["message", "callback_query"], drop_pending_updates: true, ...(secret ? { secret_token: secret } : {}) }),
   });
   const data = await res.json();
   console.log("setWebhook result:", data);
@@ -51,6 +52,98 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 const PLATFORM_NAME = "ShopBot Platform";
 const WEBAPP_DOMAIN = Deno.env.get("WEBAPP_URL") || "https://temka-digital-vault.lovable.app";
 const SUPPORT_LINK = "https://t.me/support";
+
+// ─── Bot Token Validation ─────────────────────
+async function validateBotToken(token: string): Promise<{ ok: boolean; bot_id?: number; bot_username?: string; first_name?: string; error?: string }> {
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+    const data = await res.json();
+    if (!data.ok) return { ok: false, error: data.description || "Invalid token" };
+    return {
+      ok: true,
+      bot_id: data.result.id,
+      bot_username: data.result.username,
+      first_name: data.result.first_name,
+    };
+  } catch (e) {
+    return { ok: false, error: "Network error validating token" };
+  }
+}
+
+async function setupSellerWebhook(botToken: string, shopId: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const webhookUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/seller-bot-webhook?shop_id=${shopId}`;
+    const secret = Deno.env.get("TELEGRAM_WEBHOOK_SECRET") || "";
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: webhookUrl,
+        allowed_updates: ["message", "callback_query"],
+        drop_pending_updates: true,
+        ...(secret ? { secret_token: secret } : {}),
+      }),
+    });
+    const data = await res.json();
+    if (!data.ok) return { ok: false, error: data.description || "Failed to set webhook" };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: "Network error setting webhook" };
+  }
+}
+
+async function removeSellerWebhook(botToken: string): Promise<void> {
+  try {
+    await fetch(`https://api.telegram.org/bot${botToken}/deleteWebhook`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ drop_pending_updates: true }),
+    });
+  } catch {}
+}
+
+// Full flow: validate + encrypt + save + set webhook
+async function connectBotToken(rawToken: string, shopId: string): Promise<{ ok: boolean; message: string; bot_username?: string }> {
+  // 1. Validate via getMe
+  const validation = await validateBotToken(rawToken);
+  if (!validation.ok) {
+    return { ok: false, message: `❌ Токен невалиден: ${validation.error}\n\nПроверьте токен и попробуйте снова.` };
+  }
+
+  // 2. Encrypt token
+  const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
+  if (!encKey) return { ok: false, message: "❌ Ошибка конфигурации сервера." };
+
+  const { data: enc } = await db().rpc("encrypt_token", { p_token: rawToken, p_key: encKey });
+  if (!enc) return { ok: false, message: "❌ Ошибка шифрования токена." };
+
+  // 3. Set webhook
+  const webhookResult = await setupSellerWebhook(rawToken, shopId);
+
+  // 4. Save to DB
+  await db().from("shops").update({
+    bot_token_encrypted: enc,
+    bot_id: validation.bot_id,
+    bot_username: validation.bot_username,
+    webhook_status: webhookResult.ok ? "active" : "failed",
+    bot_validated_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq("id", shopId);
+
+  if (!webhookResult.ok) {
+    return {
+      ok: false,
+      message: `⚠️ Бот @${validation.bot_username} валиден, но webhook не установлен: ${webhookResult.error}\n\nТокен сохранён. Попробуйте переподключить позже.`,
+      bot_username: validation.bot_username,
+    };
+  }
+
+  return {
+    ok: true,
+    message: `✅ Бот @${validation.bot_username} подключён!\n\n✅ Токен зашифрован\n✅ Webhook установлен\n✅ Бот готов к работе`,
+    bot_username: validation.bot_username,
+  };
+}
 
 // ─── Session FSM ──────────────────────────────
 async function getSession(tgId: number) {
@@ -139,7 +232,6 @@ async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName:
       [btn("👤 Мой профиль", "p:profile")],
     ]),
   });
-  // Also set persistent bottom panel
   await tg.send(chatId, "⬇️ Используй меню внизу для навигации", bottomPanel());
 }
 
@@ -264,11 +356,25 @@ async function shopView(tg: ReturnType<typeof TG>, chatId: number, msgId: number
 }
 
 // ═══════════════════════════════════════════════
-// SHOP SETTINGS
+// SHOP SETTINGS — shows real bot status
 // ═══════════════════════════════════════════════
 async function shopSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string) {
   const { data: shop } = await db().from("shops").select("*").eq("id", shopId).single();
   if (!shop) return tg.edit(chatId, msgId, "❌ Не найден", ikb([[btn("◀️ Назад", "p:myshops:0")]]));
+
+  // Build real bot status
+  let botStatus = "❌ не подключён";
+  if (shop.bot_token_encrypted) {
+    if (shop.bot_username && shop.webhook_status === "active") {
+      botStatus = `✅ @${shop.bot_username} (webhook активен)`;
+    } else if (shop.bot_username && shop.webhook_status === "failed") {
+      botStatus = `⚠️ @${shop.bot_username} (webhook не установлен)`;
+    } else if (shop.bot_username) {
+      botStatus = `✅ @${shop.bot_username} (webhook: ${shop.webhook_status})`;
+    } else {
+      botStatus = "⚠️ токен сохранён, не валидирован";
+    }
+  }
 
   const text =
     `⚙️ <b>Настройки: ${esc(shop.name)}</b>\n\n` +
@@ -278,7 +384,7 @@ async function shopSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     `📝 Описание: ${shop.hero_description ? esc(shop.hero_description.slice(0, 60)) + "…" : "—"}\n` +
     `👋 Приветствие: ${shop.welcome_message ? esc(shop.welcome_message.slice(0, 50)) + "…" : "—"}\n` +
     `🔗 Поддержка: ${shop.support_link || "—"}\n` +
-    `🤖 Бот: ${shop.bot_token_encrypted ? "✅ подключён" : "❌ не подключён"}\n` +
+    `🤖 Бот: ${botStatus}\n` +
     `💰 CryptoBot: ${shop.cryptobot_token_encrypted ? "✅ подключён" : "❌ не подключён"}`;
 
   return tg.edit(chatId, msgId, text, ikb([
@@ -425,6 +531,17 @@ async function wizardStep(tg: ReturnType<typeof TG>, chatId: number, step: numbe
 async function showConfirmation(tg: ReturnType<typeof TG>, chatId: number, sData: Record<string, unknown>, msgId?: number) {
   const colorName = Object.entries(COLORS).find(([, v]) => v === sData.color)?.[0] || sData.color;
 
+  // Validate bot token before showing confirmation
+  const botValidation = await validateBotToken(sData.bot_token as string);
+  const botStatusText = botValidation.ok
+    ? `✅ @${botValidation.bot_username}`
+    : `❌ Невалиден (${botValidation.error})`;
+
+  // Store validation result in session data
+  sData.bot_valid = botValidation.ok;
+  sData.bot_username = botValidation.bot_username || null;
+  sData.bot_id = botValidation.bot_id || null;
+
   const text =
     `✅ <b>Проверь данные магазина:</b>\n\n` +
     `🏪 Название: <b>${esc(sData.name as string)}</b>\n` +
@@ -433,12 +550,18 @@ async function showConfirmation(tg: ReturnType<typeof TG>, chatId: number, sData
     `📝 Описание: ${esc(sData.hero_desc as string || "—")}\n` +
     `👋 Приветствие: ${esc((sData.welcome as string || "—").slice(0, 80))}\n` +
     `🔗 Поддержка: ${esc(sData.support as string || "—")}\n` +
-    `🤖 Бот: подключён ✅`;
+    `🤖 Бот: ${botStatusText}`;
 
-  const kb = ikb([
-    [btn("✅ Всё верно", "p:confirm_create"), btn("✏️ Изменить", "p:wback:1")],
-    [btn("❌ Отмена", "p:home")],
-  ]);
+  const kb = botValidation.ok
+    ? ikb([
+        [btn("✅ Всё верно", "p:confirm_create"), btn("✏️ Изменить", "p:wback:1")],
+        [btn("❌ Отмена", "p:home")],
+      ])
+    : ikb([
+        [btn("🔄 Ввести токен заново", "p:wback:7")],
+        [btn("✅ Создать без бота", "p:confirm_create")],
+        [btn("❌ Отмена", "p:home")],
+      ]);
 
   await setSession(chatId, "wiz_confirm", sData);
 
@@ -457,21 +580,25 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
   // Generate slug
   const name = sData.name as string;
   let slug = name.toLowerCase().replace(/[^a-zа-яё0-9]/gi, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 30) || `shop-${Date.now()}`;
-  // Transliterate cyrillic
   const tr: Record<string, string> = { а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "yo", ж: "zh", з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya" };
   slug = slug.split("").map(c => tr[c] || c).join("").replace(/[^a-z0-9-]/g, "").replace(/-+/g, "-");
   if (slug.length < 2) slug = `shop-${Date.now()}`;
 
-  // Ensure unique
   const { data: existing } = await db().from("shops").select("id").eq("slug", slug).maybeSingle();
   if (existing) slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
 
-  // Encrypt bot token
+  // Encrypt bot token if valid
   const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
   let botTokenEnc: string | null = null;
-  if (sData.bot_token && encKey) {
+  let botId: number | null = null;
+  let botUsername: string | null = null;
+  let webhookStatus = "none";
+
+  if (sData.bot_token && sData.bot_valid && encKey) {
     const { data: enc } = await db().rpc("encrypt_token", { p_token: sData.bot_token as string, p_key: encKey });
     botTokenEnc = enc;
+    botId = (sData.bot_id as number) || null;
+    botUsername = (sData.bot_username as string) || null;
   }
 
   const { data: shop, error } = await db().from("shops").insert({
@@ -485,18 +612,35 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     welcome_message: (sData.welcome as string) || "",
     support_link: (sData.support as string) || "",
     bot_token_encrypted: botTokenEnc,
+    bot_id: botId,
+    bot_username: botUsername,
+    webhook_status: webhookStatus,
   }).select("id, slug").single();
 
-  await clearSession(chatId);
-
   if (error || !shop) {
+    await clearSession(chatId);
     return tg.edit(chatId, msgId, `❌ Ошибка: ${error?.message || "unknown"}`, ikb([[btn("◀️ Меню", "p:home")]]));
   }
+
+  // Set webhook for seller bot after shop is created
+  let botStatusMsg = "";
+  if (sData.bot_token && sData.bot_valid) {
+    const whResult = await setupSellerWebhook(sData.bot_token as string, shop.id);
+    await db().from("shops").update({
+      webhook_status: whResult.ok ? "active" : "failed",
+      bot_validated_at: new Date().toISOString(),
+    }).eq("id", shop.id);
+    botStatusMsg = whResult.ok
+      ? `\n\n🤖 Бот @${botUsername} подключён и готов к работе!`
+      : `\n\n⚠️ Бот @${botUsername} сохранён, но webhook не установлен: ${whResult.error}`;
+  }
+
+  await clearSession(chatId);
 
   const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
   const text =
     `🎉 <b>Магазин создан!</b>\n\n` +
-    `Вот твоя ссылка:\n${esc(shopUrl)}`;
+    `Вот твоя ссылка:\n${esc(shopUrl)}${botStatusMsg}`;
 
   return tg.edit(chatId, msgId, text, ikb([
     [btn("📋 Скопировать ссылку", `p:copylink:${shop.id}`)],
@@ -520,6 +664,18 @@ async function deleteShopConfirm(tg: ReturnType<typeof TG>, chatId: number, msgI
 }
 
 async function deleteShopExecute(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string) {
+  // Clean up webhook before deletion
+  const { data: shop } = await db().from("shops").select("bot_token_encrypted").eq("id", shopId).single();
+  if (shop?.bot_token_encrypted) {
+    const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
+    if (encKey) {
+      try {
+        const { data: rawToken } = await db().rpc("decrypt_token", { p_encrypted: shop.bot_token_encrypted, p_key: encKey });
+        if (rawToken) await removeSellerWebhook(rawToken);
+      } catch {}
+    }
+  }
+
   // Delete related data
   const { data: products } = await db().from("shop_products").select("id").eq("shop_id", shopId);
   const prodIds = products?.map(p => p.id) || [];
@@ -529,6 +685,7 @@ async function deleteShopExecute(tg: ReturnType<typeof TG>, chatId: number, msgI
   }
   await db().from("shop_products").delete().eq("shop_id", shopId);
   await db().from("shop_orders").delete().eq("shop_id", shopId);
+  await db().from("shop_categories").delete().eq("shop_id", shopId);
   await db().from("shops").delete().eq("id", shopId);
 
   return tg.edit(chatId, msgId, "✅ Магазин удалён.", ikb([[btn("◀️ К магазинам", "p:myshops:0")]]));
@@ -596,9 +753,9 @@ async function handleText(tg: ReturnType<typeof TG>, chatId: number, text: strin
     if (!/^\d+:[A-Za-z0-9_-]{30,}$/.test(val)) {
       return tg.send(chatId, "❌ Неверный формат токена. Скопируй токен из @BotFather:");
     }
+    // Send "validating..." message
+    await tg.send(chatId, "⏳ Проверяю токен...");
     sData.bot_token = val;
-    // Delete message with token for security
-    // Show confirmation
     return showConfirmation(tg, chatId, sData);
   }
 
@@ -627,16 +784,17 @@ async function handleText(tg: ReturnType<typeof TG>, chatId: number, text: strin
     return;
   }
 
-  // ─── Set bot token ────────────────────────
+  // ─── Set bot token (from settings) ────────
   if (state === "set_bot_token") {
     const shopId = sData.shop_id as string;
     if (!/^\d+:[A-Za-z0-9_-]{30,}$/.test(val)) return tg.send(chatId, "❌ Неверный формат токена:");
-    const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
-    if (!encKey) return tg.send(chatId, "❌ Ошибка конфигурации.");
-    const { data: enc } = await db().rpc("encrypt_token", { p_token: val, p_key: encKey });
-    await db().from("shops").update({ bot_token_encrypted: enc, updated_at: new Date().toISOString() }).eq("id", shopId);
+
+    await tg.send(chatId, "⏳ Проверяю токен и устанавливаю webhook...");
+
+    const result = await connectBotToken(val, shopId);
     await clearSession(chatId);
-    return tg.send(chatId, "✅ Бот-токен сохранён и зашифрован!", ikb([[btn("◀️ К настройкам", `p:settings:${shopId}`)]]));
+
+    return tg.send(chatId, result.message, ikb([[btn("◀️ К настройкам", `p:settings:${shopId}`)]]));
   }
 
   // ─── Set CryptoBot token ──────────────────
@@ -671,7 +829,6 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
     }
     await upsertUser(from);
     await clearSession(chatId);
-    // Delete subscription check message and send welcome
     await tg.deleteMessage(chatId, msgId);
     return sendWelcome(tg, chatId, from.first_name || "друг");
   }
@@ -762,7 +919,7 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
     const shopId = parts[2];
     await setSession(chatId, "set_bot_token", { shop_id: shopId });
     return tg.edit(chatId, msgId,
-      "🤖 <b>Подключение бота</b>\n\nОтправь токен своего бота от @BotFather:\n\n⚠️ Токен будет зашифрован и надёжно сохранён.",
+      "🤖 <b>Подключение бота</b>\n\nОтправь токен своего бота от @BotFather:\n\n⚠️ Токен будет проверен через Telegram API, зашифрован и сохранён.\n✅ Webhook будет установлен автоматически.",
       ikb([[urlBtn("📖 Как получить токен", "https://core.telegram.org/bots/tutorial")], [btn("❌ Отмена", `p:settings:${shopId}`)]]),
     );
   }
@@ -834,7 +991,6 @@ serve(async (req) => {
 
       // ─── /start ───────────────────────────
       if (text === "/start" || text.startsWith("/start ")) {
-        // Upsert & welcome (subscription check disabled)
         await upsertUser(from);
         await clearSession(chatId);
         await sendWelcome(tg, chatId, from.first_name || "друг");
