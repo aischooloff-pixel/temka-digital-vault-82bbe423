@@ -112,6 +112,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [productsLoading, setProductsLoading] = useState(true);
   const [categories, setCategories] = useState<ShopCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [reviews, setReviews] = useState<ShopReview[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
   const [cart, setCart] = useState<ShopCartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
