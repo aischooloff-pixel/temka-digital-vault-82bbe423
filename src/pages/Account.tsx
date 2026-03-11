@@ -72,7 +72,7 @@ const Account = () => {
   const [topupAmount, setTopupAmount] = useState('');
   const [topupProcessing, setTopupProcessing] = useState(false);
 
-  const TOPUP_PRESETS = [5, 10, 25, 50];
+  const TOPUP_PRESETS = [1, 5, 10, 25];
 
   const displayName = user
     ? `${user.firstName}${user.lastName ? ` ${user.lastName}` : ''}`
@@ -80,7 +80,7 @@ const Account = () => {
   const username = user?.username ? `@${user.username}` : '';
   const avatar = user?.firstName?.[0]?.toUpperCase() || 'T';
 
-  const MIN_TOPUP = 1;
+  const MIN_TOPUP = 0.1;
   const MAX_TOPUP = 1000;
 
   const handleTopup = async () => {

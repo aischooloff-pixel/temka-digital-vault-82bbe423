@@ -14,7 +14,10 @@ const TG = (token: string) => {
     send: (chatId: number, text: string, markup?: unknown) =>
       call("sendMessage", { chat_id: chatId, text, parse_mode: "HTML", disable_web_page_preview: true, ...(markup ? { reply_markup: markup } : {}) }),
     edit: (chatId: number, msgId: number, text: string, markup?: unknown) =>
-      call("editMessageText", { chat_id: chatId, message_id: msgId, text, parse_mode: "HTML", disable_web_page_preview: true, ...(markup ? { reply_markup: markup } : {}) }),
+      call("editMessageText", { chat_id: chatId, message_id: msgId, text, parse_mode: "HTML", disable_web_page_preview: true, ...(markup ? { reply_markup: markup } : {}) }).then(r => {
+        if (!r.ok) console.error("editMessageText failed:", JSON.stringify(r));
+        return r;
+      }),
     answer: (cbId: string, text?: string) =>
       call("answerCallbackQuery", { callback_query_id: cbId, ...(text ? { text, show_alert: true } : {}) }),
     deleteMessage: (chatId: number, msgId: number) =>
@@ -1247,7 +1250,12 @@ serve(async (req) => {
           await tg.answer(cb.id, "⛔ Нет доступа");
           return new Response("ok");
         }
-        await handleCallback(tg, chatId, msgId, data, cb.id, shopId);
+        try {
+          await handleCallback(tg, chatId, msgId, data, cb.id, shopId);
+        } catch (cbErr) {
+          console.error("seller-bot-webhook: callback error:", cbErr, "data:", data);
+          try { await tg.answer(cb.id, "❌ Ошибка обработки"); } catch {}
+        }
       }
       return new Response("ok");
     }
