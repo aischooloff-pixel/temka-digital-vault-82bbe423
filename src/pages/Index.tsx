@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useStorefrontPath } from '@/contexts/StorefrontContext';
 import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
