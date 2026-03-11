@@ -88,7 +88,7 @@ const Index = () => {
     setDeletingReview(true);
     try {
       const res = await supabase.functions.invoke('submit-review', {
-        body: { action: 'delete', telegramId: user.id, reviewId: userReviewId }
+        body: { action: 'delete', initData, reviewId: userReviewId }
       });
       if (res.data?.error) throw new Error(res.data.error);
       if (res.error) throw res.error;
