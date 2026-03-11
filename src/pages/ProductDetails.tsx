@@ -53,7 +53,7 @@ const ProductDetails = () => {
         <div className="text-5xl mb-4">😕</div>
         <h2 className="font-display text-2xl font-bold">Товар не найден</h2>
         <p className="text-muted-foreground mt-2">Товар, который вы ищете, не существует или был удалён.</p>
-        <Link to="/catalog"><Button variant="outline" className="mt-4"><ArrowLeft className="w-4 h-4 mr-1" /> Назад в каталог</Button></Link>
+        <Link to={buildPath('/catalog')}><Button variant="outline" className="mt-4"><ArrowLeft className="w-4 h-4 mr-1" /> Назад в каталог</Button></Link>
       </div>
     );
   }
