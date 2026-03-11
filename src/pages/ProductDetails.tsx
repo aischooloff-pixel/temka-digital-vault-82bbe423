@@ -6,6 +6,7 @@ import ProductCardSkeleton from '@/components/ProductCardSkeleton';
 import { useProduct, useProducts } from '@/hooks/useProducts';
 import { useStore } from '@/contexts/StoreContext';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useSupportUsername } from '@/hooks/useSupportUsername';
 
 const categoryEmoji: Record<string, string> = {
   'social-media': '📱', 'gaming': '🎮', 'streaming': '🎬', 'software': '🔑',
