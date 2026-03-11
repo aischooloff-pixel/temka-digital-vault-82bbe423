@@ -69,7 +69,7 @@ const FAQ = () => {
     items: cat.items.filter(i => !search || i.q.toLowerCase().includes(search.toLowerCase()) || i.a.toLowerCase().includes(search.toLowerCase())),
   })).filter(cat => cat.items.length > 0);
 
-  const resolvedSupportLink = supportLink || 'https://t.me/temka_support';
+  const resolvedSupportLink = supportLink;
 
   return (
     <div className="container-main mx-auto px-4 py-6 sm:py-8">
