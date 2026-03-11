@@ -222,6 +222,9 @@ serve(async (req) => {
 
     console.log(`[topup] Creating CryptoBot invoice for $${numAmount.toFixed(2)}, shopId=${shopId || "platform"}`);
 
+    // Ensure CryptoBot webhook is configured for the token used to create the invoice
+    await ensureCryptoBotWebhook(cryptobotToken);
+
     // Build paid_btn_url pointing to the correct bot
     const btnUrl = paidBtnBotUsername
       ? `https://t.me/${paidBtnBotUsername}`
