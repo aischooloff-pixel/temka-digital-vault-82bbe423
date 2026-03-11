@@ -10,6 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTelegram } from '@/contexts/TelegramContext';
 
 const OrderSuccess = () => {
+  const buildPath = useStorefrontPath();
   const [searchParams] = useSearchParams();
   const orderNumber = searchParams.get('order');
   const { data: orders } = useOrders();
