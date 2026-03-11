@@ -608,6 +608,11 @@ async function finalizeShopCreation(tg: ReturnType<typeof TG>, chatId: number, n
 // ═══════════════════════════════════════════════
 async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: number, data: string, cbId: string) {
   await tg.answer(cbId);
+  const parts = data.split(":");
+  const cmd = parts[1];
+
+  // Don't clear session for wizard-related callbacks
+  const keepSession = ["useslug", "checksubscribe"].includes(cmd);
   await clearSession(chatId); // clear FSM on any button press
 
   const parts = data.split(":");
