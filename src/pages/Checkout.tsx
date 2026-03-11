@@ -89,7 +89,7 @@ const Checkout = () => {
         if (isInTelegram && data?.payUrl) {
           clearCart();
           openTelegramLink(data.payUrl);
-          navigate(`/order-success?order=${data.orderNumber || orderNumber}`);
+          navigate(`${buildPath('/order-success')}?order=${data.orderNumber || orderNumber}`);
         } else if (data?.payUrl) {
           window.open(data.payUrl, '_blank');
           clearCart();
