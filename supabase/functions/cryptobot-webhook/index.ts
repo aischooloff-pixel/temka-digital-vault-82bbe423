@@ -18,8 +18,9 @@ serve(async (req) => {
     // Detect shop context from payload (before verification)
     let shopId: string | null = null;
     const parsedBody = JSON.parse(body);
-    if (parsedBody.update_type === "invoice_paid" && parsedBody.payload?.payload) {
-      try { shopId = JSON.parse(parsedBody.payload.payload).shopId || null; } catch {}
+    if (parsedBody.update_type === "invoice_paid") {
+      const inv = parsedBody.payload;
+      try { shopId = JSON.parse(inv?.payload || "{}").shopId || null; } catch {}
     }
 
     // Verify signature - try platform token first, then shop token
