@@ -714,6 +714,7 @@ export type Database = {
       }
       shop_orders: {
         Row: {
+          balance_used: number
           buyer_telegram_id: number
           created_at: string
           currency: string
@@ -728,6 +729,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          balance_used?: number
           buyer_telegram_id: number
           created_at?: string
           currency?: string
@@ -742,6 +744,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          balance_used?: number
           buyer_telegram_id?: number
           created_at?: string
           currency?: string
