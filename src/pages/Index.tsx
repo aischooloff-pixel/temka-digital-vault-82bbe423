@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useStorefrontPath } from '@/contexts/StorefrontContext';
 import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
@@ -47,6 +48,7 @@ const ReviewCard = ({ review }: {review: DbReview;}) =>
 
 
 const Index = () => {
+  const buildPath = useStorefrontPath();
   const { data: products, isLoading: productsLoading } = useProducts();
   const { data: categories, isLoading: categoriesLoading } = useCategories();
   const { data: stats } = useProductStats();
@@ -147,7 +149,7 @@ const Index = () => {
               Аккаунты, ключи ПО и подписки. Оплата через CryptoBot.
             </motion.p>
             <motion.div variants={fadeIn} custom={3} className="mt-6">
-              <Link to="/catalog">
+              <Link to={buildPath('/catalog')}>
                 <Button variant="hero" size="xl" className="w-full sm:w-auto text-base px-8 py-3">
                   Перейти в каталог <ArrowRight className="w-5 h-5 ml-1" />
                 </Button>
@@ -200,7 +202,7 @@ const Index = () => {
         <div className="container-main mx-auto">
           <div className="flex items-center justify-between mb-5">
             <h2 className="font-display text-xl font-bold">Категории</h2>
-            <Link to="/catalog" className="text-sm text-primary flex items-center gap-0.5">
+            <Link to={buildPath('/catalog')} className="text-sm text-primary flex items-center gap-0.5">
               Все <ChevronRight className="w-4 h-4" />
             </Link>
           </div>
@@ -213,7 +215,7 @@ const Index = () => {
           categories && categories.length > 0 ?
           <div className="grid grid-cols-4 gap-2">
               {categories.map((cat) =>
-            <Link key={cat.id} to={`/catalog?category=${cat.id}`}
+            <Link key={cat.id} to={`${buildPath('/catalog')}?category=${cat.id}`}
             className="p-3 bg-card border border-border/50 rounded-xl text-center hover:border-primary/30 transition-all">
                   <div className="text-2xl mb-1.5">{cat.icon}</div>
                   <h3 className="font-display font-medium text-xs leading-tight">{cat.name}</h3>
@@ -232,7 +234,7 @@ const Index = () => {
           <div className="container-main mx-auto">
             <div className="flex items-center justify-between mb-5">
               <h2 className="font-display text-xl font-bold">Популярные</h2>
-              <Link to="/catalog" className="text-sm text-primary flex items-center gap-0.5">
+               <Link to={buildPath('/catalog')} className="text-sm text-primary flex items-center gap-0.5">
                 Все <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
@@ -263,7 +265,7 @@ const Index = () => {
           <div className="container-main mx-auto">
             <div className="flex items-center justify-between mb-5">
               <h2 className="font-display text-xl font-bold">Новинки</h2>
-              <Link to="/catalog" className="text-sm text-primary flex items-center gap-0.5">
+              <Link to={buildPath('/catalog')} className="text-sm text-primary flex items-center gap-0.5">
                 Все <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
@@ -420,7 +422,7 @@ const Index = () => {
             )}
           </div>
           <div className="text-center mt-5">
-            <Link to="/faq"><Button variant="outline" size="sm">Все вопросы <ChevronRight className="w-3.5 h-3.5 ml-0.5" /></Button></Link>
+            <Link to={buildPath('/faq')}><Button variant="outline" size="sm">Все вопросы <ChevronRight className="w-3.5 h-3.5 ml-0.5" /></Button></Link>
           </div>
         </div>
       </section>

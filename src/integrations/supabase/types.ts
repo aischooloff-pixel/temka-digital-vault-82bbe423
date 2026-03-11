@@ -591,6 +591,44 @@ export type Database = {
           },
         ]
       }
+      shop_categories: {
+        Row: {
+          created_at: string
+          icon: string
+          id: string
+          is_active: boolean
+          name: string
+          shop_id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          icon?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          shop_id: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          icon?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          shop_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_categories_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shop_inventory: {
         Row: {
           content: string
@@ -809,7 +847,10 @@ export type Database = {
       }
       shops: {
         Row: {
+          bot_id: number | null
           bot_token_encrypted: string | null
+          bot_username: string | null
+          bot_validated_at: string | null
           color: string
           created_at: string
           cryptobot_token_encrypted: string | null
@@ -822,10 +863,14 @@ export type Database = {
           status: string
           support_link: string
           updated_at: string
+          webhook_status: string
           welcome_message: string
         }
         Insert: {
+          bot_id?: number | null
           bot_token_encrypted?: string | null
+          bot_username?: string | null
+          bot_validated_at?: string | null
           color?: string
           created_at?: string
           cryptobot_token_encrypted?: string | null
@@ -838,10 +883,14 @@ export type Database = {
           status?: string
           support_link?: string
           updated_at?: string
+          webhook_status?: string
           welcome_message?: string
         }
         Update: {
+          bot_id?: number | null
           bot_token_encrypted?: string | null
+          bot_username?: string | null
+          bot_validated_at?: string | null
           color?: string
           created_at?: string
           cryptobot_token_encrypted?: string | null
@@ -854,6 +903,7 @@ export type Database = {
           status?: string
           support_link?: string
           updated_at?: string
+          webhook_status?: string
           welcome_message?: string
         }
         Relationships: [

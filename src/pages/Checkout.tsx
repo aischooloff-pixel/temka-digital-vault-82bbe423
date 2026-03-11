@@ -5,6 +5,7 @@ import { Shield, Zap, Lock, CheckCircle2, ArrowLeft, Wallet } from 'lucide-react
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/contexts/StoreContext';
 import { useTelegram } from '@/contexts/TelegramContext';
+import { useStorefrontPath } from '@/contexts/StorefrontContext';
 
 import { useUserProfile } from '@/hooks/useOrders';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,6 +15,7 @@ const Checkout = () => {
   const { user, isInTelegram, openTelegramLink, haptic, initData } = useTelegram();
   const { data: profile } = useUserProfile();
   const navigate = useNavigate();
+  const buildPath = useStorefrontPath();
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
 
@@ -31,7 +33,7 @@ const Checkout = () => {
       <div className="container-main mx-auto px-4 py-16 text-center">
         <div className="text-5xl mb-4">🛒</div>
         <h2 className="font-display text-xl font-bold">Нечего оформлять</h2>
-        <Link to="/catalog"><Button variant="hero" className="mt-4">Перейти в каталог</Button></Link>
+        <Link to={buildPath('/catalog')}><Button variant="hero" className="mt-4">Перейти в каталог</Button></Link>
       </div>
     );
   }
@@ -65,7 +67,7 @@ const Checkout = () => {
         if (data?.error) throw new Error(data.error);
         haptic.notification('success');
         clearCart();
-        navigate(`/order-success?order=${data?.orderNumber || orderNumber}`);
+        navigate(`${buildPath('/order-success')}?order=${data?.orderNumber || orderNumber}`);
       } else {
         // CryptoBot payment (partial or full)
         const { data, error: fnError } = await supabase.functions.invoke('create-invoice', {
@@ -87,11 +89,11 @@ const Checkout = () => {
         if (isInTelegram && data?.payUrl) {
           clearCart();
           openTelegramLink(data.payUrl);
-          navigate(`/order-success?order=${data.orderNumber || orderNumber}`);
+          navigate(`${buildPath('/order-success')}?order=${data.orderNumber || orderNumber}`);
         } else if (data?.payUrl) {
           window.open(data.payUrl, '_blank');
           clearCart();
-          navigate(`/order-success?order=${data.orderNumber || orderNumber}`);
+          navigate(`${buildPath('/order-success')}?order=${data.orderNumber || orderNumber}`);
         } else {
           throw new Error('Не удалось создать инвойс');
         }
@@ -107,7 +109,7 @@ const Checkout = () => {
 
   return (
     <div className="container-main mx-auto px-4 py-4 sm:py-6">
-      <Link to="/cart" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-3">
+      <Link to={buildPath('/cart')} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-3">
         <ArrowLeft className="w-3 h-3" /> Назад в корзину
       </Link>
       <h1 className="font-display text-xl sm:text-2xl font-bold mb-4">Оформление заказа</h1>
@@ -219,7 +221,7 @@ const Checkout = () => {
 
           <p className="text-[10px] text-muted-foreground text-center pt-1">
             Нажимая «Оплатить», вы соглашаетесь с{' '}
-            <Link to="/terms" className="text-primary hover:underline">условиями сервиса</Link>.
+            <Link to={buildPath('/terms')} className="text-primary hover:underline">условиями сервиса</Link>.
           </p>
 
           <div className="space-y-1.5 pt-1 text-[10px] text-muted-foreground">

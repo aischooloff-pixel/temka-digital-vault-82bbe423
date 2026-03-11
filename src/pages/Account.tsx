@@ -3,6 +3,7 @@ import cryptobotLogo from '@/assets/cryptobot-logo.jpeg';
 import { Package, CheckCircle2, Clock, MessageCircle, ChevronRight, AlertCircle, XCircle, Wallet, ArrowDownCircle, ArrowUpCircle, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
+import { useStorefront, useStorefrontPath } from '@/contexts/StorefrontContext';
 import { useTelegram } from '@/contexts/TelegramContext';
 import { useOrders, useUserStats, useUserProfile, useBalanceHistory } from '@/hooks/useOrders';
 import { useSupportUsername } from '@/hooks/useSupportUsername';
@@ -50,6 +51,8 @@ const statusColor = (status: DbOrder['status']) => {
 const PREVIEW_COUNT = 5;
 
 const Account = () => {
+  const { supportLink } = useStorefront();
+  const buildPath = useStorefrontPath();
   const { user, isInTelegram, openTelegramLink, haptic, initData } = useTelegram();
   const { data: orders, isLoading: ordersLoading } = useOrders();
   const { data: balanceHistory, isLoading: balanceLoading } = useBalanceHistory();
@@ -289,7 +292,7 @@ const Account = () => {
           <div className="text-center py-8">
             <Package className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">Пока нет записей</p>
-            <Link to="/catalog"><Button variant="outline" size="sm" className="mt-3">Перейти в каталог</Button></Link>
+            <Link to={buildPath('/catalog')}><Button variant="outline" size="sm" className="mt-3">Перейти в каталог</Button></Link>
           </div>
         ) : (
           <div className="space-y-2">
@@ -299,7 +302,7 @@ const Account = () => {
       </div>
 
       {/* Support */}
-      <a href={`https://t.me/${supportUsername}`} target="_blank" rel="noopener noreferrer" className="mt-4 block">
+      <a href={supportLink || `https://t.me/${supportUsername}`} target="_blank" rel="noopener noreferrer" className="mt-4 block">
         <div className="bg-card border border-border/50 rounded-xl p-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <MessageCircle className="w-4 h-4 text-primary" />

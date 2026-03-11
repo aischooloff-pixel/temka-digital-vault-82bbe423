@@ -28,7 +28,7 @@ const MainLayoutInner = () => {
   const { cartCount, searchQuery, setSearchQuery } = useStore();
 
   return (
-    <StorefrontProvider basePath="" cartCount={cartCount} shopName="TEMKA.STORE">
+    <StorefrontProvider basePath="" cartCount={cartCount} shopName="TEMKA.STORE" supportLink="https://t.me/temka_support">
       <div className="min-h-screen flex flex-col">
         <Header
           name="TEMKA"

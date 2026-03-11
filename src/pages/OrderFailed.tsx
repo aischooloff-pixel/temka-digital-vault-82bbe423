@@ -2,9 +2,11 @@ import { Link } from 'react-router-dom';
 import { XCircle, MessageCircle, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSupportUsername } from '@/hooks/useSupportUsername';
+import { useStorefrontPath } from '@/contexts/StorefrontContext';
 
 const OrderFailed = () => {
   const { data: supportUsername } = useSupportUsername();
+  const buildPath = useStorefrontPath();
   return (
     <div className="container-main mx-auto px-4 py-12 sm:py-16 text-center max-w-md">
       <div className="animate-fade-in">
@@ -24,7 +26,7 @@ const OrderFailed = () => {
         </div>
 
         <div className="flex flex-col gap-2 mt-5">
-          <Link to="/checkout"><Button variant="hero" size="sm" className="w-full"><RefreshCcw className="w-4 h-4 mr-1" /> Попробовать снова</Button></Link>
+          <Link to={buildPath('/checkout')}><Button variant="hero" size="sm" className="w-full"><RefreshCcw className="w-4 h-4 mr-1" /> Попробовать снова</Button></Link>
           <a href={`https://t.me/${supportUsername}`} target="_blank" rel="noopener noreferrer"><Button variant="outline" size="sm" className="w-full"><MessageCircle className="w-4 h-4 mr-1" /> Поддержка в Telegram</Button></a>
         </div>
       </div>

@@ -30,7 +30,7 @@ const ShopContent = () => {
   }
 
   return (
-    <StorefrontProvider basePath={basePath} cartCount={cartCount} shopName={shop.name}>
+    <StorefrontProvider basePath={basePath} cartCount={cartCount} shopName={shop.name} supportLink={shop.support_link}>
       <div className="min-h-screen flex flex-col">
         <Header
           name={shop.name}
