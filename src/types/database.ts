@@ -42,7 +42,7 @@ export interface DbOrder {
   order_number: string;
   telegram_id: number;
   status: 'pending' | 'awaiting_payment' | 'paid' | 'processing' | 'delivered' | 'completed' | 'cancelled' | 'error';
-  payment_status: 'unpaid' | 'awaiting' | 'paid' | 'failed' | 'refunded';
+  payment_status: 'unpaid' | 'awaiting' | 'paid' | 'failed' | 'refunded' | 'expired';
   total_amount: number;
   currency: string;
   invoice_id: string | null;
