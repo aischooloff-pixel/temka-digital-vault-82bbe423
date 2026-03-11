@@ -12,6 +12,27 @@ const CRYPTOBOT_API_URL = "https://pay.crypt.bot/api";
 const MAX_TOPUP_AMOUNT = 1000;
 const MIN_TOPUP_AMOUNT = 0.1;
 
+async function ensureCryptoBotWebhook(cryptobotToken: string) {
+  try {
+    const webhookUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/cryptobot-webhook`;
+    const response = await fetch(`${CRYPTOBOT_API_URL}/setWebhook`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Crypto-Pay-API-Token": cryptobotToken,
+      },
+      body: JSON.stringify({ url: webhookUrl }),
+    });
+
+    const data = await response.json();
+    if (!data?.ok) {
+      console.warn("[topup] Failed to ensure CryptoBot webhook:", JSON.stringify(data));
+    }
+  } catch (error) {
+    console.warn("[topup] Error ensuring CryptoBot webhook:", error);
+  }
+}
+
 function verifyAndExtractUser(initData: string, botToken: string): { id: number } | null {
   const params = new URLSearchParams(initData);
   const hash = params.get("hash");
