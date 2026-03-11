@@ -3,8 +3,9 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { StoreProvider } from "@/contexts/StoreContext";
+import { StoreProvider, useStore } from "@/contexts/StoreContext";
 import { TelegramProvider } from "@/contexts/TelegramContext";
+import { StorefrontProvider } from "@/contexts/StorefrontContext";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import BottomNav from "@/components/BottomNav";
@@ -16,7 +17,6 @@ import Checkout from "./pages/Checkout";
 import OrderSuccess from "./pages/OrderSuccess";
 import OrderFailed from "./pages/OrderFailed";
 import Account from "./pages/Account";
-
 import FAQ from "./pages/FAQ";
 import About from "./pages/About";
 import Legal from "./pages/Legal";
@@ -24,16 +24,30 @@ import { Delivery, Guarantees } from "./pages/InfoPages";
 import NotFound from "./pages/NotFound";
 import { Outlet } from "react-router-dom";
 
-const MainLayout = () => (
-  <div className="min-h-screen flex flex-col">
-    <Header />
-    <main className="flex-1 pb-14">
-      <Outlet />
-    </main>
-    <Footer />
-    <BottomNav />
-  </div>
-);
+const MainLayoutInner = () => {
+  const { cartCount, searchQuery, setSearchQuery } = useStore();
+
+  return (
+    <StorefrontProvider basePath="" cartCount={cartCount} shopName="TEMKA.STORE">
+      <div className="min-h-screen flex flex-col">
+        <Header
+          name="TEMKA"
+          nameInitial="T"
+          nameHighlight=".STORE"
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+        />
+        <main className="flex-1 pb-14">
+          <Outlet />
+        </main>
+        <Footer />
+        <BottomNav />
+      </div>
+    </StorefrontProvider>
+  );
+};
+
+const MainLayout = () => <MainLayoutInner />;
 
 // Shop (seller storefront)
 import ShopLayout from "./pages/ShopLayout";
@@ -59,6 +73,12 @@ const App = () => (
                 <Route path="catalog" element={<ShopCatalog />} />
                 <Route path="product/:productId" element={<ShopProductDetails />} />
                 <Route path="cart" element={<ShopCart />} />
+                <Route path="account" element={<Account />} />
+                <Route path="faq" element={<FAQ />} />
+                <Route path="about" element={<About />} />
+                <Route path="terms" element={<Legal />} />
+                <Route path="delivery" element={<Delivery />} />
+                <Route path="guarantees" element={<Guarantees />} />
               </Route>
 
               {/* Main platform */}
