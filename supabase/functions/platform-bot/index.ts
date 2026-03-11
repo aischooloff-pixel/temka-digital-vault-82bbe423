@@ -733,9 +733,9 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
   // ─── Copy link ────────────────────────────
   if (cmd === "copylink") {
     const shopId = parts[2];
-    const { data: shop } = await db().from("shops").select("slug").eq("id", shopId).single();
+    const { data: shop } = await db().from("shops").select("id").eq("id", shopId).single();
     if (shop) {
-      const url = `${WEBAPP_DOMAIN}/shop/${shop.slug}`;
+      const url = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
       await tg.send(chatId, `📋 Ссылка на магазин:\n\n<code>${esc(url)}</code>\n\nНажми на ссылку выше чтобы скопировать.`);
     }
     return;
