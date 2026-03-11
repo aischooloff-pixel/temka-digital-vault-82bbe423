@@ -3,14 +3,16 @@ import { ArrowLeft, ShoppingCart, Zap, CheckCircle2, ChevronRight, Shield, Messa
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useShop } from '@/contexts/ShopContext';
+import { useStorefrontPath } from '@/contexts/StorefrontContext';
 import ShopProductCard from '@/components/ShopProductCard';
 import { toast } from 'sonner';
 
 const ShopProductDetails = () => {
-  const { shopId, productId } = useParams();
+  const { productId } = useParams();
   const { products, addToCart, productsLoading, shop } = useShop();
   const product = products.find(p => p.id === productId);
-  const base = `/shop/${shopId}`;
+  const buildPath = useStorefrontPath();
+  const shopId = shop?.id || '';
 
   if (productsLoading) {
     return (
@@ -35,7 +37,7 @@ const ShopProductDetails = () => {
         <div className="text-5xl mb-4">😕</div>
         <h2 className="font-display text-2xl font-bold">Товар не найден</h2>
         <p className="text-muted-foreground mt-2">Товар, который вы ищете, не существует или был удалён.</p>
-        <Link to={`${base}/catalog`}><Button variant="outline" className="mt-4"><ArrowLeft className="w-4 h-4 mr-1" /> Назад в каталог</Button></Link>
+        <Link to={buildPath('/catalog')}><Button variant="outline" className="mt-4"><ArrowLeft className="w-4 h-4 mr-1" /> Назад в каталог</Button></Link>
       </div>
     );
   }
@@ -54,9 +56,9 @@ const ShopProductDetails = () => {
     <div className="container-main mx-auto px-4 py-6 sm:py-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground mb-4 sm:mb-6 overflow-x-auto whitespace-nowrap">
-        <Link to={base} className="hover:text-foreground shrink-0">Главная</Link>
+        <Link to={buildPath('/')} className="hover:text-foreground shrink-0">Главная</Link>
         <ChevronRight className="w-3 h-3 shrink-0" />
-        <Link to={`${base}/catalog`} className="hover:text-foreground shrink-0">Каталог</Link>
+        <Link to={buildPath('/catalog')} className="hover:text-foreground shrink-0">Каталог</Link>
         <ChevronRight className="w-3 h-3 shrink-0" />
         <span className="text-foreground truncate">{product.name}</span>
       </div>
@@ -148,7 +150,7 @@ const ShopProductDetails = () => {
         <section className="mt-12 sm:mt-16">
           <h2 className="font-display text-lg sm:text-xl font-bold mb-4 sm:mb-6">Похожие товары</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            {similar.map(p => <ShopProductCard key={p.id} product={p} shopId={shopId!} />)}
+            {similar.map(p => <ShopProductCard key={p.id} product={p} shopId={shopId} />)}
           </div>
         </section>
       )}

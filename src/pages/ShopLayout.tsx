@@ -1,12 +1,16 @@
 import { Outlet } from 'react-router-dom';
 import { ShopProvider, useShop } from '@/contexts/ShopContext';
-import ShopHeader from '@/components/ShopHeader';
-import ShopBottomNav from '@/components/ShopBottomNav';
-import ShopFooter from '@/components/ShopFooter';
+import { StorefrontProvider } from '@/contexts/StorefrontContext';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
+import BottomNav from '@/components/BottomNav';
 import { Loader2 } from 'lucide-react';
+import { useParams } from 'react-router-dom';
 
 const ShopContent = () => {
-  const { shop, loading, error } = useShop();
+  const { shopId } = useParams();
+  const { shop, loading, error, cartCount, searchQuery, setSearchQuery } = useShop();
+  const basePath = `/shop/${shopId}`;
 
   if (loading) {
     return (
@@ -26,23 +30,28 @@ const ShopContent = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <ShopHeader />
-      <main className="flex-1 pb-14">
-        <Outlet />
-      </main>
-      <ShopFooter />
-      <ShopBottomNav />
-    </div>
+    <StorefrontProvider basePath={basePath} cartCount={cartCount} shopName={shop.name}>
+      <div className="min-h-screen flex flex-col">
+        <Header
+          name={shop.name}
+          nameInitial={shop.name?.[0]?.toUpperCase() || 'S'}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+        />
+        <main className="flex-1 pb-14">
+          <Outlet />
+        </main>
+        <Footer />
+        <BottomNav />
+      </div>
+    </StorefrontProvider>
   );
 };
 
-const ShopLayout = () => {
-  return (
-    <ShopProvider>
-      <ShopContent />
-    </ShopProvider>
-  );
-};
+const ShopLayout = () => (
+  <ShopProvider>
+    <ShopContent />
+  </ShopProvider>
+);
 
 export default ShopLayout;

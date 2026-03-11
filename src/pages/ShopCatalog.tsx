@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -15,8 +14,9 @@ const sortOptions = [
 ];
 
 const ShopCatalog = () => {
-  const { shopId } = useParams();
-  const { products, productsLoading, searchQuery, setSearchQuery } = useShop();
+  const { products, productsLoading, searchQuery, setSearchQuery, shop } = useShop();
+  const shopId = shop?.id || '';
+  
   const [localSearch, setLocalSearch] = useState('');
   const [sortBy, setSortBy] = useState('default');
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 500]);
@@ -121,7 +121,7 @@ const ShopCatalog = () => {
               <p className="text-xs sm:text-sm text-muted-foreground mb-4">Найдено товаров: {filtered.length}</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
                 {filtered.map(product => (
-                  <ShopProductCard key={product.id} product={product} shopId={shopId!} />
+                  <ShopProductCard key={product.id} product={product} shopId={shopId} />
                 ))}
               </div>
             </>

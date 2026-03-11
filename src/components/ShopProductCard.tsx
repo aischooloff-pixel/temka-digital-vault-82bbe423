@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { ShoppingCart, Zap, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useShop, ShopProduct } from '@/contexts/ShopContext';
+import { useStorefrontPath } from '@/contexts/StorefrontContext';
 import { toast } from 'sonner';
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
 
 const ShopProductCard = ({ product, shopId }: Props) => {
   const { addToCart } = useShop();
+  const buildPath = useStorefrontPath();
   const outOfStock = product.stock <= 0;
   const discount = product.old_price ? Math.round((1 - Number(product.price) / Number(product.old_price)) * 100) : 0;
 
@@ -24,7 +26,7 @@ const ShopProductCard = ({ product, shopId }: Props) => {
 
   return (
     <div className={`group relative bg-card border border-border/50 rounded-xl overflow-hidden hover-lift hover:border-primary/30 transition-all duration-300 ${outOfStock ? 'opacity-60' : ''}`}>
-      <Link to={`/shop/${shopId}/product/${product.id}`} className="block">
+      <Link to={buildPath(`/product/${product.id}`)} className="block">
         <div className="relative h-40 sm:h-48 bg-secondary/50 flex items-center justify-center overflow-hidden">
           {product.image ? (
             <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
@@ -48,7 +50,7 @@ const ShopProductCard = ({ product, shopId }: Props) => {
       </Link>
 
       <div className="p-3 sm:p-4">
-        <Link to={`/shop/${shopId}/product/${product.id}`}>
+        <Link to={buildPath(`/product/${product.id}`)}>
           <h3 className="font-display font-semibold text-sm sm:text-base mt-1 line-clamp-1 group-hover:text-primary transition-colors">{product.name}</h3>
         </Link>
         {product.subtitle && (

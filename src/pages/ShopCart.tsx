@@ -1,13 +1,14 @@
-import { useParams, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Trash2, Plus, Minus, ArrowRight, Shield, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useShop } from '@/contexts/ShopContext';
+import { useStorefrontPath } from '@/contexts/StorefrontContext';
 import ShopProductCard from '@/components/ShopProductCard';
 
 const ShopCart = () => {
-  const { shopId } = useParams();
-  const { cart, updateQuantity, removeFromCart, clearCart, cartTotal, cartCount, products } = useShop();
-  const base = `/shop/${shopId}`;
+  const { cart, updateQuantity, removeFromCart, clearCart, cartTotal, cartCount, products, shop } = useShop();
+  const buildPath = useStorefrontPath();
+  const shopId = shop?.id || '';
 
   const recommended = products.filter(p => !cart.some(c => c.product.id === p.id) && p.stock > 0).slice(0, 4);
 
@@ -17,7 +18,7 @@ const ShopCart = () => {
         <div className="text-5xl sm:text-6xl mb-4">🛒</div>
         <h2 className="font-display text-xl sm:text-2xl font-bold">Ваша корзина пуста</h2>
         <p className="text-muted-foreground text-sm mt-2">Загляните в каталог и найдите то, что вам понравится!</p>
-        <Link to={`${base}/catalog`}>
+        <Link to={buildPath('/catalog')}>
           <Button variant="hero" className="mt-6">Перейти в каталог <ArrowRight className="w-4 h-4 ml-1" /></Button>
         </Link>
       </div>
@@ -42,7 +43,7 @@ const ShopCart = () => {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <Link to={`${base}/product/${product.id}`} className="font-display font-semibold text-xs sm:text-sm hover:text-primary transition-colors line-clamp-1">{product.name}</Link>
+                  <Link to={buildPath(`/product/${product.id}`)} className="font-display font-semibold text-xs sm:text-sm hover:text-primary transition-colors line-clamp-1">{product.name}</Link>
                   {product.subtitle && <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">{product.subtitle}</p>}
                   <div className="flex items-center gap-1 mt-1">
                     <span className="text-[10px] text-primary flex items-center gap-0.5"><Zap className="w-3 h-3" /> Мгновенно</span>
@@ -99,7 +100,7 @@ const ShopCart = () => {
         <section className="mt-12 sm:mt-16">
           <h2 className="font-display text-lg sm:text-xl font-bold mb-4 sm:mb-6">Вам может понравиться</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            {recommended.map(p => <ShopProductCard key={p.id} product={p} shopId={shopId!} />)}
+            {recommended.map(p => <ShopProductCard key={p.id} product={p} shopId={shopId} />)}
           </div>
         </section>
       )}
