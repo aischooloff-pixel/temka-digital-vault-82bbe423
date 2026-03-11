@@ -51,9 +51,13 @@ const statusColor = (status: DbOrder['status']) => {
 const PREVIEW_COUNT = 5;
 
 const Account = () => {
-  const { supportLink } = useStorefront();
+  const { supportLink, basePath } = useStorefront();
   const buildPath = useStorefrontPath();
   const { user, isInTelegram, openTelegramLink, haptic, initData } = useTelegram();
+
+  // Extract shopId from basePath for multi-tenant context
+  const isTenant = basePath.startsWith('/shop/');
+  const shopId = isTenant ? basePath.split('/')[2] : undefined;
   const { data: orders, isLoading: ordersLoading } = useOrders();
   const { data: balanceHistory, isLoading: balanceLoading } = useBalanceHistory();
   const { data: stats, isLoading: statsLoading } = useUserStats();
