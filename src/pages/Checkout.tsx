@@ -5,12 +5,13 @@ import { Shield, Zap, Lock, CheckCircle2, ArrowLeft, Wallet } from 'lucide-react
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/contexts/StoreContext';
 import { useTelegram } from '@/contexts/TelegramContext';
+
 import { useUserProfile } from '@/hooks/useOrders';
 import { supabase } from '@/integrations/supabase/client';
 
 const Checkout = () => {
   const { cart, cartTotal, clearCart, discount, totalAfterDiscount, promoResult } = useStore();
-  const { user, isInTelegram, openTelegramLink, haptic } = useTelegram();
+  const { user, isInTelegram, openTelegramLink, haptic, initData } = useTelegram();
   const { data: profile } = useUserProfile();
   const navigate = useNavigate();
   const [processing, setProcessing] = useState(false);
@@ -54,13 +55,10 @@ const Checkout = () => {
         // Full balance payment
         const { data, error: fnError } = await supabase.functions.invoke('pay-with-balance', {
           body: {
-            telegramUserId: user?.id,
+            initData,
             orderNumber,
             items: itemsPayload,
-            totalAmount: totalAfterDiscount,
-            discountAmount: discount,
             promoCode: promoResult?.code || null,
-            balanceUsed: balanceUsed,
           },
         });
         if (fnError) throw new Error(fnError.message);
@@ -72,16 +70,14 @@ const Checkout = () => {
         // CryptoBot payment (partial or full)
         const { data, error: fnError } = await supabase.functions.invoke('create-invoice', {
           body: {
+            initData,
             amount: toPay.toFixed(2),
             currency: 'USD',
             description,
             orderNumber,
-            telegramUserId: user?.id,
             items: itemsPayload,
-            discountAmount: discount,
             promoCode: promoResult?.code || null,
             balanceUsed: balanceUsed,
-            totalOriginal: cartTotal,
           },
         });
 

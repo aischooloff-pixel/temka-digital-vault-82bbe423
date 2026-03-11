@@ -51,7 +51,7 @@ const Index = () => {
   const { data: categories, isLoading: categoriesLoading } = useCategories();
   const { data: stats } = useProductStats();
   const { data: reviews, isLoading: reviewsLoading } = useReviews();
-  const { user } = useTelegram();
+  const { user, initData } = useTelegram();
   const queryClient = useQueryClient();
 
   const [showReviewForm, setShowReviewForm] = useState(false);
@@ -88,7 +88,7 @@ const Index = () => {
     setDeletingReview(true);
     try {
       const res = await supabase.functions.invoke('submit-review', {
-        body: { action: 'delete', telegramId: user.id, reviewId: userReviewId }
+        body: { action: 'delete', initData, reviewId: userReviewId }
       });
       if (res.data?.error) throw new Error(res.data.error);
       if (res.error) throw res.error;
@@ -107,11 +107,9 @@ const Index = () => {
     try {
       const res = await supabase.functions.invoke('submit-review', {
         body: {
-          telegramId: user.id,
+          initData,
           rating: reviewRating,
           text: reviewText.trim(),
-          author: `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}`,
-          photoUrl: user.photoUrl || ''
         }
       });
       if (res.data?.error) {

@@ -50,7 +50,7 @@ const statusColor = (status: DbOrder['status']) => {
 const PREVIEW_COUNT = 5;
 
 const Account = () => {
-  const { user, isInTelegram, openTelegramLink, haptic } = useTelegram();
+  const { user, isInTelegram, openTelegramLink, haptic, initData } = useTelegram();
   const { data: orders, isLoading: ordersLoading } = useOrders();
   const { data: balanceHistory, isLoading: balanceLoading } = useBalanceHistory();
   const { data: stats, isLoading: statsLoading } = useUserStats();
@@ -79,7 +79,7 @@ const Account = () => {
     setTopupProcessing(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-topup-invoice', {
-        body: { amount, telegramUserId: user.id },
+        body: { initData, amount },
       });
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
