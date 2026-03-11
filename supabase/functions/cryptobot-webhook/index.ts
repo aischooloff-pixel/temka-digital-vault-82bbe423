@@ -87,8 +87,8 @@ serve(async (req) => {
   }
 });
 
-// ─── Topup handler (platform-level) ─────────────
-async function handleTopup(supabase: any, orderData: any, _invoiceId: string) {
+// ─── Topup handler (tenant-aware) ─────────────
+async function handleTopup(supabase: any, orderData: any, _invoiceId: string, topupShopId: string | null) {
   const topupAmount = Number(orderData.amount);
   const telegramUserId = orderData.telegramUserId;
   if (!telegramUserId || !topupAmount || topupAmount <= 0) return;
@@ -101,7 +101,22 @@ async function handleTopup(supabase: any, orderData: any, _invoiceId: string) {
     type: "credit", comment: "Пополнение через CryptoBot", admin_telegram_id: telegramUserId,
   });
 
-  const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
+  // Resolve the correct bot token for notification
+  let botToken: string | null = null;
+  if (topupShopId) {
+    const ek = Deno.env.get("TOKEN_ENCRYPTION_KEY");
+    if (ek) {
+      const { data: shop } = await supabase.from("shops").select("bot_token_encrypted").eq("id", topupShopId).maybeSingle();
+      if (shop?.bot_token_encrypted) {
+        const { data } = await supabase.rpc("decrypt_token", { p_encrypted: shop.bot_token_encrypted, p_key: ek });
+        botToken = data;
+      }
+    }
+  }
+  if (!botToken) {
+    botToken = Deno.env.get("TELEGRAM_BOT_TOKEN") || null;
+  }
+
   if (botToken) {
     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: "POST", headers: { "Content-Type": "application/json" },
