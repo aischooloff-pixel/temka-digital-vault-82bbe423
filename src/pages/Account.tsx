@@ -79,7 +79,7 @@ const Account = () => {
     setTopupProcessing(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-topup-invoice', {
-        body: { amount, telegramUserId: user.id },
+        body: { initData, amount },
       });
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
