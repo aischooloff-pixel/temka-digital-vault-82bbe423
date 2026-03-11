@@ -185,6 +185,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .order('sort_order');
       setCategories((cats || []) as unknown as ShopCategory[]);
       setCategoriesLoading(false);
+
+      // Load reviews (approved only)
+      setReviewsLoading(true);
+      const { data: revs } = await supabase
+        .from('public_shop_reviews' as any)
+        .select('*')
+        .eq('shop_id', data.id)
+        .eq('moderation_status', 'approved')
+        .order('created_at', { ascending: false });
+      setReviews((revs || []) as unknown as ShopReview[]);
+      setReviewsLoading(false);
     };
 
     fetchShop();
