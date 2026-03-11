@@ -15,6 +15,7 @@ const Checkout = () => {
   const { user, isInTelegram, openTelegramLink, haptic, initData } = useTelegram();
   const { data: profile } = useUserProfile();
   const navigate = useNavigate();
+  const buildPath = useStorefrontPath();
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
 
