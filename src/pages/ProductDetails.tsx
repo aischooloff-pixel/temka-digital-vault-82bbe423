@@ -6,6 +6,7 @@ import ProductCardSkeleton from '@/components/ProductCardSkeleton';
 import { useProduct, useProducts } from '@/hooks/useProducts';
 import { useStore } from '@/contexts/StoreContext';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useSupportUsername } from '@/hooks/useSupportUsername';
 
 const categoryEmoji: Record<string, string> = {
   'social-media': '📱', 'gaming': '🎮', 'streaming': '🎬', 'software': '🔑',
@@ -17,6 +18,7 @@ const ProductDetails = () => {
   const { data: product, isLoading, error } = useProduct(id || '');
   const { data: allProducts } = useProducts();
   const { addToCart } = useStore();
+  const { data: supportUsername } = useSupportUsername();
 
   if (isLoading) {
     return (
@@ -172,7 +174,7 @@ const ProductDetails = () => {
             <p className="text-xs sm:text-sm text-muted-foreground">Наша поддержка поможет вам 24/7</p>
           </div>
         </div>
-        <a href="https://t.me/paveldurov" target="_blank" rel="noopener noreferrer"><Button variant="outline">Связаться с поддержкой</Button></a>
+        <a href={`https://t.me/${supportUsername}`} target="_blank" rel="noopener noreferrer"><Button variant="outline">Связаться с поддержкой</Button></a>
       </div>
     </div>
   );

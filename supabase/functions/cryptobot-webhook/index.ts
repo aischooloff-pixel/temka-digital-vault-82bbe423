@@ -122,7 +122,7 @@ async function handleOrderPayment(supabase: any, invoice: any, orderData: any) {
   // Idempotency check — skip if already paid
   const { data: existingOrder } = await supabase
     .from("orders")
-    .select("id, status, payment_status")
+    .select("id, status, payment_status, promo_code")
     .eq("id", orderData.orderId)
     .single();
 
@@ -143,15 +143,38 @@ async function handleOrderPayment(supabase: any, invoice: any, orderData: any) {
     balanceUsed: orderData.balanceUsed,
   });
 
-  // Update order status
-  await supabase
+  // Update order status — only if not already paid (idempotency guard)
+  const { data: updatedRows, error: updateError } = await supabase
     .from("orders")
     .update({
       status: "paid",
       payment_status: "paid",
       updated_at: new Date().toISOString(),
     })
-    .eq("id", orderData.orderId);
+    .eq("id", orderData.orderId)
+    .neq("payment_status", "paid")
+    .select("id");
+
+  if (!updatedRows || updatedRows.length === 0) {
+    console.log("Order already processed (race condition prevented):", orderData.orderId);
+    return;
+  }
+
+  // Increment promo used_count on successful payment
+  if (existingOrder && (existingOrder as any).promo_code) {
+    const promoCode = (existingOrder as any).promo_code;
+    const { data: promo } = await supabase
+      .from("promocodes")
+      .select("id, used_count")
+      .eq("code", promoCode)
+      .maybeSingle();
+    if (promo) {
+      await supabase
+        .from("promocodes")
+        .update({ used_count: (promo.used_count || 0) + 1 })
+        .eq("id", promo.id);
+    }
+  }
 
   // Deduct balance if balanceUsed > 0
   const balanceUsed = Number(orderData.balanceUsed || 0);

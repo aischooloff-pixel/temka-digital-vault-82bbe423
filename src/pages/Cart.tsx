@@ -69,7 +69,8 @@ const Cart = () => {
                       </button>
                       <span className="text-sm font-medium w-6 text-center">{item.quantity}</span>
                       <button onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
-                        className="w-7 h-7 rounded-md bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors">
+                        disabled={item.quantity >= item.product.stock}
+                        className="w-7 h-7 rounded-md bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                         <Plus className="w-3 h-3" />
                       </button>
                     </div>

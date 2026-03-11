@@ -42,7 +42,7 @@ export interface DbOrder {
   order_number: string;
   telegram_id: number;
   status: 'pending' | 'awaiting_payment' | 'paid' | 'processing' | 'delivered' | 'completed' | 'cancelled' | 'error';
-  payment_status: 'unpaid' | 'awaiting' | 'paid' | 'failed' | 'refunded';
+  payment_status: 'unpaid' | 'awaiting' | 'paid' | 'failed' | 'refunded' | 'expired';
   total_amount: number;
   currency: string;
   invoice_id: string | null;
@@ -128,4 +128,5 @@ export const PAYMENT_STATUS_LABELS: Record<DbOrder['payment_status'], string> = 
   paid: 'Оплачен',
   failed: 'Ошибка оплаты',
   refunded: 'Возврат',
+  expired: 'Истёк',
 };

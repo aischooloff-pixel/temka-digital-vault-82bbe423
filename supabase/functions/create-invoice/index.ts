@@ -109,20 +109,7 @@ serve(async (req) => {
       }
     }
 
-    // Increment promo used_count
-    if (promoCode) {
-      const { data: promo } = await supabase
-        .from("promocodes")
-        .select("id, used_count")
-        .eq("code", promoCode)
-        .maybeSingle();
-      if (promo) {
-        await supabase
-          .from("promocodes")
-          .update({ used_count: (promo.used_count || 0) + 1 })
-          .eq("id", promo.id);
-      }
-    }
+    // NOTE: promo used_count is incremented upon payment confirmation (webhook/check-payment), not here
 
     // Create CryptoBot invoice (amount is already the remaining after balance deduction)
     const invoiceAmount = parseFloat(amount);
