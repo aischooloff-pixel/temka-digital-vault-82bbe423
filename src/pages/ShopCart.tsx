@@ -18,7 +18,7 @@ const ShopCart = () => {
         <div className="text-5xl sm:text-6xl mb-4">🛒</div>
         <h2 className="font-display text-xl sm:text-2xl font-bold">Ваша корзина пуста</h2>
         <p className="text-muted-foreground text-sm mt-2">Загляните в каталог и найдите то, что вам понравится!</p>
-        <Link to={`${base}/catalog`}>
+        <Link to={buildPath('/catalog')}>
           <Button variant="hero" className="mt-6">Перейти в каталог <ArrowRight className="w-4 h-4 ml-1" /></Button>
         </Link>
       </div>
