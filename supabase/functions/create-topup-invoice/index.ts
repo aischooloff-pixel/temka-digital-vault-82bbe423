@@ -63,6 +63,27 @@ function verifyAndExtractUser(initData: string, botToken: string): { id: number 
   }
 }
 
+async function resolveShopByHint(supabase: any, shopHint: string) {
+  const normalized = String(shopHint).trim();
+  if (!normalized) return null;
+
+  const { data: byId } = await supabase
+    .from("shops")
+    .select("id, slug, bot_token_encrypted, bot_username, cryptobot_token_encrypted")
+    .eq("id", normalized)
+    .maybeSingle();
+
+  if (byId) return byId;
+
+  const { data: bySlug } = await supabase
+    .from("shops")
+    .select("id, slug, bot_token_encrypted, bot_username, cryptobot_token_encrypted")
+    .eq("slug", normalized)
+    .maybeSingle();
+
+  return bySlug || null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -80,9 +101,11 @@ serve(async (req) => {
     let botToken: string | null = null;
     let cryptobotToken: string | null = null;
     let paidBtnBotUsername: string | null = null;
+    let resolvedShopId: string | null = null;
+    let resolvedShopSlug: string | null = null;
 
     if (shopId) {
-      console.log(`[topup] Tenant context: shopId=${shopId}`);
+      console.log(`[topup] Tenant context input: ${shopId}`);
       if (!encryptionKey) {
         console.error("[topup] TOKEN_ENCRYPTION_KEY not set");
         return new Response(
@@ -91,19 +114,17 @@ serve(async (req) => {
         );
       }
 
-      const { data: shop, error: shopErr } = await supabase
-        .from("shops")
-        .select("bot_token_encrypted, bot_username, cryptobot_token_encrypted")
-        .eq("id", shopId)
-        .maybeSingle();
-
-      if (shopErr || !shop?.bot_token_encrypted) {
-        console.error("[topup] Shop not found or no bot token:", shopErr);
+      const shop = await resolveShopByHint(supabase, String(shopId));
+      if (!shop?.bot_token_encrypted) {
+        console.error("[topup] Shop not found or no bot token");
         return new Response(
           JSON.stringify({ error: "Бот магазина не подключён. Обратитесь к продавцу." }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+
+      resolvedShopId = shop.id;
+      resolvedShopSlug = shop.slug || null;
 
       // Decrypt seller bot token (for initData verification)
       const { data: decryptedBot, error: decryptErr } = await supabase.rpc("decrypt_token", {
@@ -133,6 +154,8 @@ serve(async (req) => {
       if (!cryptobotToken) {
         cryptobotToken = Deno.env.get("CRYPTOBOT_API_TOKEN") || null;
       }
+
+      console.log(`[topup] Resolved tenant context: shopId=${resolvedShopId}, slug=${resolvedShopSlug || "-"}`);
     } else {
       // Platform context
       botToken = Deno.env.get("TELEGRAM_BOT_TOKEN") || null;
@@ -220,7 +243,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[topup] Creating CryptoBot invoice for $${numAmount.toFixed(2)}, shopId=${shopId || "platform"}`);
+    console.log(`[topup] Creating CryptoBot invoice for $${numAmount.toFixed(2)}, shopId=${resolvedShopId || "platform"}`);
 
     // Ensure CryptoBot webhook is configured for the token used to create the invoice
     await ensureCryptoBotWebhook(cryptobotToken);
@@ -245,7 +268,8 @@ serve(async (req) => {
           type: "topup",
           telegramUserId,
           amount: numAmount,
-          shopId: shopId || null,
+          shopId: resolvedShopId,
+          shopSlug: resolvedShopSlug,
         }),
         paid_btn_name: "callback",
         paid_btn_url: btnUrl,

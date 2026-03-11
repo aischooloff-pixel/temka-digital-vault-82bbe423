@@ -7,8 +7,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 const CRYPTOBOT_API_URL = "https://pay.crypt.bot/api";
+const TOPUP_COMMENT_PREFIX = "Пополнение через CryptoBot";
+
 const jsonRes = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+function topupComment(invoiceId: string) {
+  return `${TOPUP_COMMENT_PREFIX} (invoice:${invoiceId})`;
+}
 
 function verifyAndExtractUser(initData: string, botToken: string): { id: number } | null {
   const params = new URLSearchParams(initData);
@@ -25,28 +31,65 @@ function verifyAndExtractUser(initData: string, botToken: string): { id: number 
   try { return JSON.parse(params.get("user") || ""); } catch { return null; }
 }
 
-async function resolveTokens(supabase: any, shopId?: string) {
-  if (!shopId) {
+async function resolveShopByHint(supabase: any, shopHint?: string) {
+  if (!shopHint) return null;
+
+  const normalized = String(shopHint).trim();
+  if (!normalized) return null;
+
+  const { data: byId } = await supabase
+    .from("shops")
+    .select("id, bot_token_encrypted, cryptobot_token_encrypted")
+    .eq("id", normalized)
+    .maybeSingle();
+
+  if (byId) return byId;
+
+  const { data: bySlug } = await supabase
+    .from("shops")
+    .select("id, bot_token_encrypted, cryptobot_token_encrypted")
+    .eq("slug", normalized)
+    .maybeSingle();
+
+  return bySlug || null;
+}
+
+async function resolveTokens(supabase: any, shopHint?: string) {
+  if (!shopHint) {
     return {
       botToken: Deno.env.get("TELEGRAM_BOT_TOKEN") || null,
       cryptobotToken: Deno.env.get("CRYPTOBOT_API_TOKEN") || null,
+      resolvedShopId: undefined as string | undefined,
     };
   }
+
   const ek = Deno.env.get("TOKEN_ENCRYPTION_KEY");
   if (!ek) throw new Error("Server config error");
-  const { data: shop } = await supabase.from("shops").select("bot_token_encrypted, cryptobot_token_encrypted").eq("id", shopId).maybeSingle();
+
+  const shop = await resolveShopByHint(supabase, shopHint);
   if (!shop) throw new Error("Shop not found");
-  const decrypt = async (enc: string) => { const { data } = await supabase.rpc("decrypt_token", { p_encrypted: enc, p_key: ek }); return data; };
+
+  const decrypt = async (enc: string | null) => {
+    if (!enc) return null;
+    const { data } = await supabase.rpc("decrypt_token", { p_encrypted: enc, p_key: ek });
+    return data || null;
+  };
+
   return {
-    botToken: shop.bot_token_encrypted ? await decrypt(shop.bot_token_encrypted) : null,
-    cryptobotToken: shop.cryptobot_token_encrypted ? await decrypt(shop.cryptobot_token_encrypted) : null,
+    botToken: await decrypt(shop.bot_token_encrypted),
+    cryptobotToken: await decrypt(shop.cryptobot_token_encrypted),
+    resolvedShopId: shop.id as string,
   };
 }
 
-async function notifyTopup(botToken: string | null, telegramId: number, amount: number, newBalance: number) {
-  if (!botToken) return;
+async function notifyTopup(botToken: string | null, telegramId: number, amount: number, newBalance: number, invoiceId: string) {
+  if (!botToken) {
+    console.warn(`[check-payment] notification skipped: bot token missing invoice=${invoiceId}`);
+    return;
+  }
+
   try {
-    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -55,9 +98,168 @@ async function notifyTopup(botToken: string | null, telegramId: number, amount: 
         text: `✅ <b>Баланс пополнен!</b>\n\n💰 Сумма: $${amount.toFixed(2)}\n💳 Новый баланс: $${Number(newBalance).toFixed(2)}`,
       }),
     });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`[check-payment] notification failed invoice=${invoiceId} status=${response.status} body=${text}`);
+      return;
+    }
+
+    console.log(`[check-payment] notification sent invoice=${invoiceId}`);
   } catch (e) {
-    console.error("Topup notification failed:", e);
+    console.error(`[check-payment] notification exception invoice=${invoiceId}:`, e);
   }
+}
+
+async function hasTopupLedgerRecord(
+  supabase: any,
+  invoiceId: string,
+  telegramId: number,
+  amount: number,
+  processedAt?: string | null,
+) {
+  const { count: taggedCount } = await supabase
+    .from("balance_history")
+    .select("id", { count: "exact", head: true })
+    .eq("telegram_id", telegramId)
+    .eq("type", "credit")
+    .ilike("comment", `%invoice:${invoiceId}%`);
+
+  if ((taggedCount || 0) > 0) return true;
+
+  if (!processedAt) return false;
+
+  const center = new Date(processedAt).getTime();
+  if (!Number.isFinite(center)) return false;
+
+  const from = new Date(center - 15 * 60 * 1000).toISOString();
+  const to = new Date(center + 15 * 60 * 1000).toISOString();
+
+  const { count: fallbackCount } = await supabase
+    .from("balance_history")
+    .select("id", { count: "exact", head: true })
+    .eq("telegram_id", telegramId)
+    .eq("type", "credit")
+    .eq("amount", amount)
+    .gte("created_at", from)
+    .lte("created_at", to);
+
+  return (fallbackCount || 0) > 0;
+}
+
+async function markTopupProcessed(supabase: any, invoiceId: string, telegramId: number, amount: number, hasExistingRow: boolean) {
+  if (hasExistingRow) {
+    const { error } = await supabase
+      .from("processed_invoices")
+      .update({
+        type: "topup",
+        order_id: null,
+        telegram_id: telegramId,
+        amount,
+        processed_at: new Date().toISOString(),
+      })
+      .eq("invoice_id", invoiceId);
+
+    if (error) throw new Error(`processed_invoices update failed: ${error.message}`);
+    console.log(`[check-payment] dedup update ok invoice=${invoiceId}`);
+    return;
+  }
+
+  const { error } = await supabase.from("processed_invoices").insert({
+    invoice_id: invoiceId,
+    type: "topup",
+    order_id: null,
+    telegram_id: telegramId,
+    amount,
+  });
+
+  if (error) throw new Error(`processed_invoices insert failed: ${error.message}`);
+  console.log(`[check-payment] dedup insert ok invoice=${invoiceId}`);
+}
+
+async function processPaidTopup(params: {
+  supabase: any;
+  tokens: { botToken: string | null };
+  invoice: any;
+  payload: any;
+  telegramId: number;
+}) {
+  const { supabase, tokens, invoice, payload, telegramId } = params;
+  const invoiceId = String(invoice.invoice_id);
+  const topupAmount = Number(payload.amount ?? invoice.amount ?? 0);
+
+  if (!topupAmount || topupAmount <= 0) {
+    throw new Error("Invalid invoice amount");
+  }
+
+  const { data: existingProcessed, error: existingError } = await supabase
+    .from("processed_invoices")
+    .select("invoice_id, type, processed_at")
+    .eq("invoice_id", invoiceId)
+    .maybeSingle();
+
+  if (existingError) {
+    throw new Error(`dedup read failed: ${existingError.message}`);
+  }
+
+  const alreadyCredited = await hasTopupLedgerRecord(
+    supabase,
+    invoiceId,
+    telegramId,
+    topupAmount,
+    existingProcessed?.processed_at || null,
+  );
+
+  if (alreadyCredited) {
+    console.log(`[check-payment] credit_balance skipped: already credited invoice=${invoiceId}`);
+    if (!existingProcessed || existingProcessed.type !== "topup") {
+      await markTopupProcessed(supabase, invoiceId, telegramId, topupAmount, Boolean(existingProcessed));
+    }
+    return { topupStatus: "paid", paymentStatus: "paid", amount: topupAmount };
+  }
+
+  if (existingProcessed) {
+    console.warn(`[check-payment] stale dedup row detected, retrying invoice=${invoiceId}`);
+  }
+
+  const { data: newBalance, error: balanceError } = await supabase.rpc("credit_balance", {
+    p_telegram_id: telegramId,
+    p_amount: topupAmount,
+  });
+
+  if (balanceError) {
+    console.error(`[check-payment] credit_balance fail invoice=${invoiceId}:`, balanceError);
+    throw new Error("Failed to credit balance");
+  }
+
+  console.log(`[check-payment] credit_balance success invoice=${invoiceId} balance=${newBalance}`);
+
+  const { error: historyError } = await supabase.from("balance_history").insert({
+    telegram_id: telegramId,
+    amount: topupAmount,
+    balance_after: newBalance,
+    type: "credit",
+    comment: topupComment(invoiceId),
+    admin_telegram_id: telegramId,
+  });
+
+  if (historyError) {
+    console.error(`[check-payment] balance_history insert fail invoice=${invoiceId}:`, historyError);
+    throw new Error("Failed to write balance history");
+  }
+
+  console.log(`[check-payment] balance_history insert success invoice=${invoiceId}`);
+
+  await notifyTopup(tokens.botToken, telegramId, topupAmount, Number(newBalance) || 0, invoiceId);
+
+  await markTopupProcessed(supabase, invoiceId, telegramId, topupAmount, Boolean(existingProcessed));
+
+  return {
+    topupStatus: "paid",
+    paymentStatus: "paid",
+    amount: topupAmount,
+    balance: newBalance,
+  };
 }
 
 async function checkTopupPayment(params: {
@@ -88,6 +290,8 @@ async function checkTopupPayment(params: {
   let payload: any = {};
   try { payload = JSON.parse(invoice.payload || "{}"); } catch {}
 
+  console.log(`[check-payment] invoice payload parsed invoice=${invoiceId} type=${payload?.type || "unknown"}`);
+
   if (payload.type !== "topup") {
     return jsonRes({ error: "Invalid invoice type" }, 400);
   }
@@ -101,45 +305,19 @@ async function checkTopupPayment(params: {
   }
 
   if (invoice.status === "paid") {
-    const topupAmount = Number(payload.amount ?? invoice.amount ?? 0);
-    if (!topupAmount || topupAmount <= 0) {
-      return jsonRes({ error: "Invalid invoice amount" }, 400);
-    }
-
-    const { error: dedupError } = await supabase.from("processed_invoices").insert({
-      invoice_id: String(invoice.invoice_id),
-      type: "topup",
-      order_id: null,
-      telegram_id: telegramId,
-      amount: Number(invoice.amount) || topupAmount,
-    });
-
-    if (!dedupError) {
-      const { data: newBalance, error: balanceError } = await supabase.rpc("credit_balance", {
-        p_telegram_id: telegramId,
-        p_amount: topupAmount,
+    try {
+      const result = await processPaidTopup({
+        supabase,
+        tokens,
+        invoice,
+        payload,
+        telegramId,
       });
-
-      if (balanceError) {
-        console.error("Topup credit error:", balanceError);
-        return jsonRes({ error: "Failed to credit balance" }, 500);
-      }
-
-      await supabase.from("balance_history").insert({
-        telegram_id: telegramId,
-        amount: topupAmount,
-        balance_after: newBalance,
-        type: "credit",
-        comment: "Пополнение через CryptoBot",
-        admin_telegram_id: telegramId,
-      });
-
-      await notifyTopup(tokens.botToken, telegramId, topupAmount, Number(newBalance) || 0);
-
-      return jsonRes({ topupStatus: "paid", paymentStatus: "paid", amount: topupAmount, balance: newBalance });
+      return jsonRes(result);
+    } catch (error) {
+      console.error(`[check-payment] topup processing error invoice=${invoiceId}:`, error);
+      return jsonRes({ error: "Failed to process topup" }, 500);
     }
-
-    return jsonRes({ topupStatus: "paid", paymentStatus: "paid" });
   }
 
   if (invoice.status === "expired") {
@@ -176,7 +354,7 @@ serve(async (req) => {
         tokens,
         invoiceId: String(invoiceId),
         telegramId: tgUser.id,
-        shopId,
+        shopId: tokens.resolvedShopId || shopId,
       });
     }
 

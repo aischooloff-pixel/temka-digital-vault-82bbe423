@@ -7,125 +7,316 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, crypto-pay-api-signature",
 };
 
+const TOPUP_COMMENT_PREFIX = "Пополнение через CryptoBot";
+
+function topupComment(invoiceId: string) {
+  return `${TOPUP_COMMENT_PREFIX} (invoice:${invoiceId})`;
+}
+
+function safeJsonParse<T = any>(raw: string, fallback: T): T {
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+async function resolveShopIdByHint(supabase: any, hint: string | null): Promise<string | null> {
+  if (!hint) return null;
+  const normalized = String(hint).trim();
+  if (!normalized) return null;
+
+  const { data: byId } = await supabase.from("shops").select("id").eq("id", normalized).maybeSingle();
+  if (byId?.id) return byId.id;
+
+  const { data: bySlug } = await supabase.from("shops").select("id").eq("slug", normalized).maybeSingle();
+  return bySlug?.id ?? null;
+}
+
+async function decryptShopToken(supabase: any, shopId: string, field: "cryptobot_token_encrypted" | "bot_token_encrypted") {
+  const encryptionKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
+  if (!encryptionKey) return null;
+
+  const { data: shop } = await supabase.from("shops").select(field).eq("id", shopId).maybeSingle();
+  const encrypted = shop?.[field];
+  if (!encrypted) return null;
+
+  const { data } = await supabase.rpc("decrypt_token", { p_encrypted: encrypted, p_key: encryptionKey });
+  return data || null;
+}
+
+async function hasTopupLedgerRecord(
+  supabase: any,
+  invoiceId: string,
+  telegramUserId: number,
+  topupAmount: number,
+  processedAt?: string | null,
+) {
+  const { count: taggedCount } = await supabase
+    .from("balance_history")
+    .select("id", { count: "exact", head: true })
+    .eq("telegram_id", telegramUserId)
+    .eq("type", "credit")
+    .ilike("comment", `%invoice:${invoiceId}%`);
+
+  if ((taggedCount || 0) > 0) return true;
+
+  if (!processedAt) return false;
+
+  const center = new Date(processedAt).getTime();
+  if (!Number.isFinite(center)) return false;
+
+  const from = new Date(center - 15 * 60 * 1000).toISOString();
+  const to = new Date(center + 15 * 60 * 1000).toISOString();
+
+  const { count: fallbackCount } = await supabase
+    .from("balance_history")
+    .select("id", { count: "exact", head: true })
+    .eq("telegram_id", telegramUserId)
+    .eq("type", "credit")
+    .eq("amount", topupAmount)
+    .gte("created_at", from)
+    .lte("created_at", to);
+
+  return (fallbackCount || 0) > 0;
+}
+
+async function markTopupProcessed(supabase: any, invoiceId: string, telegramUserId: number, topupAmount: number, hasExistingRow: boolean) {
+  if (hasExistingRow) {
+    const { error } = await supabase
+      .from("processed_invoices")
+      .update({
+        type: "topup",
+        telegram_id: telegramUserId,
+        amount: topupAmount,
+        order_id: null,
+        processed_at: new Date().toISOString(),
+      })
+      .eq("invoice_id", invoiceId);
+    if (error) throw new Error(`processed_invoices update failed: ${error.message}`);
+    console.log(`[cryptobot-webhook] dedup update ok invoice=${invoiceId}`);
+    return;
+  }
+
+  const { error } = await supabase.from("processed_invoices").insert({
+    invoice_id: invoiceId,
+    type: "topup",
+    order_id: null,
+    telegram_id: telegramUserId,
+    amount: topupAmount,
+  });
+
+  if (error) throw new Error(`processed_invoices insert failed: ${error.message}`);
+  console.log(`[cryptobot-webhook] dedup insert ok invoice=${invoiceId}`);
+}
+
+async function sendTopupNotification(botToken: string | null, telegramUserId: number, topupAmount: number, newBalance: number, invoiceId: string) {
+  if (!botToken) {
+    console.warn(`[cryptobot-webhook] notification skipped: bot token missing invoice=${invoiceId}`);
+    return;
+  }
+
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: telegramUserId,
+        parse_mode: "HTML",
+        text: `✅ <b>Баланс пополнен!</b>\n\n💰 Сумма: $${topupAmount.toFixed(2)}\n💳 Новый баланс: $${Number(newBalance).toFixed(2)}`,
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`[cryptobot-webhook] notification failed invoice=${invoiceId} status=${response.status} body=${text}`);
+      return;
+    }
+
+    console.log(`[cryptobot-webhook] notification sent invoice=${invoiceId}`);
+  } catch (error) {
+    console.error(`[cryptobot-webhook] notification send exception invoice=${invoiceId}:`, error);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    console.log(`[cryptobot-webhook] webhook received method=${req.method}`);
+
     const body = await req.text();
     const signature = req.headers.get("crypto-pay-api-signature");
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    // Detect shop context from payload (before verification)
-    let shopId: string | null = null;
-    const parsedBody = JSON.parse(body);
-    if (parsedBody.update_type === "invoice_paid") {
-      const inv = parsedBody.payload;
-      try { shopId = JSON.parse(inv?.payload || "{}").shopId || null; } catch {}
+    const parsedBody = safeJsonParse<any>(body, null);
+    if (!parsedBody) {
+      console.error("[cryptobot-webhook] invoice payload parsed: fail (invalid json)");
+      return new Response(JSON.stringify({ error: "Invalid payload" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    // Verify signature - try platform token first, then shop token
+    let orderData: any = {};
+    if (parsedBody.update_type === "invoice_paid") {
+      orderData = safeJsonParse(parsedBody?.payload?.payload || "{}", {});
+      console.log(`[cryptobot-webhook] invoice payload parsed: ok type=${orderData?.type || "unknown"}`);
+    }
+
+    const shopHint = orderData?.shopId || orderData?.shopSlug || null;
+    const shopId = await resolveShopIdByHint(supabase, shopHint);
+
     let verified = false;
     const platformToken = Deno.env.get("CRYPTOBOT_API_TOKEN");
 
-    if (platformToken) {
+    if (platformToken && signature) {
       const secret = createHash("sha256").update(platformToken).digest();
       if (createHmac("sha256", secret).update(body).digest("hex") === signature) {
         verified = true;
       }
     }
 
-    if (!verified && shopId) {
-      const ek = Deno.env.get("TOKEN_ENCRYPTION_KEY");
-      if (ek) {
-        const { data: shop } = await supabase.from("shops").select("cryptobot_token_encrypted").eq("id", shopId).maybeSingle();
-        if (shop?.cryptobot_token_encrypted) {
-          const { data: shopToken } = await supabase.rpc("decrypt_token", { p_encrypted: shop.cryptobot_token_encrypted, p_key: ek });
-          if (shopToken) {
-            const secret = createHash("sha256").update(shopToken).digest();
-            if (createHmac("sha256", secret).update(body).digest("hex") === signature) verified = true;
-          }
+    if (!verified && shopId && signature) {
+      const shopToken = await decryptShopToken(supabase, shopId, "cryptobot_token_encrypted");
+      if (shopToken) {
+        const secret = createHash("sha256").update(shopToken).digest();
+        if (createHmac("sha256", secret).update(body).digest("hex") === signature) {
+          verified = true;
         }
       }
     }
 
+    console.log(`[cryptobot-webhook] signature ${verified ? "valid" : "invalid"}`);
+
     if (!verified) {
-      console.error("Invalid webhook signature");
-      return new Response(JSON.stringify({ error: "Invalid signature" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      console.error("[cryptobot-webhook] invalid signature");
+      return new Response(JSON.stringify({ error: "Invalid signature" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     if (parsedBody.update_type === "invoice_paid") {
       const invoice = parsedBody.payload;
       const invoiceId = String(invoice.invoice_id);
-      const orderData = JSON.parse(invoice.payload || "{}");
-
-      // Idempotency
-      const { error: dedupError } = await supabase.from("processed_invoices").insert({
-        invoice_id: invoiceId,
-        type: orderData.type === "topup" ? "topup" : "payment",
-        order_id: orderData.orderId || null,
-        telegram_id: orderData.telegramUserId || null,
-        amount: Number(invoice.amount) || 0,
-      });
-      if (dedupError) {
-        console.log("Invoice already processed:", invoiceId);
-        return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
 
       if (orderData.type === "topup") {
-        await handleTopup(supabase, orderData, invoiceId, orderData.shopId || null);
-      } else if (shopId && orderData.orderId) {
-        await handleShopOrderPayment(supabase, invoice, orderData, shopId);
-      } else if (orderData.orderId) {
-        await handleOrderPayment(supabase, invoice, orderData);
+        await handleTopup(supabase, orderData, invoiceId, shopId);
+      } else {
+        const { error: dedupError } = await supabase.from("processed_invoices").insert({
+          invoice_id: invoiceId,
+          type: orderData.type === "topup" ? "topup" : "payment",
+          order_id: orderData.orderId || null,
+          telegram_id: orderData.telegramUserId || null,
+          amount: Number(invoice.amount) || 0,
+        });
+
+        if (dedupError) {
+          console.log(`[cryptobot-webhook] dedup insert skipped/already processed invoice=${invoiceId} error=${dedupError.message}`);
+          return new Response(JSON.stringify({ ok: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        console.log(`[cryptobot-webhook] dedup insert ok invoice=${invoiceId}`);
+
+        if (shopId && orderData.orderId) {
+          await handleShopOrderPayment(supabase, invoice, orderData, shopId);
+        } else if (orderData.orderId) {
+          await handleOrderPayment(supabase, invoice, orderData);
+        }
       }
     }
 
-    return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-  } catch (error) {
-    console.error("Webhook error:", error.message);
-    return new Response(JSON.stringify({ error: "Internal error" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (error: any) {
+    console.error("[cryptobot-webhook] webhook error:", error?.message || error);
+    return new Response(JSON.stringify({ error: "Internal error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
 
-// ─── Topup handler (tenant-aware) ─────────────
-async function handleTopup(supabase: any, orderData: any, _invoiceId: string, topupShopId: string | null) {
+// ─── Topup handler (tenant-aware, retry-safe) ─────────────
+async function handleTopup(supabase: any, orderData: any, invoiceId: string, topupShopId: string | null) {
   const topupAmount = Number(orderData.amount);
-  const telegramUserId = orderData.telegramUserId;
-  if (!telegramUserId || !topupAmount || topupAmount <= 0) return;
+  const telegramUserId = Number(orderData.telegramUserId);
 
-  const { data: newBalance, error } = await supabase.rpc("credit_balance", { p_telegram_id: telegramUserId, p_amount: topupAmount });
-  if (error) { console.error("Balance credit error:", error.message); return; }
+  if (!telegramUserId || !topupAmount || topupAmount <= 0) {
+    throw new Error(`[topup] invalid payload invoice=${invoiceId}`);
+  }
 
-  await supabase.from("balance_history").insert({
-    telegram_id: telegramUserId, amount: topupAmount, balance_after: newBalance,
-    type: "credit", comment: "Пополнение через CryptoBot", admin_telegram_id: telegramUserId,
+  const { data: existingProcessed, error: existingProcessedError } = await supabase
+    .from("processed_invoices")
+    .select("invoice_id, type, processed_at")
+    .eq("invoice_id", invoiceId)
+    .maybeSingle();
+
+  if (existingProcessedError) {
+    throw new Error(`[topup] failed to read dedup row invoice=${invoiceId}: ${existingProcessedError.message}`);
+  }
+
+  const alreadyCredited = await hasTopupLedgerRecord(
+    supabase,
+    invoiceId,
+    telegramUserId,
+    topupAmount,
+    existingProcessed?.processed_at || null,
+  );
+
+  if (alreadyCredited) {
+    console.log(`[cryptobot-webhook] credit_balance skipped: already credited invoice=${invoiceId}`);
+    if (!existingProcessed || existingProcessed.type !== "topup") {
+      await markTopupProcessed(supabase, invoiceId, telegramUserId, topupAmount, Boolean(existingProcessed));
+    }
+    return;
+  }
+
+  if (existingProcessed) {
+    console.warn(`[cryptobot-webhook] stale dedup row detected, retrying invoice=${invoiceId}`);
+  }
+
+  const { data: newBalance, error: creditError } = await supabase.rpc("credit_balance", {
+    p_telegram_id: telegramUserId,
+    p_amount: topupAmount,
   });
 
-  // Resolve the correct bot token for notification
-  let botToken: string | null = null;
-  if (topupShopId) {
-    const ek = Deno.env.get("TOKEN_ENCRYPTION_KEY");
-    if (ek) {
-      const { data: shop } = await supabase.from("shops").select("bot_token_encrypted").eq("id", topupShopId).maybeSingle();
-      if (shop?.bot_token_encrypted) {
-        const { data } = await supabase.rpc("decrypt_token", { p_encrypted: shop.bot_token_encrypted, p_key: ek });
-        botToken = data;
-      }
-    }
-  }
-  if (!botToken) {
-    botToken = Deno.env.get("TELEGRAM_BOT_TOKEN") || null;
+  if (creditError) {
+    console.error(`[cryptobot-webhook] credit_balance fail invoice=${invoiceId}: ${creditError.message}`);
+    throw new Error(`credit_balance failed: ${creditError.message}`);
   }
 
-  if (botToken) {
-    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: telegramUserId, parse_mode: "HTML",
-        text: `✅ <b>Баланс пополнен!</b>\n\n💰 Сумма: $${topupAmount.toFixed(2)}\n💳 Новый баланс: $${Number(newBalance).toFixed(2)}`,
-      }),
-    });
+  console.log(`[cryptobot-webhook] credit_balance success invoice=${invoiceId} balance=${newBalance}`);
+
+  const { error: historyError } = await supabase.from("balance_history").insert({
+    telegram_id: telegramUserId,
+    amount: topupAmount,
+    balance_after: newBalance,
+    type: "credit",
+    comment: topupComment(invoiceId),
+    admin_telegram_id: telegramUserId,
+  });
+
+  if (historyError) {
+    console.error(`[cryptobot-webhook] balance_history insert fail invoice=${invoiceId}: ${historyError.message}`);
+    throw new Error(`balance_history insert failed: ${historyError.message}`);
   }
+
+  console.log(`[cryptobot-webhook] balance_history insert success invoice=${invoiceId}`);
+
+  let botToken: string | null = null;
+  if (topupShopId) {
+    botToken = await decryptShopToken(supabase, topupShopId, "bot_token_encrypted");
+  }
+  if (!botToken) botToken = Deno.env.get("TELEGRAM_BOT_TOKEN") || null;
+
+  await sendTopupNotification(botToken, telegramUserId, topupAmount, Number(newBalance), invoiceId);
+
+  await markTopupProcessed(supabase, invoiceId, telegramUserId, topupAmount, Boolean(existingProcessed));
 }
 
 // ─── Platform order payment ─────────────────────
@@ -175,16 +366,7 @@ async function handleShopOrderPayment(supabase: any, invoice: any, orderData: an
     });
   }
 
-  // Resolve shop bot token for notification
-  let botToken: string | null = null;
-  const ek = Deno.env.get("TOKEN_ENCRYPTION_KEY");
-  if (ek) {
-    const { data: shop } = await supabase.from("shops").select("bot_token_encrypted").eq("id", shopId).maybeSingle();
-    if (shop?.bot_token_encrypted) {
-      const { data } = await supabase.rpc("decrypt_token", { p_encrypted: shop.bot_token_encrypted, p_key: ek });
-      botToken = data;
-    }
-  }
+  const botToken = await decryptShopToken(supabase, shopId, "bot_token_encrypted");
 
   await deliverInventory(supabase, orderData.orderId, "shop_order_items", "product_name", "reserve_shop_inventory", "shop_inventory", "shop_products", order.buyer_telegram_id, order.order_number, balanceUsed, invoice, botToken, "shop_orders");
 }
