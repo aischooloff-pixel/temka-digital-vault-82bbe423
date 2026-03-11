@@ -243,6 +243,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       shop, loading, error,
       products, productsLoading,
       categories, categoriesLoading,
+      reviews, reviewsLoading,
       cart, addToCart, removeFromCart, updateQuantity, clearCart,
       cartTotal, cartCount,
       searchQuery, setSearchQuery,
