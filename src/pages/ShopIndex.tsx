@@ -3,8 +3,9 @@ import { motion } from 'framer-motion';
 import { Zap, Shield, ChevronRight, ArrowRight, CheckCircle2, Package, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useShop, ShopProduct } from '@/contexts/ShopContext';
+import { useShop } from '@/contexts/ShopContext';
 import ShopProductCard from '@/components/ShopProductCard';
+import ProductCardSkeleton from '@/components/ProductCardSkeleton';
 
 const fadeIn = {
   hidden: { opacity: 0, y: 16 },
@@ -53,25 +54,39 @@ const ShopIndex = () => {
       </section>
 
       {/* Stats */}
-      <section className="border-y border-border/30 bg-card/30">
-        <div className="container-main mx-auto px-4 py-6 grid grid-cols-3 gap-2">
-          <div className="text-center">
-            <Package className="w-5 h-5 text-primary mx-auto mb-1.5" />
-            <div className="font-display text-lg font-bold">{products.length}</div>
-            <div className="text-xs text-muted-foreground">Товаров</div>
+      {(products.length > 0 || productsLoading) && (
+        <section className="border-y border-border/30 bg-card/30">
+          <div className="container-main mx-auto px-4 py-6 grid grid-cols-3 gap-2">
+            {productsLoading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="text-center space-y-1">
+                  <Skeleton className="w-5 h-5 mx-auto rounded-full" />
+                  <Skeleton className="h-6 w-12 mx-auto" />
+                  <Skeleton className="h-4 w-14 mx-auto" />
+                </div>
+              ))
+            ) : (
+              <>
+                <div className="text-center">
+                  <Package className="w-5 h-5 text-primary mx-auto mb-1.5" />
+                  <div className="font-display text-lg sm:text-xl font-bold">{products.length}</div>
+                  <div className="text-xs text-muted-foreground">Товаров</div>
+                </div>
+                <div className="text-center">
+                  <CheckCircle2 className="w-5 h-5 text-primary mx-auto mb-1.5" />
+                  <div className="font-display text-lg sm:text-xl font-bold">{inStock}</div>
+                  <div className="text-xs text-muted-foreground">В наличии</div>
+                </div>
+                <div className="text-center">
+                  <Clock className="w-5 h-5 text-primary mx-auto mb-1.5" />
+                  <div className="font-display text-lg sm:text-xl font-bold">&lt;2с</div>
+                  <div className="text-xs text-muted-foreground">Доставка</div>
+                </div>
+              </>
+            )}
           </div>
-          <div className="text-center">
-            <CheckCircle2 className="w-5 h-5 text-primary mx-auto mb-1.5" />
-            <div className="font-display text-lg font-bold">{inStock}</div>
-            <div className="text-xs text-muted-foreground">В наличии</div>
-          </div>
-          <div className="text-center">
-            <Clock className="w-5 h-5 text-primary mx-auto mb-1.5" />
-            <div className="font-display text-lg font-bold">&lt;2с</div>
-            <div className="text-xs text-muted-foreground">Доставка</div>
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Products */}
       <section className="px-4 py-8">
@@ -85,15 +100,15 @@ const ShopIndex = () => {
           {productsLoading ? (
             <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="min-w-[260px] snap-start shrink-0">
-                  <Skeleton className="h-48 rounded-xl" />
+                <div key={i} className="min-w-[260px] sm:min-w-[300px] snap-start shrink-0">
+                  <ProductCardSkeleton />
                 </div>
               ))}
             </div>
           ) : products.length > 0 ? (
             <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
               {products.slice(0, 8).map((product) => (
-                <div key={product.id} className="min-w-[260px] snap-start shrink-0">
+                <div key={product.id} className="min-w-[260px] sm:min-w-[300px] snap-start shrink-0">
                   <ShopProductCard product={product} shopId={shopId!} />
                 </div>
               ))}
