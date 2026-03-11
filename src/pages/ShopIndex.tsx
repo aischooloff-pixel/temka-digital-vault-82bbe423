@@ -14,7 +14,7 @@ const fadeIn = {
 };
 
 const ShopIndex = () => {
-  const { shop, products, productsLoading } = useShop();
+  const { shop, products, productsLoading, categories, categoriesLoading } = useShop();
   const buildPath = useStorefrontPath();
 
   if (!shop) return null;
@@ -23,7 +23,7 @@ const ShopIndex = () => {
 
   return (
     <div>
-      {/* Hero — identical structure to platform Index */}
+      {/* Hero */}
       <section className="relative overflow-hidden px-4 pt-10 pb-10">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.08),transparent_60%)]" />
         <div className="container-main mx-auto relative">
@@ -53,7 +53,7 @@ const ShopIndex = () => {
         </div>
       </section>
 
-      {/* Stats — identical structure to platform Index */}
+      {/* Stats */}
       <section className="border-y border-border/30 bg-card/30">
         <div className="container-main mx-auto px-4 py-6 grid grid-cols-3 gap-2">
           {productsLoading ? (
@@ -86,8 +86,39 @@ const ShopIndex = () => {
         </div>
       </section>
 
-      {/* Products — identical carousel structure to platform Index */}
+      {/* Categories — mirrors Index.tsx structure */}
       <section className="px-4 py-8">
+        <div className="container-main mx-auto">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="font-display text-xl font-bold">Категории</h2>
+            <Link to={buildPath('/catalog')} className="text-sm text-primary flex items-center gap-0.5">
+              Все <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+          {categoriesLoading ? (
+            <div className="grid grid-cols-4 gap-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-20 rounded-xl" />
+              ))}
+            </div>
+          ) : categories.length > 0 ? (
+            <div className="grid grid-cols-4 gap-2">
+              {categories.map((cat) => (
+                <Link key={cat.id} to={`${buildPath('/catalog')}?category=${cat.id}`}
+                  className="p-3 bg-card border border-border/50 rounded-xl text-center hover:border-primary/30 transition-all">
+                  <div className="text-2xl mb-1.5">{cat.icon}</div>
+                  <h3 className="font-display font-medium text-xs leading-tight">{cat.name}</h3>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">Категории не найдены</p>
+          )}
+        </div>
+      </section>
+
+      {/* Products — carousel */}
+      <section className="px-4 pb-8">
         <div className="container-main mx-auto">
           <div className="flex items-center justify-between mb-5">
             <h2 className="font-display text-xl font-bold">Товары</h2>
@@ -121,7 +152,7 @@ const ShopIndex = () => {
         </div>
       </section>
 
-      {/* FAQ — identical structure to platform Index */}
+      {/* FAQ */}
       <section className="px-4 py-8">
         <div className="container-main mx-auto max-w-lg">
           <h2 className="font-display text-xl font-bold mb-4">Частые вопросы</h2>

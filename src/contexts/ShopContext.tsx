@@ -32,6 +32,16 @@ export interface ShopProduct {
   updated_at: string;
 }
 
+export interface ShopCategory {
+  id: string;
+  shop_id: string;
+  name: string;
+  icon: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+}
+
 interface ShopCartItem {
   product: ShopProduct;
   quantity: number;
@@ -43,7 +53,8 @@ interface ShopContextType {
   error: string | null;
   products: ShopProduct[];
   productsLoading: boolean;
-  // Cart
+  categories: ShopCategory[];
+  categoriesLoading: boolean;
   cart: ShopCartItem[];
   addToCart: (product: ShopProduct) => void;
   removeFromCart: (productId: string) => void;
@@ -51,7 +62,6 @@ interface ShopContextType {
   clearCart: () => void;
   cartTotal: number;
   cartCount: number;
-  // Search
   searchQuery: string;
   setSearchQuery: (q: string) => void;
 }
@@ -85,6 +95,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [error, setError] = useState<string | null>(null);
   const [products, setProducts] = useState<ShopProduct[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
+  const [categories, setCategories] = useState<ShopCategory[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [cart, setCart] = useState<ShopCartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -110,13 +122,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null);
 
     const fetchShop = async () => {
-      // Try by ID first, then by slug
       let query = supabase
         .from('shops')
         .select('id, name, slug, color, hero_title, hero_description, welcome_message, support_link, status')
         .eq('status', 'active');
 
-      // UUID pattern
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(shopId);
       if (isUuid) {
         query = query.eq('id', shopId);
@@ -147,11 +157,21 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .order('sort_order');
       setProducts((prods || []) as unknown as ShopProduct[]);
       setProductsLoading(false);
+
+      // Load categories
+      setCategoriesLoading(true);
+      const { data: cats } = await supabase
+        .from('shop_categories')
+        .select('*')
+        .eq('shop_id', data.id)
+        .eq('is_active', true)
+        .order('sort_order');
+      setCategories((cats || []) as unknown as ShopCategory[]);
+      setCategoriesLoading(false);
     };
 
     fetchShop();
 
-    // Cleanup: restore original color on unmount
     return () => {
       document.documentElement.style.setProperty('--primary', '160 84% 50%');
       document.documentElement.style.setProperty('--ring', '160 84% 50%');
@@ -194,6 +214,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <ShopContext.Provider value={{
       shop, loading, error,
       products, productsLoading,
+      categories, categoriesLoading,
       cart, addToCart, removeFromCart, updateQuantity, clearCart,
       cartTotal, cartCount,
       searchQuery, setSearchQuery,
