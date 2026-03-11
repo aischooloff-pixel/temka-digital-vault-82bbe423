@@ -123,14 +123,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (data.valid_from && now < data.valid_from) { setPromoError('Промокод ещё не активен'); return; }
       if (data.valid_until && now > data.valid_until) { setPromoError('Промокод истёк'); return; }
       if (data.max_uses !== null && data.used_count >= data.max_uses) { setPromoError('Лимит использований исчерпан'); return; }
-      // Check per-user limit
+      // Check per-user limit via secure edge function
       if (telegramId && (data as any).max_uses_per_user) {
-        const { count } = await supabase
-          .from('orders')
-          .select('id', { count: 'exact', head: true })
-          .eq('telegram_id', telegramId)
-          .eq('promo_code', trimmed);
-        if (count !== null && count >= (data as any).max_uses_per_user) {
+        const { data: usageData } = await supabase.functions.invoke('get-my-data', {
+          body: { action: 'check-promo-usage', telegramId, code: trimmed },
+        });
+        const count = usageData?.count || 0;
+        if (count >= (data as any).max_uses_per_user) {
           setPromoError('Вы уже использовали этот промокод максимальное число раз');
           return;
         }
