@@ -16,7 +16,7 @@ const sortOptions = [
 const ShopCatalog = () => {
   const { products, productsLoading, searchQuery, setSearchQuery, shop } = useShop();
   const shopId = shop?.id || '';
-  const { products, productsLoading, searchQuery, setSearchQuery } = useShop();
+  
   const [localSearch, setLocalSearch] = useState('');
   const [sortBy, setSortBy] = useState('default');
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 500]);
