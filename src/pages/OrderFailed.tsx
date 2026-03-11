@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { XCircle, MessageCircle, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSupportUsername } from '@/hooks/useSupportUsername';
+import { useStorefrontPath } from '@/contexts/StorefrontContext';
 
 const OrderFailed = () => {
   const { data: supportUsername } = useSupportUsername();
