@@ -26,7 +26,7 @@ const ShopProductCard = ({ product, shopId }: Props) => {
 
   return (
     <div className={`group relative bg-card border border-border/50 rounded-xl overflow-hidden hover-lift hover:border-primary/30 transition-all duration-300 ${outOfStock ? 'opacity-60' : ''}`}>
-      <Link to={`/shop/${shopId}/product/${product.id}`} className="block">
+      <Link to={buildPath(`/product/${product.id}`)} className="block">
         <div className="relative h-40 sm:h-48 bg-secondary/50 flex items-center justify-center overflow-hidden">
           {product.image ? (
             <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
