@@ -22,6 +22,18 @@ import About from "./pages/About";
 import Legal from "./pages/Legal";
 import { Delivery, Guarantees } from "./pages/InfoPages";
 import NotFound from "./pages/NotFound";
+import { Outlet } from "react-router-dom";
+
+const MainLayout = () => (
+  <div className="min-h-screen flex flex-col">
+    <Header />
+    <main className="flex-1 pb-14">
+      <Outlet />
+    </main>
+    <Footer />
+    <BottomNav />
+  </div>
+);
 
 // Shop (seller storefront)
 import ShopLayout from "./pages/ShopLayout";
