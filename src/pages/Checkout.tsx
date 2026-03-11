@@ -33,7 +33,7 @@ const Checkout = () => {
       <div className="container-main mx-auto px-4 py-16 text-center">
         <div className="text-5xl mb-4">🛒</div>
         <h2 className="font-display text-xl font-bold">Нечего оформлять</h2>
-        <Link to="/catalog"><Button variant="hero" className="mt-4">Перейти в каталог</Button></Link>
+        <Link to={buildPath('/catalog')}><Button variant="hero" className="mt-4">Перейти в каталог</Button></Link>
       </div>
     );
   }
