@@ -410,7 +410,7 @@ const Account = () => {
               size="lg"
               className="w-full gap-2"
               onClick={handleTopup}
-              disabled={!topupAmount || Number(topupAmount) <= 0 || topupProcessing}
+              disabled={!topupAmount || Number(topupAmount) < MIN_TOPUP || Number(topupAmount) > MAX_TOPUP || topupProcessing}
             >
               {topupProcessing ? (
                 <><Loader2 className="w-4 h-4 animate-spin" /> Создание инвойса...</>
