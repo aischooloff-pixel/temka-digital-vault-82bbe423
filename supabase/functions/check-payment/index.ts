@@ -94,15 +94,40 @@ serve(async (req) => {
     if (invoice.status === "paid" && order.payment_status !== "paid") {
       console.log("Invoice paid but order not updated — processing now");
 
-      // Update order
-      await supabase
+      // Update order — only if not already paid (idempotency guard)
+      const { data: updatedRows } = await supabase
         .from("orders")
         .update({
           status: "paid",
           payment_status: "paid",
           updated_at: new Date().toISOString(),
         })
-        .eq("id", orderId);
+        .eq("id", orderId)
+        .neq("payment_status", "paid")
+        .select("id");
+
+      if (!updatedRows || updatedRows.length === 0) {
+        console.log("Order already processed (race condition prevented):", orderId);
+        return new Response(
+          JSON.stringify({ status: "paid", paymentStatus: "paid" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Increment promo used_count on successful payment
+      if (order.promo_code) {
+        const { data: promo } = await supabase
+          .from("promocodes")
+          .select("id, used_count")
+          .eq("code", order.promo_code)
+          .maybeSingle();
+        if (promo) {
+          await supabase
+            .from("promocodes")
+            .update({ used_count: (promo.used_count || 0) + 1 })
+            .eq("id", promo.id);
+        }
+      }
 
       // Deduct balance if needed
       const balanceUsed = Number(order.balance_used || 0);
