@@ -323,7 +323,7 @@ serve(async (req) => {
             .update({ stock: remaining || 0, updated_at: new Date().toISOString() })
             .eq("id", item.product_id);
 
-          if (deliveredCount < item.quantity) allDelivered = false;
+          if (reserved.length < item.quantity) allDelivered = false;
         } else {
           allDelivered = false;
         }
