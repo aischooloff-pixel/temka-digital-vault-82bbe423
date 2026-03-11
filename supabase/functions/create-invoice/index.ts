@@ -124,8 +124,29 @@ serve(async (req) => {
       }
     }
 
-    // Create CryptoBot invoice (amount is already the remaining after balance deduction)
+    // Fetch dynamic exchange rate from CryptoBot
     const invoiceAmount = parseFloat(amount);
+    
+    const ratesResponse = await fetch(`${CRYPTOBOT_API_URL}/getExchangeRates`, {
+      headers: { "Crypto-Pay-API-Token": cryptobotToken },
+    });
+    const ratesData = await ratesResponse.json();
+    
+    let cryptoAmount = String(invoiceAmount);
+    let cryptoCurrency = "USDT";
+    
+    if (ratesData.ok && ratesData.result) {
+      // Find USD → USDT rate
+      const rate = ratesData.result.find(
+        (r: any) => r.source === "USD" && r.target === "USDT" && r.is_valid
+      );
+      if (rate) {
+        cryptoAmount = (invoiceAmount * parseFloat(rate.rate)).toFixed(2);
+      }
+    }
+    
+    console.log(`Converting $${invoiceAmount} USD → ${cryptoAmount} ${cryptoCurrency}`);
+    
     const response = await fetch(`${CRYPTOBOT_API_URL}/createInvoice`, {
       method: "POST",
       headers: {
@@ -133,9 +154,9 @@ serve(async (req) => {
         "Crypto-Pay-API-Token": cryptobotToken,
       },
       body: JSON.stringify({
-        currency_type: "fiat",
-        fiat: currency || "USD",
-        amount: String(invoiceAmount),
+        currency_type: "crypto",
+        asset: cryptoCurrency,
+        amount: cryptoAmount,
         description: description || "Заказ в магазине",
         payload: JSON.stringify({ orderId: order.id, orderNumber, telegramUserId, balanceUsed: balanceUsed || 0 }),
         paid_btn_name: "callback",
