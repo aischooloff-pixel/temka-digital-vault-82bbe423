@@ -4,134 +4,112 @@ import { supabase } from '@/integrations/supabase/client';
 import { useTelegram } from '@/contexts/TelegramContext';
 import type { DbOrder, DbOrderItem, DbBalanceHistory, DbInventoryItem } from '@/types/database';
 
+// Helper to call the secure get-my-data edge function
+async function fetchMyData(initData: string, action: string, extra?: Record<string, unknown>) {
+  const { data, error } = await supabase.functions.invoke('get-my-data', {
+    body: { initData, action, ...extra },
+  });
+  if (error) throw new Error(error.message);
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
 export const useOrders = () => {
-  const { user } = useTelegram();
+  const { user, initData } = useTelegram();
   const queryClient = useQueryClient();
 
   const query = useQuery({
     queryKey: ['orders', user?.id],
     queryFn: async () => {
-      if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('telegram_id', user.id)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data as unknown as DbOrder[];
+      if (!initData) return [];
+      const result = await fetchMyData(initData, 'orders');
+      return (result.orders || []) as DbOrder[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!initData,
   });
 
   useEffect(() => {
     if (!user?.id) return;
-    const channel = supabase
-      .channel('orders-realtime')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'orders',
-        filter: `telegram_id=eq.${user.id}`,
-      }, () => {
-        queryClient.invalidateQueries({ queryKey: ['orders', user.id] });
-      })
-      .subscribe();
+    // Realtime still works via service_role channel subscription
+    // But since anon can't read orders anymore, we just refetch periodically
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ['orders', user.id] });
+    }, 15000);
 
-    return () => { supabase.removeChannel(channel); };
+    return () => clearInterval(interval);
   }, [user?.id, queryClient]);
 
   return query;
 };
 
 export const useOrderItems = (orderId: string) => {
+  const { initData } = useTelegram();
+
   return useQuery({
     queryKey: ['order-items', orderId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('order_items')
-        .select('*')
-        .eq('order_id', orderId);
-      if (error) throw error;
-      return data as unknown as DbOrderItem[];
+      if (!initData) return [];
+      const result = await fetchMyData(initData, 'order-items', { orderId });
+      return (result.items || []) as DbOrderItem[];
     },
-    enabled: !!orderId,
+    enabled: !!orderId && !!initData,
   });
 };
 
 export const useOrderInventoryItems = (orderId: string) => {
+  const { initData } = useTelegram();
+
   return useQuery({
     queryKey: ['order-inventory', orderId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('inventory_items')
-        .select('*')
-        .eq('order_id', orderId);
-      if (error) throw error;
-      return data as unknown as DbInventoryItem[];
+      if (!initData) return [];
+      const result = await fetchMyData(initData, 'order-inventory', { orderId });
+      return (result.items || []) as DbInventoryItem[];
     },
-    enabled: !!orderId,
+    enabled: !!orderId && !!initData,
   });
 };
 
 export const useUserStats = () => {
-  const { user } = useTelegram();
+  const { user, initData } = useTelegram();
 
   return useQuery({
     queryKey: ['user-stats', user?.id],
     queryFn: async () => {
-      if (!user?.id) return { orderCount: 0, totalSpent: 0 };
-      const { data, error } = await supabase
-        .from('orders')
-        .select('total_amount, status')
-        .eq('telegram_id', user.id);
-      if (error) throw error;
-      const orders = data as unknown as Pick<DbOrder, 'total_amount' | 'status'>[];
-      const paid = orders.filter(o => ['paid', 'processing', 'delivered', 'completed'].includes(o.status));
-      return {
-        orderCount: orders.length,
-        totalSpent: paid.reduce((s, o) => s + Number(o.total_amount), 0),
-      };
+      if (!initData) return { orderCount: 0, totalSpent: 0 };
+      const result = await fetchMyData(initData, 'stats');
+      return result.stats as { orderCount: number; totalSpent: number };
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!initData,
   });
 };
 
 export const useUserProfile = () => {
-  const { user } = useTelegram();
+  const { user, initData } = useTelegram();
 
   return useQuery({
     queryKey: ['user-profile', user?.id],
     queryFn: async () => {
-      if (!user?.id) return null;
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('balance, role, is_blocked, internal_note')
-        .eq('telegram_id', user.id)
-        .maybeSingle();
-      if (error) throw error;
-      return data as { balance: number; role: string; is_blocked: boolean; internal_note: string | null } | null;
+      if (!initData) return null;
+      const result = await fetchMyData(initData, 'profile');
+      return result.profile as { balance: number; role: string; is_blocked: boolean } | null;
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!initData,
     staleTime: 0,
     refetchOnMount: 'always',
   });
 };
 
 export const useBalanceHistory = () => {
-  const { user } = useTelegram();
+  const { user, initData } = useTelegram();
 
   return useQuery({
     queryKey: ['balance-history', user?.id],
     queryFn: async () => {
-      if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from('balance_history')
-        .select('*')
-        .eq('telegram_id', user.id)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data as unknown as DbBalanceHistory[];
+      if (!initData) return [];
+      const result = await fetchMyData(initData, 'balance-history');
+      return (result.history || []) as DbBalanceHistory[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!initData,
   });
 };
