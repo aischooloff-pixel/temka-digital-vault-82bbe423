@@ -55,6 +55,8 @@ import ShopIndex from "./pages/ShopIndex";
 import ShopCatalog from "./pages/ShopCatalog";
 import ShopProductDetails from "./pages/ShopProductDetails";
 import ShopCart from "./pages/ShopCart";
+import ShopCheckout from "./pages/ShopCheckout";
+import ShopOrderSuccess from "./pages/ShopOrderSuccess";
 
 const queryClient = new QueryClient();
 
