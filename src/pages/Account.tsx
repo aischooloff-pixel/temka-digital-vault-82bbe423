@@ -76,15 +76,33 @@ const Account = () => {
   const username = user?.username ? `@${user.username}` : '';
   const avatar = user?.firstName?.[0]?.toUpperCase() || 'T';
 
+  const MIN_TOPUP = 1;
+  const MAX_TOPUP = 1000;
+
   const handleTopup = async () => {
     const amount = Number(topupAmount);
     if (!amount || amount <= 0 || !user?.id) return;
+    if (amount < MIN_TOPUP) {
+      toast.error(`Минимальная сумма пополнения — $${MIN_TOPUP}`);
+      haptic.notification('error');
+      return;
+    }
+    if (amount > MAX_TOPUP) {
+      toast.error(`Максимальная сумма пополнения — $${MAX_TOPUP}`);
+      haptic.notification('error');
+      return;
+    }
     setTopupProcessing(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-topup-invoice', {
         body: { initData, amount },
       });
-      if (error) throw new Error(error.message);
+      // supabase.functions.invoke returns error for non-2xx but data may contain the actual message
+      if (error) {
+        // Try to extract meaningful message from the response
+        const msg = data?.error || error.message || 'Ошибка пополнения';
+        throw new Error(msg);
+      }
       if (data?.error) throw new Error(data.error);
 
       if (isInTelegram && data?.payUrl) {
@@ -375,11 +393,12 @@ const Account = () => {
               <label className="text-xs text-muted-foreground mb-1.5 block">Или введите сумму</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                <Input
+              <Input
                   type="number"
-                  min="1"
+                  min={MIN_TOPUP}
+                  max={MAX_TOPUP}
                   step="0.01"
-                  placeholder="0.00"
+                  placeholder={`от $${MIN_TOPUP}`}
                   value={topupAmount}
                   onChange={e => setTopupAmount(e.target.value)}
                   className="pl-7"
@@ -391,7 +410,7 @@ const Account = () => {
               size="lg"
               className="w-full gap-2"
               onClick={handleTopup}
-              disabled={!topupAmount || Number(topupAmount) <= 0 || topupProcessing}
+              disabled={!topupAmount || Number(topupAmount) < MIN_TOPUP || Number(topupAmount) > MAX_TOPUP || topupProcessing}
             >
               {topupProcessing ? (
                 <><Loader2 className="w-4 h-4 animate-spin" /> Создание инвойса...</>
