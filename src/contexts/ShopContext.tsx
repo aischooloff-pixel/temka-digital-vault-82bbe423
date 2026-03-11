@@ -133,9 +133,18 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Apply color theme
       const hsl = hexToHSL(data.color || '#2B7FFF');
+      const parts = hsl.split(' ');
+      const h = parseInt(parts[0]);
+      const s = parseInt(parts[1]);
+      const l = parseInt(parts[2]);
       document.documentElement.style.setProperty('--primary', hsl);
       document.documentElement.style.setProperty('--ring', hsl);
       document.documentElement.style.setProperty('--accent', hsl);
+      // Adapt gradient-primary to shop color
+      document.documentElement.style.setProperty(
+        '--gradient-primary',
+        `linear-gradient(135deg, hsl(${h}, ${s}%, ${l}%), hsl(${(h + 20) % 360}, ${Math.max(s - 14, 40)}%, ${Math.max(l - 5, 30)}%))`
+      );
 
       // Load products
       setProductsLoading(true);
@@ -156,6 +165,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       document.documentElement.style.setProperty('--primary', '160 84% 50%');
       document.documentElement.style.setProperty('--ring', '160 84% 50%');
       document.documentElement.style.setProperty('--accent', '160 60% 40%');
+      document.documentElement.style.setProperty('--gradient-primary', 'linear-gradient(135deg, hsl(160, 84%, 50%), hsl(180, 70%, 45%))');
     };
   }, [shopId]);
 
