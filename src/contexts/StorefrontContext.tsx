@@ -15,11 +15,20 @@ export const StorefrontProvider: React.FC<{
   shopName?: string;
   supportLink?: string;
   children: React.ReactNode;
-}> = ({ basePath, cartCount, shopName, supportLink, children }) => (
-  <StorefrontContext.Provider value={{ basePath, cartCount, shopName, supportLink }}>
-    {children}
-  </StorefrontContext.Provider>
-);
+}> = ({ basePath, cartCount, shopName, supportLink, children }) => {
+  // Normalize support link: ensure it's an absolute URL
+  const normalizedSupportLink = supportLink
+    ? supportLink.startsWith('http://') || supportLink.startsWith('https://')
+      ? supportLink
+      : `https://${supportLink}`
+    : undefined;
+
+  return (
+    <StorefrontContext.Provider value={{ basePath, cartCount, shopName, supportLink: normalizedSupportLink }}>
+      {children}
+    </StorefrontContext.Provider>
+  );
+};
 
 export const useStorefront = () => useContext(StorefrontContext);
 
