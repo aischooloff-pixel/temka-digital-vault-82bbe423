@@ -72,7 +72,7 @@ serve(async (req) => {
       }
 
       if (orderData.type === "topup") {
-        await handleTopup(supabase, orderData, invoiceId);
+        await handleTopup(supabase, orderData, invoiceId, orderData.shopId || null);
       } else if (shopId && orderData.orderId) {
         await handleShopOrderPayment(supabase, invoice, orderData, shopId);
       } else if (orderData.orderId) {
