@@ -14,6 +14,7 @@ const OrderSuccess = () => {
   const { data: orders } = useOrders();
   const queryClient = useQueryClient();
   const { data: supportUsername } = useSupportUsername();
+  const { initData } = useTelegram();
   const [polling, setPolling] = useState(true);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [expired, setExpired] = useState(false);
