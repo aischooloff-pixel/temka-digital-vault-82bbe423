@@ -112,10 +112,16 @@ async function connectBotToken(rawToken: string, shopId: string): Promise<{ ok: 
 
   // 2. Encrypt token
   const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
-  if (!encKey) return { ok: false, message: "❌ Ошибка конфигурации сервера." };
+  if (!encKey) {
+    console.error("connectBotToken: TOKEN_ENCRYPTION_KEY not set");
+    return { ok: false, message: "❌ Ошибка конфигурации сервера (ключ шифрования)." };
+  }
 
-  const { data: enc } = await db().rpc("encrypt_token", { p_token: rawToken, p_key: encKey });
-  if (!enc) return { ok: false, message: "❌ Ошибка шифрования токена." };
+  const { data: enc, error: encError } = await db().rpc("encrypt_token", { p_token: rawToken, p_key: encKey });
+  if (encError || !enc) {
+    console.error("connectBotToken: encryption failed", encError);
+    return { ok: false, message: `❌ Ошибка шифрования токена: ${encError?.message || "unknown"}` };
+  }
 
   // 3. Set webhook
   const webhookResult = await setupSellerWebhook(rawToken, shopId);
