@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -15,7 +14,8 @@ const sortOptions = [
 ];
 
 const ShopCatalog = () => {
-  const { shopId } = useParams();
+  const { products, productsLoading, searchQuery, setSearchQuery, shop } = useShop();
+  const shopId = shop?.id || '';
   const { products, productsLoading, searchQuery, setSearchQuery } = useShop();
   const [localSearch, setLocalSearch] = useState('');
   const [sortBy, setSortBy] = useState('default');
