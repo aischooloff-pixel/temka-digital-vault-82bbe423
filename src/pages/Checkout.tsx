@@ -93,7 +93,7 @@ const Checkout = () => {
         } else if (data?.payUrl) {
           window.open(data.payUrl, '_blank');
           clearCart();
-          navigate(`/order-success?order=${data.orderNumber || orderNumber}`);
+          navigate(`${buildPath('/order-success')}?order=${data.orderNumber || orderNumber}`);
         } else {
           throw new Error('Не удалось создать инвойс');
         }
