@@ -79,6 +79,7 @@ const App = () => (
                 <Route path="terms" element={<Legal />} />
                 <Route path="delivery" element={<Delivery />} />
                 <Route path="guarantees" element={<Guarantees />} />
+                <Route path="*" element={<NotFound />} />
               </Route>
 
               {/* Main platform */}

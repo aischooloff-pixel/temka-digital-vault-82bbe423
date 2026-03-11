@@ -117,36 +117,6 @@ const ShopIndex = () => {
         </div>
       </section>
 
-      {/* Products — carousel (hidden when empty per data-visibility-policy) */}
-      {(productsLoading || products.length > 0) && (
-        <section className="px-4 pb-8">
-          <div className="container-main mx-auto">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="font-display text-xl font-bold">Товары</h2>
-              <Link to={buildPath('/catalog')} className="text-sm text-primary flex items-center gap-0.5">
-                Все <ChevronRight className="w-4 h-4" />
-              </Link>
-            </div>
-            {productsLoading ? (
-              <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="min-w-[260px] sm:min-w-[300px] snap-start shrink-0">
-                    <ProductCardSkeleton />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
-                {products.slice(0, 8).map((product) => (
-                  <div key={product.id} className="min-w-[260px] sm:min-w-[300px] snap-start shrink-0">
-                    <ShopProductCard product={product} shopId={shop.id} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-      )}
 
       {/* FAQ */}
       <section className="px-4 py-8">
