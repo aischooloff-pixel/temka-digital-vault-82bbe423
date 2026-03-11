@@ -6,6 +6,7 @@ import { useOrders } from '@/hooks/useOrders';
 import { useSupportUsername } from '@/hooks/useSupportUsername';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
+import { useTelegram } from '@/contexts/TelegramContext';
 
 const OrderSuccess = () => {
   const [searchParams] = useSearchParams();
