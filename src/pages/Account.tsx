@@ -99,12 +99,11 @@ const Account = () => {
     setTopupProcessing(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-topup-invoice', {
-        body: { initData, amount },
+        body: { initData, amount, shopId },
       });
-      // supabase.functions.invoke returns error for non-2xx but data may contain the actual message
+      // Edge function non-2xx: error is set, but data may also contain the parsed JSON body
       if (error) {
-        // Try to extract meaningful message from the response
-        const msg = data?.error || error.message || 'Ошибка пополнения';
+        const msg = data?.error || 'Ошибка пополнения. Попробуйте позже.';
         throw new Error(msg);
       }
       if (data?.error) throw new Error(data.error);
