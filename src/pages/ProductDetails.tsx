@@ -66,11 +66,11 @@ const ProductDetails = () => {
     <div className="container-main mx-auto px-4 py-6 sm:py-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground mb-4 sm:mb-6 overflow-x-auto whitespace-nowrap">
-        <Link to="/" className="hover:text-foreground shrink-0">Главная</Link>
+        <Link to={buildPath('/')} className="hover:text-foreground shrink-0">Главная</Link>
         <ChevronRight className="w-3 h-3 shrink-0" />
-        <Link to="/catalog" className="hover:text-foreground shrink-0">Каталог</Link>
+        <Link to={buildPath('/catalog')} className="hover:text-foreground shrink-0">Каталог</Link>
         <ChevronRight className="w-3 h-3 shrink-0" />
-        <Link to={`/catalog?category=${product.category_id}`} className="hover:text-foreground capitalize shrink-0">{product.category_id?.replace('-', ' ')}</Link>
+        <Link to={`${buildPath('/catalog')}?category=${product.category_id}`} className="hover:text-foreground capitalize shrink-0">{product.category_id?.replace('-', ' ')}</Link>
         <ChevronRight className="w-3 h-3 shrink-0" />
         <span className="text-foreground truncate">{product.title}</span>
       </div>
