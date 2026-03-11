@@ -48,16 +48,54 @@ serve(async (req) => {
 
     const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
     if (!botToken) return jsonRes({ error: "Not configured" }, 500);
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    // Public actions (no auth required)
+    if (action === "shop-stats") {
+      const [usersRes, ordersRes, productsRes, reviewsRes] = await Promise.all([
+        supabase.from("user_profiles").select("id", { count: "exact", head: true }),
+        supabase.from("orders").select("id, status"),
+        supabase.from("products").select("id", { count: "exact", head: true }).eq("is_active", true),
+        supabase.from("reviews").select("id", { count: "exact", head: true }).eq("verified", true),
+      ]);
+      const orders = ordersRes.data || [];
+      const completedOrders = orders.filter(o =>
+        ["paid", "completed", "delivered", "processing"].includes(o.status)
+      ).length;
+      return jsonRes({
+        stats: {
+          users: usersRes.count || 0,
+          completedOrders,
+          totalOrders: orders.length,
+          activeProducts: productsRes.count || 0,
+          approvedReviews: reviewsRes.count || 0,
+        },
+      });
+    }
+
+    if (action === "check-promo-usage") {
+      // Check per-user promo usage count (requires telegram_id and code)
+      const { telegramId, code } = await req.json().catch(() => ({}));
+      if (!telegramId || !code) return jsonRes({ count: 0 });
+      const { count } = await supabase
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("telegram_id", telegramId)
+        .eq("promo_code", code);
+      return jsonRes({ count: count || 0 });
+    }
+
+    // Authenticated actions
     if (!initData) return jsonRes({ error: "Authentication required" }, 401);
 
     const tgUser = verifyAndExtractUser(initData, botToken);
     if (!tgUser) return jsonRes({ error: "Invalid authentication" }, 401);
 
     const telegramId = tgUser.id;
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
 
     switch (action) {
       case "profile": {
