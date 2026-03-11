@@ -42,6 +42,19 @@ export interface ShopCategory {
   created_at: string;
 }
 
+export interface ShopReview {
+  id: string;
+  shop_id: string;
+  product_id: string | null;
+  author: string;
+  avatar: string;
+  rating: number;
+  text: string;
+  verified: boolean;
+  moderation_status: string;
+  created_at: string;
+}
+
 interface ShopCartItem {
   product: ShopProduct;
   quantity: number;
@@ -55,6 +68,8 @@ interface ShopContextType {
   productsLoading: boolean;
   categories: ShopCategory[];
   categoriesLoading: boolean;
+  reviews: ShopReview[];
+  reviewsLoading: boolean;
   cart: ShopCartItem[];
   addToCart: (product: ShopProduct) => void;
   removeFromCart: (productId: string) => void;
@@ -97,6 +112,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [productsLoading, setProductsLoading] = useState(true);
   const [categories, setCategories] = useState<ShopCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [reviews, setReviews] = useState<ShopReview[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
   const [cart, setCart] = useState<ShopCartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -168,6 +185,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .order('sort_order');
       setCategories((cats || []) as unknown as ShopCategory[]);
       setCategoriesLoading(false);
+
+      // Load reviews (approved only)
+      setReviewsLoading(true);
+      const { data: revs } = await supabase
+        .from('public_shop_reviews' as any)
+        .select('*')
+        .eq('shop_id', data.id)
+        .eq('moderation_status', 'approved')
+        .order('created_at', { ascending: false });
+      setReviews((revs || []) as unknown as ShopReview[]);
+      setReviewsLoading(false);
     };
 
     fetchShop();
@@ -215,6 +243,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       shop, loading, error,
       products, productsLoading,
       categories, categoriesLoading,
+      reviews, reviewsLoading,
       cart, addToCart, removeFromCart, updateQuantity, clearCart,
       cartTotal, cartCount,
       searchQuery, setSearchQuery,

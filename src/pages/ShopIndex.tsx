@@ -1,23 +1,132 @@
 import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Zap, Shield, ChevronRight, ArrowRight, CheckCircle2, Package, Clock } from 'lucide-react';
+import { Zap, Shield, ChevronRight, ArrowRight, CheckCircle2, Package, Clock, Star, Send, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '@/components/ui/drawer';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useShop } from '@/contexts/ShopContext';
+import type { ShopReview } from '@/contexts/ShopContext';
 import { useStorefrontPath } from '@/contexts/StorefrontContext';
+import { useTelegram } from '@/contexts/TelegramContext';
+import { supabase } from '@/integrations/supabase/client';
 
 const fadeIn = {
   hidden: { opacity: 0, y: 16 },
   visible: (i: number) => ({ opacity: 1, y: 0, transition: { delay: i * 0.08, duration: 0.4 } })
 };
 
+const ReviewCard = ({ review }: { review: ShopReview }) => (
+  <div className="bg-card border border-border/50 rounded-xl p-4">
+    <div className="flex items-center gap-2 mb-2">
+      {review.avatar ? (
+        <img src={review.avatar} alt={review.author} className="w-7 h-7 rounded-full object-cover" />
+      ) : (
+        <div className="w-7 h-7 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">
+          {review.author?.[0]?.toUpperCase() || '?'}
+        </div>
+      )}
+      <div className="flex-1">
+        <div className="text-sm font-medium">{review.author}</div>
+        <div className="flex gap-0.5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Star key={i} className={`w-3 h-3 ${i < review.rating ? 'text-gold fill-gold' : 'text-muted-foreground'}`} />
+          ))}
+        </div>
+      </div>
+      <div className="text-[10px] text-muted-foreground">
+        {new Date(review.created_at).toLocaleDateString('ru-RU')}
+      </div>
+    </div>
+    {review.text && <p className="text-sm text-muted-foreground">{review.text}</p>}
+  </div>
+);
+
 const ShopIndex = () => {
-  const { shop, products, productsLoading, categories, categoriesLoading } = useShop();
+  const { shop, products, productsLoading, categories, categoriesLoading, reviews, reviewsLoading } = useShop();
   const buildPath = useStorefrontPath();
+  const { user, initData } = useTelegram();
+  const queryClient = useQueryClient();
+
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewText, setReviewText] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewSuccess, setReviewSuccess] = useState(false);
+  const [reviewError, setReviewError] = useState('');
+  const [deletingReview, setDeletingReview] = useState(false);
+  const [showAllReviews, setShowAllReviews] = useState(false);
+  const [reviewFilter, setReviewFilter] = useState<'all' | 'positive' | 'negative'>('all');
 
   if (!shop) return null;
 
   const inStock = products.filter(p => p.stock > 0).length;
+
+  // Check if user has already reviewed this shop
+  const { data: userReviewCheck } = useQuery({
+    queryKey: ['shop-user-review-check', shop.id, user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('shop_reviews' as any)
+        .select('id')
+        .eq('shop_id', shop.id)
+        .eq('telegram_id', user!.id)
+        .limit(1);
+      return data && data.length > 0 ? (data[0] as any).id : null;
+    },
+    enabled: !!user?.id && !!shop.id,
+  });
+  const userHasReview = !!userReviewCheck;
+  const userReviewId = userReviewCheck as string | null;
+
+  const handleDeleteReview = async () => {
+    if (!userReviewId || !user?.id) return;
+    setDeletingReview(true);
+    try {
+      const res = await supabase.functions.invoke('submit-review', {
+        body: { action: 'delete', initData, reviewId: userReviewId, shopId: shop.id },
+      });
+      if (res.data?.error) throw new Error(res.data.error);
+      if (res.error) throw res.error;
+      queryClient.invalidateQueries({ queryKey: ['shop-user-review-check'] });
+    } catch (e: any) {
+      console.error('Delete review error:', e);
+    } finally {
+      setDeletingReview(false);
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    if (!reviewText.trim() || !user?.id) return;
+    setReviewSubmitting(true);
+    setReviewError('');
+    try {
+      const res = await supabase.functions.invoke('submit-review', {
+        body: {
+          initData,
+          rating: reviewRating,
+          text: reviewText.trim(),
+          shopId: shop.id,
+        },
+      });
+      if (res.data?.error) {
+        setReviewError(res.data.error);
+        return;
+      }
+      if (res.error) throw res.error;
+      setReviewSuccess(true);
+      setReviewText('');
+      setShowReviewForm(false);
+      setTimeout(() => setReviewSuccess(false), 5000);
+    } catch (e: any) {
+      console.error('Review submit error:', e);
+      setReviewError(e.message || 'Ошибка отправки');
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
 
   return (
     <div>
@@ -84,7 +193,7 @@ const ShopIndex = () => {
         </div>
       </section>
 
-      {/* Categories — mirrors Index.tsx structure */}
+      {/* Categories */}
       <section className="px-4 py-8">
         <div className="container-main mx-auto">
           <div className="flex items-center justify-between mb-5">
@@ -115,6 +224,138 @@ const ShopIndex = () => {
         </div>
       </section>
 
+      {/* Reviews */}
+      <section className="px-4 py-8">
+        <div className="container-main mx-auto max-w-lg">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="font-display text-xl font-bold">Отзывы</h2>
+            <div className="flex items-center gap-2">
+              {user && !userHasReview && (
+                <Button variant="outline" size="sm" onClick={() => setShowReviewForm(!showReviewForm)}>
+                  ✍️ Оставить
+                </Button>
+              )}
+              {user && userHasReview && (
+                <Button variant="ghost" size="sm" onClick={handleDeleteReview} disabled={deletingReview} className="text-destructive hover:text-destructive">
+                  <Trash2 className="w-3 h-3 mr-1" /> {deletingReview ? '...' : 'Удалить'}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {reviewSuccess && (
+            <div className="mb-4 p-3 bg-primary/10 border border-primary/30 rounded-xl text-sm text-primary">
+              ✅ Спасибо! Ваш отзыв отправлен.
+            </div>
+          )}
+
+          {reviewError && (
+            <div className="mb-4 p-3 bg-destructive/10 border border-destructive/30 rounded-xl text-sm text-destructive">
+              {reviewError}
+            </div>
+          )}
+
+          {showReviewForm && (
+            <div className="mb-4 bg-card border border-border/50 rounded-xl p-4 space-y-3">
+              <div>
+                <div className="text-xs text-muted-foreground mb-1.5">Оценка</div>
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button key={n} onClick={() => setReviewRating(n)} className="p-0.5">
+                      <Star className={`w-6 h-6 ${n <= reviewRating ? 'text-gold fill-gold' : 'text-muted-foreground'}`} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <textarea
+                placeholder="Напишите ваш отзыв..."
+                value={reviewText}
+                onChange={(e) => setReviewText(e.target.value)}
+                className="w-full h-20 px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+              />
+              <Button size="sm" onClick={handleSubmitReview} disabled={reviewSubmitting || !reviewText.trim()}>
+                <Send className="w-3 h-3 mr-1" /> {reviewSubmitting ? 'Отправка...' : 'Отправить'}
+              </Button>
+            </div>
+          )}
+
+          {reviewsLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
+            </div>
+          ) : reviews && reviews.length > 0 ? (
+            <>
+              <div className="space-y-3">
+                {reviews.slice(0, 3).map((review) => (
+                  <ReviewCard key={review.id} review={review} />
+                ))}
+              </div>
+              {reviews.length > 3 && (
+                <div className="text-center mt-4">
+                  <Button variant="outline" size="sm" onClick={() => setShowAllReviews(true)}>
+                    Все отзывы ({reviews.length}) <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-6">
+              <p className="text-sm text-muted-foreground">Отзывов пока нет</p>
+              {user && !showReviewForm && (
+                <Button variant="outline" size="sm" className="mt-2" onClick={() => setShowReviewForm(true)}>
+                  Будьте первым!
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* All Reviews Drawer */}
+      <Drawer open={showAllReviews} onOpenChange={setShowAllReviews}>
+        <DrawerContent className="max-h-[85vh]">
+          <DrawerHeader className="pb-2">
+            <DrawerTitle className="text-base">Все отзывы</DrawerTitle>
+          </DrawerHeader>
+          <div className="px-4 pb-2 flex gap-2">
+            {(['all', 'positive', 'negative'] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setReviewFilter(f)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                  reviewFilter === f
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-secondary/50 border-border/50 hover:bg-secondary'
+                }`}
+              >
+                {f === 'all' ? 'Все' : f === 'positive' ? '⭐ Положительные' : '👎 Отрицательные'}
+              </button>
+            ))}
+          </div>
+          <ScrollArea className="px-4 pb-4 max-h-[60vh]">
+            <div className="space-y-3">
+              {(reviews || [])
+                .filter((r) => {
+                  if (reviewFilter === 'positive') return r.rating >= 4;
+                  if (reviewFilter === 'negative') return r.rating <= 3;
+                  return true;
+                })
+                .map((review) => (
+                  <ReviewCard key={review.id} review={review} />
+                ))}
+              {reviews && reviewFilter !== 'all' &&
+                (reviews || []).filter((r) => (reviewFilter === 'positive' ? r.rating >= 4 : r.rating <= 3)).length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-6">Нет отзывов в этой категории</p>
+                )}
+            </div>
+          </ScrollArea>
+          <div className="p-4 pt-2">
+            <DrawerClose asChild>
+              <Button variant="outline" size="sm" className="w-full">Закрыть</Button>
+            </DrawerClose>
+          </div>
+        </DrawerContent>
+      </Drawer>
 
       {/* FAQ */}
       <section className="px-4 py-8">

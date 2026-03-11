@@ -827,6 +827,63 @@ export type Database = {
           },
         ]
       }
+      shop_reviews: {
+        Row: {
+          author: string
+          avatar: string
+          created_at: string
+          id: string
+          moderation_status: string
+          product_id: string | null
+          rating: number
+          shop_id: string
+          telegram_id: number
+          text: string
+          verified: boolean
+        }
+        Insert: {
+          author: string
+          avatar?: string
+          created_at?: string
+          id?: string
+          moderation_status?: string
+          product_id?: string | null
+          rating: number
+          shop_id: string
+          telegram_id: number
+          text?: string
+          verified?: boolean
+        }
+        Update: {
+          author?: string
+          avatar?: string
+          created_at?: string
+          id?: string
+          moderation_status?: string
+          product_id?: string | null
+          rating?: number
+          shop_id?: string
+          telegram_id?: number
+          text?: string
+          verified?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_reviews_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "shop_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_reviews_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shop_settings: {
         Row: {
           key: string
@@ -1050,6 +1107,60 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_shop_reviews: {
+        Row: {
+          author: string | null
+          avatar: string | null
+          created_at: string | null
+          id: string | null
+          moderation_status: string | null
+          product_id: string | null
+          rating: number | null
+          shop_id: string | null
+          text: string | null
+          verified: boolean | null
+        }
+        Insert: {
+          author?: string | null
+          avatar?: string | null
+          created_at?: string | null
+          id?: string | null
+          moderation_status?: string | null
+          product_id?: string | null
+          rating?: number | null
+          shop_id?: string | null
+          text?: string | null
+          verified?: boolean | null
+        }
+        Update: {
+          author?: string | null
+          avatar?: string | null
+          created_at?: string | null
+          id?: string | null
+          moderation_status?: string | null
+          product_id?: string | null
+          rating?: number | null
+          shop_id?: string | null
+          text?: string | null
+          verified?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_reviews_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "shop_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_reviews_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
             referencedColumns: ["id"]
           },
         ]
