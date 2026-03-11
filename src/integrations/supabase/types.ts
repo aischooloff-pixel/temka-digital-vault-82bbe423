@@ -296,6 +296,72 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_sessions: {
+        Row: {
+          data: Json | null
+          state: string
+          telegram_id: number
+          updated_at: string
+        }
+        Insert: {
+          data?: Json | null
+          state?: string
+          telegram_id: number
+          updated_at?: string
+        }
+        Update: {
+          data?: Json | null
+          state?: string
+          telegram_id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      platform_users: {
+        Row: {
+          created_at: string
+          first_name: string
+          id: string
+          is_premium: boolean
+          language_code: string | null
+          last_name: string | null
+          photo_url: string | null
+          subscription_expires_at: string | null
+          subscription_status: string
+          telegram_id: number
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          created_at?: string
+          first_name?: string
+          id?: string
+          is_premium?: boolean
+          language_code?: string | null
+          last_name?: string | null
+          photo_url?: string | null
+          subscription_expires_at?: string | null
+          subscription_status?: string
+          telegram_id: number
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          created_at?: string
+          first_name?: string
+          id?: string
+          is_premium?: boolean
+          language_code?: string | null
+          last_name?: string | null
+          photo_url?: string | null
+          subscription_expires_at?: string | null
+          subscription_status?: string
+          telegram_id?: number
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
       processed_invoices: {
         Row: {
           amount: number | null
@@ -525,6 +591,204 @@ export type Database = {
           },
         ]
       }
+      shop_inventory: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          order_id: string | null
+          product_id: string
+          sold_at: string | null
+          status: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          order_id?: string | null
+          product_id: string
+          sold_at?: string | null
+          status?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          order_id?: string | null
+          product_id?: string
+          sold_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_inventory_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "shop_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_order_items: {
+        Row: {
+          created_at: string
+          id: string
+          order_id: string
+          product_id: string
+          product_name: string
+          product_price: number
+          quantity: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          order_id: string
+          product_id: string
+          product_name: string
+          product_price: number
+          quantity?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          order_id?: string
+          product_id?: string
+          product_name?: string
+          product_price?: number
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "shop_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "shop_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_orders: {
+        Row: {
+          buyer_telegram_id: number
+          created_at: string
+          currency: string
+          id: string
+          invoice_id: string | null
+          order_number: string
+          pay_url: string | null
+          payment_status: string
+          shop_id: string
+          status: string
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          buyer_telegram_id: number
+          created_at?: string
+          currency?: string
+          id?: string
+          invoice_id?: string | null
+          order_number: string
+          pay_url?: string | null
+          payment_status?: string
+          shop_id: string
+          status?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          buyer_telegram_id?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          invoice_id?: string | null
+          order_number?: string
+          pay_url?: string | null
+          payment_status?: string
+          shop_id?: string
+          status?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_orders_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_products: {
+        Row: {
+          created_at: string
+          description: string
+          features: string[]
+          id: string
+          image: string | null
+          is_active: boolean
+          name: string
+          old_price: number | null
+          price: number
+          shop_id: string
+          sort_order: number
+          stock: number
+          subtitle: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string
+          features?: string[]
+          id?: string
+          image?: string | null
+          is_active?: boolean
+          name: string
+          old_price?: number | null
+          price: number
+          shop_id: string
+          sort_order?: number
+          stock?: number
+          subtitle?: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          features?: string[]
+          id?: string
+          image?: string | null
+          is_active?: boolean
+          name?: string
+          old_price?: number | null
+          price?: number
+          shop_id?: string
+          sort_order?: number
+          stock?: number
+          subtitle?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_products_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shop_settings: {
         Row: {
           key: string
@@ -542,6 +806,103 @@ export type Database = {
           value?: string
         }
         Relationships: []
+      }
+      shops: {
+        Row: {
+          bot_token_encrypted: string | null
+          color: string
+          created_at: string
+          cryptobot_token_encrypted: string | null
+          hero_description: string
+          hero_title: string
+          id: string
+          name: string
+          owner_id: string
+          slug: string
+          status: string
+          support_link: string
+          updated_at: string
+          welcome_message: string
+        }
+        Insert: {
+          bot_token_encrypted?: string | null
+          color?: string
+          created_at?: string
+          cryptobot_token_encrypted?: string | null
+          hero_description?: string
+          hero_title?: string
+          id?: string
+          name: string
+          owner_id: string
+          slug: string
+          status?: string
+          support_link?: string
+          updated_at?: string
+          welcome_message?: string
+        }
+        Update: {
+          bot_token_encrypted?: string | null
+          color?: string
+          created_at?: string
+          cryptobot_token_encrypted?: string | null
+          hero_description?: string
+          hero_title?: string
+          id?: string
+          name?: string
+          owner_id?: string
+          slug?: string
+          status?: string
+          support_link?: string
+          updated_at?: string
+          welcome_message?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shops_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "platform_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          id: string
+          invoice_id: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          invoice_id?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          invoice_id?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_payments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "platform_users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_profiles: {
         Row: {
@@ -649,12 +1010,27 @@ export type Database = {
         Args: { p_amount: number; p_telegram_id: number }
         Returns: number
       }
+      decrypt_token: {
+        Args: { p_encrypted: string; p_key: string }
+        Returns: string
+      }
       deduct_balance: {
         Args: { p_amount: number; p_telegram_id: number }
         Returns: number
       }
+      encrypt_token: {
+        Args: { p_key: string; p_token: string }
+        Returns: string
+      }
       increment_promo_usage: { Args: { p_code: string }; Returns: undefined }
       reserve_inventory: {
+        Args: { p_order_id: string; p_product_id: string; p_quantity: number }
+        Returns: {
+          content: string
+          id: string
+        }[]
+      }
+      reserve_shop_inventory: {
         Args: { p_order_id: string; p_product_id: string; p_quantity: number }
         Returns: {
           content: string
