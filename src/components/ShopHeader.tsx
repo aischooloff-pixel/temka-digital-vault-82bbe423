@@ -1,0 +1,60 @@
+import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Search, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useShop } from '@/contexts/ShopContext';
+import { useState } from 'react';
+
+const ShopHeader = () => {
+  const { shopId } = useParams();
+  const { shop, searchQuery, setSearchQuery } = useShop();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const navigate = useNavigate();
+  const base = `/shop/${shopId}`;
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) navigate(`${base}/catalog`);
+  };
+
+  return (
+    <header className="sticky top-0 z-50 glass-strong">
+      <div className="container-main mx-auto flex items-center justify-between gap-3 px-4 py-2.5">
+        <Link to={base} className="flex items-center gap-2 shrink-0">
+          <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
+            <span className="text-primary-foreground font-bold text-xs font-display">
+              {shop?.name?.[0]?.toUpperCase() || 'S'}
+            </span>
+          </div>
+          <span className="font-display font-bold text-base tracking-tight">
+            {shop?.name || 'Магазин'}
+          </span>
+        </Link>
+
+        {searchOpen ? (
+          <form onSubmit={handleSearch} className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Поиск товаров..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full h-9 pl-9 pr-9 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                autoFocus
+              />
+              <button type="button" onClick={() => setSearchOpen(false)} className="absolute right-2 top-1/2 -translate-y-1/2">
+                <X className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </div>
+          </form>
+        ) : (
+          <Button variant="ghost" size="icon" className="shrink-0 w-9 h-9" onClick={() => setSearchOpen(true)}>
+            <Search className="w-5 h-5" />
+          </Button>
+        )}
+      </div>
+    </header>
+  );
+};
+
+export default ShopHeader;
