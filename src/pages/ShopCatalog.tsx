@@ -22,10 +22,17 @@ const ShopCatalog = () => {
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 500]);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  // Read type filter from URL
+  const searchParams = new URLSearchParams(window.location.search);
+  const typeFilter = searchParams.get('type');
+
   const q = localSearch || searchQuery;
 
   const filtered = useMemo(() => {
     let result = [...products];
+    if (typeFilter) {
+      result = result.filter(p => p.type === typeFilter);
+    }
     if (q.trim()) {
       const lower = q.toLowerCase();
       result = result.filter(p =>
