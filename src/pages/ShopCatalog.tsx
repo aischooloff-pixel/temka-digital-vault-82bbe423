@@ -50,7 +50,7 @@ const ShopCatalog = () => {
       default: result.sort((a, b) => a.sort_order - b.sort_order);
     }
     return result;
-  }, [products, q, sortBy, priceRange]);
+  }, [products, q, sortBy, priceRange, typeFilter]);
 
   const clearFilters = () => {
     setLocalSearch('');
