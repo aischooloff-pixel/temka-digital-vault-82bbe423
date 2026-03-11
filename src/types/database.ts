@@ -98,6 +98,19 @@ export interface DbReview {
   created_at: string;
 }
 
+export interface DbShopReview {
+  id: string;
+  shop_id: string;
+  product_id: string | null;
+  author: string;
+  avatar: string;
+  rating: number;
+  text: string;
+  verified: boolean;
+  moderation_status: string;
+  created_at: string;
+}
+
 export interface DbUserProfile {
   id: string;
   telegram_id: number;
