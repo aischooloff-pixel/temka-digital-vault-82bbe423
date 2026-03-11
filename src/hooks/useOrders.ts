@@ -4,7 +4,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useTelegram } from '@/contexts/TelegramContext';
 import type { DbOrder, DbOrderItem, DbBalanceHistory, DbInventoryItem } from '@/types/database';
 
-// Helper to call the secure get-my-data edge function
 async function fetchMyData(initData: string, action: string, extra?: Record<string, unknown>) {
   const { data, error } = await supabase.functions.invoke('get-my-data', {
     body: { initData, action, ...extra },
@@ -14,15 +13,15 @@ async function fetchMyData(initData: string, action: string, extra?: Record<stri
   return data;
 }
 
-export const useOrders = () => {
+export const useOrders = (shopId?: string) => {
   const { user, initData } = useTelegram();
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: ['orders', user?.id],
+    queryKey: ['orders', user?.id, shopId],
     queryFn: async () => {
       if (!initData) return [];
-      const result = await fetchMyData(initData, 'orders');
+      const result = await fetchMyData(initData, 'orders', { shopId });
       return (result.orders || []) as DbOrder[];
     },
     enabled: !!user?.id && !!initData,
@@ -30,68 +29,65 @@ export const useOrders = () => {
 
   useEffect(() => {
     if (!user?.id) return;
-    // Realtime still works via service_role channel subscription
-    // But since anon can't read orders anymore, we just refetch periodically
     const interval = setInterval(() => {
-      queryClient.invalidateQueries({ queryKey: ['orders', user.id] });
+      queryClient.invalidateQueries({ queryKey: ['orders', user.id, shopId] });
     }, 15000);
-
     return () => clearInterval(interval);
-  }, [user?.id, queryClient]);
+  }, [user?.id, queryClient, shopId]);
 
   return query;
 };
 
-export const useOrderItems = (orderId: string) => {
+export const useOrderItems = (orderId: string, shopId?: string) => {
   const { initData } = useTelegram();
 
   return useQuery({
-    queryKey: ['order-items', orderId],
+    queryKey: ['order-items', orderId, shopId],
     queryFn: async () => {
       if (!initData) return [];
-      const result = await fetchMyData(initData, 'order-items', { orderId });
+      const result = await fetchMyData(initData, 'order-items', { orderId, shopId });
       return (result.items || []) as DbOrderItem[];
     },
     enabled: !!orderId && !!initData,
   });
 };
 
-export const useOrderInventoryItems = (orderId: string) => {
+export const useOrderInventoryItems = (orderId: string, shopId?: string) => {
   const { initData } = useTelegram();
 
   return useQuery({
-    queryKey: ['order-inventory', orderId],
+    queryKey: ['order-inventory', orderId, shopId],
     queryFn: async () => {
       if (!initData) return [];
-      const result = await fetchMyData(initData, 'order-inventory', { orderId });
+      const result = await fetchMyData(initData, 'order-inventory', { orderId, shopId });
       return (result.items || []) as DbInventoryItem[];
     },
     enabled: !!orderId && !!initData,
   });
 };
 
-export const useUserStats = () => {
+export const useUserStats = (shopId?: string) => {
   const { user, initData } = useTelegram();
 
   return useQuery({
-    queryKey: ['user-stats', user?.id],
+    queryKey: ['user-stats', user?.id, shopId],
     queryFn: async () => {
       if (!initData) return { orderCount: 0, totalSpent: 0 };
-      const result = await fetchMyData(initData, 'stats');
+      const result = await fetchMyData(initData, 'stats', { shopId });
       return result.stats as { orderCount: number; totalSpent: number };
     },
     enabled: !!user?.id && !!initData,
   });
 };
 
-export const useUserProfile = () => {
+export const useUserProfile = (shopId?: string) => {
   const { user, initData } = useTelegram();
 
   return useQuery({
-    queryKey: ['user-profile', user?.id],
+    queryKey: ['user-profile', user?.id, shopId],
     queryFn: async () => {
       if (!initData) return null;
-      const result = await fetchMyData(initData, 'profile');
+      const result = await fetchMyData(initData, 'profile', { shopId });
       return result.profile as { balance: number; role: string; is_blocked: boolean } | null;
     },
     enabled: !!user?.id && !!initData,
@@ -100,14 +96,14 @@ export const useUserProfile = () => {
   });
 };
 
-export const useBalanceHistory = () => {
+export const useBalanceHistory = (shopId?: string) => {
   const { user, initData } = useTelegram();
 
   return useQuery({
-    queryKey: ['balance-history', user?.id],
+    queryKey: ['balance-history', user?.id, shopId],
     queryFn: async () => {
       if (!initData) return [];
-      const result = await fetchMyData(initData, 'balance-history');
+      const result = await fetchMyData(initData, 'balance-history', { shopId });
       return (result.history || []) as DbBalanceHistory[];
     },
     enabled: !!user?.id && !!initData,

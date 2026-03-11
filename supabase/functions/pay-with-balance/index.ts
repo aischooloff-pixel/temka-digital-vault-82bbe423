@@ -4,369 +4,223 @@ import { createHmac } from "node:crypto";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+const jsonRes = (data: unknown, status = 200) =>
+  new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-// ─── Telegram initData verification ───────────
 function verifyAndExtractUser(initData: string, botToken: string): { id: number; first_name: string } | null {
   const params = new URLSearchParams(initData);
   const hash = params.get("hash");
   if (!hash) return null;
-
   params.delete("hash");
   const entries = Array.from(params.entries());
   entries.sort(([a], [b]) => a.localeCompare(b));
-  const dataCheckString = entries.map(([k, v]) => `${k}=${v}`).join("\n");
-
+  const dcs = entries.map(([k, v]) => `${k}=${v}`).join("\n");
   const secretKey = createHmac("sha256", "WebAppData").update(botToken).digest();
-  const hmac = createHmac("sha256", secretKey).update(dataCheckString).digest("hex");
-
-  if (hmac !== hash) return null;
-
+  if (createHmac("sha256", secretKey).update(dcs).digest("hex") !== hash) return null;
   const authDate = params.get("auth_date");
-  if (authDate) {
-    const now = Math.floor(Date.now() / 1000);
-    if (now - Number(authDate) > 300) return null;
-  }
+  if (authDate && Math.floor(Date.now() / 1000) - Number(authDate) > 300) return null;
+  try { return JSON.parse(params.get("user") || ""); } catch { return null; }
+}
 
-  const userStr = params.get("user");
-  if (!userStr) return null;
-  try {
-    return JSON.parse(userStr);
-  } catch {
-    return null;
-  }
+async function resolveTokens(supabase: any, shopId?: string) {
+  if (!shopId) return { botToken: Deno.env.get("TELEGRAM_BOT_TOKEN") || null };
+  const ek = Deno.env.get("TOKEN_ENCRYPTION_KEY");
+  if (!ek) throw new Error("Server config error");
+  const { data: shop } = await supabase.from("shops").select("bot_token_encrypted, bot_username").eq("id", shopId).maybeSingle();
+  if (!shop?.bot_token_encrypted) throw new Error("Shop bot not configured");
+  const { data } = await supabase.rpc("decrypt_token", { p_encrypted: shop.bot_token_encrypted, p_key: ek });
+  return { botToken: data || null, botUsername: shop.bot_username || "" };
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { initData, orderNumber, items, promoCode } = await req.json();
+    const { initData, orderNumber, items, promoCode, shopId } = await req.json();
+    const isShop = !!shopId;
 
-    // ─── Validate initData ───────────────────────
-    const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
-    if (!botToken) {
-      return new Response(
-        JSON.stringify({ error: "Bot token not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    if (!initData) {
-      return new Response(
-        JSON.stringify({ error: "Authentication required" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    let tokens;
+    try { tokens = await resolveTokens(supabase, shopId); }
+    catch (e) { return jsonRes({ error: e.message }, 500); }
 
-    const tgUser = verifyAndExtractUser(initData, botToken);
-    if (!tgUser) {
-      return new Response(
-        JSON.stringify({ error: "Invalid authentication data" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    if (!tokens.botToken) return jsonRes({ error: "Bot not configured" }, 500);
+    if (!initData) return jsonRes({ error: "Authentication required" }, 401);
 
+    const tgUser = verifyAndExtractUser(initData, tokens.botToken);
+    if (!tgUser) return jsonRes({ error: "Invalid authentication" }, 401);
     const telegramUserId = tgUser.id;
 
-    if (!orderNumber || !items?.length) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    if (!orderNumber || !items?.length) return jsonRes({ error: "Missing required fields" }, 400);
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // ─── Rate limiting ─────────────────────────
+    // Rate limiting
     await supabase.from("rate_limits").delete().lt("created_at", new Date(Date.now() - 3600000).toISOString());
-    const { count: recentRequests } = await supabase
-      .from("rate_limits")
-      .select("id", { count: "exact", head: true })
-      .eq("identifier", String(telegramUserId))
-      .eq("action", "create_order")
+    const { count } = await supabase.from("rate_limits").select("id", { count: "exact", head: true })
+      .eq("identifier", String(telegramUserId)).eq("action", "create_order")
       .gte("created_at", new Date(Date.now() - 3600000).toISOString());
+    if (count && count >= 15) return jsonRes({ error: "Too many requests" }, 429);
+    await supabase.from("rate_limits").insert({ identifier: String(telegramUserId), action: "create_order" });
 
-    if (recentRequests && recentRequests >= 15) {
-      return new Response(
-        JSON.stringify({ error: "Слишком много запросов. Попробуйте позже." }),
-        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // User profile
+    const { data: profile } = await supabase.from("user_profiles").select("balance, is_blocked").eq("telegram_id", telegramUserId).single();
+    if (!profile) return jsonRes({ error: "User not found" }, 400);
+    if (profile.is_blocked) return jsonRes({ error: "Account blocked" }, 403);
 
-    await supabase.from("rate_limits").insert({
-      identifier: String(telegramUserId),
-      action: "create_order",
-    });
-
-    // ─── Verify user & balance ───────────────────
-    const { data: profile } = await supabase
-      .from("user_profiles")
-      .select("balance, is_blocked")
-      .eq("telegram_id", telegramUserId)
-      .single();
-
-    if (!profile) {
-      return new Response(
-        JSON.stringify({ error: "User not found" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    if (profile.is_blocked) {
-      return new Response(
-        JSON.stringify({ error: "Ваш аккаунт заблокирован" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // ─── Server-side price calculation ────────────
+    // Validate products
     let serverTotal = 0;
     const validatedItems: { productId: string; productTitle: string; productPrice: number; quantity: number }[] = [];
 
     for (const item of items) {
-      if (!item.productId || !item.quantity || item.quantity <= 0 || item.quantity > 100) {
-        return new Response(
-          JSON.stringify({ error: "Invalid item data" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      if (!item.productId || !item.quantity || item.quantity <= 0 || item.quantity > 100)
+        return jsonRes({ error: "Invalid item" }, 400);
+
+      if (isShop) {
+        const { data: product } = await supabase.from("shop_products").select("id, name, price, stock, is_active, shop_id")
+          .eq("id", item.productId).single();
+        if (!product || !product.is_active || product.shop_id !== shopId) return jsonRes({ error: "Product not found" }, 400);
+        if (product.stock < item.quantity) return jsonRes({ error: `${product.name} — insufficient stock` }, 400);
+        serverTotal += Number(product.price) * item.quantity;
+        validatedItems.push({ productId: product.id, productTitle: product.name, productPrice: Number(product.price), quantity: item.quantity });
+      } else {
+        const { data: product } = await supabase.from("products").select("id, title, price, stock, is_active")
+          .eq("id", item.productId).single();
+        if (!product || !product.is_active) return jsonRes({ error: "Product not found" }, 400);
+        if (product.stock < item.quantity) return jsonRes({ error: `${product.title} — insufficient stock` }, 400);
+        serverTotal += Number(product.price) * item.quantity;
+        validatedItems.push({ productId: product.id, productTitle: product.title, productPrice: Number(product.price), quantity: item.quantity });
       }
-
-      const { data: product } = await supabase
-        .from("products")
-        .select("id, title, price, stock, is_active")
-        .eq("id", item.productId)
-        .single();
-
-      if (!product || !product.is_active) {
-        return new Response(
-          JSON.stringify({ error: `Товар "${item.productTitle || 'Unknown'}" не найден` }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      if (product.stock < item.quantity) {
-        return new Response(
-          JSON.stringify({ error: `Товар "${product.title}" — недостаточно на складе` }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      const price = Number(product.price);
-      serverTotal += price * item.quantity;
-      validatedItems.push({
-        productId: product.id,
-        productTitle: product.title,
-        productPrice: price,
-        quantity: item.quantity,
-      });
     }
 
-    // ─── Server-side promo validation ─────────────
+    // Promo (platform only)
     let discountAmount = 0;
     let validatedPromoCode: string | null = null;
-
-    if (promoCode) {
+    if (!isShop && promoCode) {
       const trimmedCode = String(promoCode).trim().toUpperCase();
-      const { data: promo } = await supabase
-        .from("promocodes")
-        .select("*")
-        .eq("code", trimmedCode)
-        .eq("is_active", true)
-        .maybeSingle();
-
+      const { data: promo } = await supabase.from("promocodes").select("*").eq("code", trimmedCode).eq("is_active", true).maybeSingle();
       if (promo) {
         const now = new Date().toISOString();
-        const isValid =
-          (!promo.valid_from || now >= promo.valid_from) &&
-          (!promo.valid_until || now <= promo.valid_until) &&
+        const isValid = (!promo.valid_from || now >= promo.valid_from) && (!promo.valid_until || now <= promo.valid_until) &&
           (promo.max_uses === null || promo.used_count < promo.max_uses);
-
         if (isValid) {
           let perUserOk = true;
           if (promo.max_uses_per_user) {
-            const { count } = await supabase
-              .from("orders")
-              .select("id", { count: "exact", head: true })
-              .eq("telegram_id", telegramUserId)
-              .eq("promo_code", trimmedCode)
-              .in("payment_status", ["paid", "awaiting"]);
-            if (count !== null && count >= promo.max_uses_per_user) {
-              perUserOk = false;
-            }
+            const { count: c } = await supabase.from("orders").select("id", { count: "exact", head: true })
+              .eq("telegram_id", telegramUserId).eq("promo_code", trimmedCode).in("payment_status", ["paid", "awaiting"]);
+            if (c !== null && c >= promo.max_uses_per_user) perUserOk = false;
           }
-
           if (perUserOk) {
             validatedPromoCode = trimmedCode;
             discountAmount = promo.discount_type === "percent"
-              ? serverTotal * (Number(promo.discount_value) / 100)
-              : Math.min(Number(promo.discount_value), serverTotal);
+              ? serverTotal * (Number(promo.discount_value) / 100) : Math.min(Number(promo.discount_value), serverTotal);
           }
         }
       }
     }
 
     const totalAfterDiscount = Math.max(0, serverTotal - discountAmount);
-
-    // ─── Validate balance covers total ────────────
-    const serverBalance = Number(profile.balance);
-    if (serverBalance < totalAfterDiscount) {
-      return new Response(
-        JSON.stringify({ error: "Insufficient balance" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
+    if (Number(profile.balance) < totalAfterDiscount) return jsonRes({ error: "Insufficient balance" }, 400);
     const balanceUsed = totalAfterDiscount;
 
-    // ─── Create order ────────────────────────────
-    const { data: order, error: orderError } = await supabase
-      .from("orders")
-      .insert({
-        order_number: orderNumber,
-        telegram_id: telegramUserId,
-        status: "paid",
-        payment_status: "paid",
-        total_amount: serverTotal,
-        currency: "USD",
-        discount_amount: discountAmount,
-        promo_code: validatedPromoCode,
-        balance_used: balanceUsed,
-      })
-      .select()
-      .single();
-
-    if (orderError) {
-      console.error("Order creation error:", orderError);
-      return new Response(
-        JSON.stringify({ error: "Failed to create order" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // Create order
+    let order: any;
+    if (isShop) {
+      const { data, error } = await supabase.from("shop_orders").insert({
+        order_number: orderNumber, buyer_telegram_id: telegramUserId, shop_id: shopId,
+        status: "paid", payment_status: "paid", total_amount: serverTotal,
+        currency: "USD", balance_used: balanceUsed,
+      }).select().single();
+      if (error) { console.error("Shop order error:", error); return jsonRes({ error: "Failed to create order" }, 500); }
+      order = data;
+      await supabase.from("shop_order_items").insert(validatedItems.map(i => ({
+        order_id: order.id, product_id: i.productId, product_name: i.productTitle,
+        product_price: i.productPrice, quantity: i.quantity,
+      })));
+    } else {
+      const { data, error } = await supabase.from("orders").insert({
+        order_number: orderNumber, telegram_id: telegramUserId,
+        status: "paid", payment_status: "paid", total_amount: serverTotal,
+        currency: "USD", discount_amount: discountAmount, promo_code: validatedPromoCode, balance_used: balanceUsed,
+      }).select().single();
+      if (error) { console.error("Order error:", error); return jsonRes({ error: "Failed to create order" }, 500); }
+      order = data;
+      await supabase.from("order_items").insert(validatedItems.map(i => ({
+        order_id: order.id, product_id: i.productId, product_title: i.productTitle,
+        product_price: i.productPrice, quantity: i.quantity,
+      })));
     }
 
-    // Create order items
-    const orderItems = validatedItems.map(item => ({
-      order_id: order.id,
-      product_id: item.productId,
-      product_title: item.productTitle,
-      product_price: item.productPrice,
-      quantity: item.quantity,
-    }));
-    await supabase.from("order_items").insert(orderItems);
-
-    // ─── Atomic balance deduction ───────────────
+    // Deduct balance
     const { data: newBalance, error: balError } = await supabase.rpc("deduct_balance", {
-      p_telegram_id: telegramUserId,
-      p_amount: balanceUsed,
+      p_telegram_id: telegramUserId, p_amount: balanceUsed,
     });
-
     if (balError) {
-      // Rollback order
-      await supabase.from("orders").delete().eq("id", order.id);
-      return new Response(
-        JSON.stringify({ error: "Insufficient balance (concurrent deduction)" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      const table = isShop ? "shop_orders" : "orders";
+      await supabase.from(table).delete().eq("id", order.id);
+      return jsonRes({ error: "Insufficient balance" }, 400);
     }
 
     await supabase.from("balance_history").insert({
-      telegram_id: telegramUserId,
-      amount: -balanceUsed,
-      balance_after: newBalance,
-      type: "purchase",
-      comment: `Заказ ${orderNumber}`,
-      admin_telegram_id: telegramUserId,
+      telegram_id: telegramUserId, amount: -balanceUsed, balance_after: newBalance,
+      type: "purchase", comment: `Заказ ${orderNumber}`, admin_telegram_id: telegramUserId,
     });
 
-    // Atomic promo increment
-    if (validatedPromoCode) {
+    if (!isShop && validatedPromoCode) {
       await supabase.rpc("increment_promo_usage", { p_code: validatedPromoCode });
     }
 
-    // ─── Auto-deliver inventory items ─────────────
-    const { data: oItems } = await supabase
-      .from("order_items")
-      .select("product_id, quantity, product_title")
-      .eq("order_id", order.id);
+    // Auto-deliver inventory
+    const itemsTable = isShop ? "shop_order_items" : "order_items";
+    const titleCol = isShop ? "product_name" : "product_title";
+    const { data: oItems } = await supabase.from(itemsTable).select(`product_id, quantity, ${titleCol}`).eq("order_id", order.id);
 
     const deliveredContent: string[] = [];
     let allDelivered = true;
+    const inventoryTable = isShop ? "shop_inventory" : "inventory_items";
+    const productsTable = isShop ? "shop_products" : "products";
+    const reserveRpc = isShop ? "reserve_shop_inventory" : "reserve_inventory";
 
     if (oItems) {
       for (const item of oItems) {
-        const { data: reserved } = await supabase.rpc("reserve_inventory", {
-          p_product_id: item.product_id,
-          p_quantity: item.quantity,
-          p_order_id: order.id,
+        const itemTitle = (item as any)[titleCol];
+        const { data: reserved } = await supabase.rpc(reserveRpc, {
+          p_product_id: item.product_id, p_quantity: item.quantity, p_order_id: order.id,
         });
-
         if (reserved && reserved.length > 0) {
-          deliveredContent.push(
-            `📦 <b>${item.product_title}</b> (×${reserved.length}):\n` +
-            reserved.map((i: any) => `<code>${i.content}</code>`).join("\n")
-          );
-
-          const { count: remaining } = await supabase
-            .from("inventory_items")
-            .select("id", { count: "exact", head: true })
-            .eq("product_id", item.product_id)
-            .eq("status", "available");
-
-          await supabase
-            .from("products")
-            .update({ stock: remaining || 0, updated_at: new Date().toISOString() })
-            .eq("id", item.product_id);
-
+          deliveredContent.push(`📦 <b>${itemTitle}</b> (×${reserved.length}):\n${reserved.map((i: any) => `<code>${i.content}</code>`).join("\n")}`);
+          const { count: remaining } = await supabase.from(inventoryTable).select("id", { count: "exact", head: true })
+            .eq("product_id", item.product_id).eq("status", "available");
+          await supabase.from(productsTable).update({ stock: remaining || 0, updated_at: new Date().toISOString() }).eq("id", item.product_id);
           if (reserved.length < item.quantity) allDelivered = false;
-        } else {
-          allDelivered = false;
-        }
+        } else { allDelivered = false; }
       }
     }
 
-    // Update order status
     const finalStatus = allDelivered && deliveredContent.length > 0 ? "delivered" : "paid";
+    const orderTable = isShop ? "shop_orders" : "orders";
     if (finalStatus !== "paid") {
-      await supabase
-        .from("orders")
-        .update({ status: finalStatus, updated_at: new Date().toISOString() })
-        .eq("id", order.id);
+      await supabase.from(orderTable).update({ status: finalStatus, updated_at: new Date().toISOString() }).eq("id", order.id);
     }
 
-    // Send TG notification
-    if (botToken) {
-      let message = `✅ <b>Оплата балансом подтверждена!</b>\n\n📦 Заказ: <code>${orderNumber}</code>\n💰 Списано: $${Number(balanceUsed).toFixed(2)}\n`;
-
+    // TG notification
+    const notifyBotToken = tokens.botToken;
+    if (notifyBotToken) {
+      let message = `✅ <b>Оплата балансом подтверждена!</b>\n\n📦 Заказ: <code>${orderNumber}</code>\n💰 Списано: $${balanceUsed.toFixed(2)}\n`;
       if (deliveredContent.length > 0) {
         message += `\n🎁 <b>Ваши товары:</b>\n\n${deliveredContent.join("\n\n")}\n\n⚠️ Сохраните данные!`;
-      } else {
-        message += `\nВаш товар будет доставлен в ближайшее время.`;
-      }
-
+      } else { message += `\nВаш товар будет доставлен в ближайшее время.`; }
       message += `\n\nСпасибо за покупку!`;
-
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      await fetch(`https://api.telegram.org/bot${notifyBotToken}/sendMessage`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chat_id: telegramUserId, text: message, parse_mode: "HTML" }),
       });
     }
 
-    return new Response(
-      JSON.stringify({ ok: true, orderNumber, orderId: order.id }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonRes({ ok: true, orderNumber, orderId: order.id });
   } catch (error) {
     console.error("Pay with balance error:", error);
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonRes({ error: "Internal server error" }, 500);
   }
 });

@@ -4,314 +4,180 @@ import { createHmac } from "node:crypto";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
 const CRYPTOBOT_API_URL = "https://pay.crypt.bot/api";
+const jsonRes = (data: unknown, status = 200) =>
+  new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-// ─── Telegram initData verification ───────────
 function verifyAndExtractUser(initData: string, botToken: string): { id: number } | null {
   const params = new URLSearchParams(initData);
   const hash = params.get("hash");
   if (!hash) return null;
-
   params.delete("hash");
   const entries = Array.from(params.entries());
   entries.sort(([a], [b]) => a.localeCompare(b));
-  const dataCheckString = entries.map(([k, v]) => `${k}=${v}`).join("\n");
-
+  const dcs = entries.map(([k, v]) => `${k}=${v}`).join("\n");
   const secretKey = createHmac("sha256", "WebAppData").update(botToken).digest();
-  const hmac = createHmac("sha256", secretKey).update(dataCheckString).digest("hex");
-
-  if (hmac !== hash) return null;
-
-  // 10 min TTL for polling
+  if (createHmac("sha256", secretKey).update(dcs).digest("hex") !== hash) return null;
   const authDate = params.get("auth_date");
-  if (authDate) {
-    const now = Math.floor(Date.now() / 1000);
-    if (now - Number(authDate) > 600) return null;
-  }
+  if (authDate && Math.floor(Date.now() / 1000) - Number(authDate) > 600) return null;
+  try { return JSON.parse(params.get("user") || ""); } catch { return null; }
+}
 
-  const userStr = params.get("user");
-  if (!userStr) return null;
-  try {
-    return JSON.parse(userStr);
-  } catch {
-    return null;
+async function resolveTokens(supabase: any, shopId?: string) {
+  if (!shopId) {
+    return {
+      botToken: Deno.env.get("TELEGRAM_BOT_TOKEN") || null,
+      cryptobotToken: Deno.env.get("CRYPTOBOT_API_TOKEN") || null,
+    };
   }
+  const ek = Deno.env.get("TOKEN_ENCRYPTION_KEY");
+  if (!ek) throw new Error("Server config error");
+  const { data: shop } = await supabase.from("shops").select("bot_token_encrypted, cryptobot_token_encrypted").eq("id", shopId).maybeSingle();
+  if (!shop) throw new Error("Shop not found");
+  const decrypt = async (enc: string) => { const { data } = await supabase.rpc("decrypt_token", { p_encrypted: enc, p_key: ek }); return data; };
+  return {
+    botToken: shop.bot_token_encrypted ? await decrypt(shop.bot_token_encrypted) : null,
+    cryptobotToken: shop.cryptobot_token_encrypted ? await decrypt(shop.cryptobot_token_encrypted) : null,
+  };
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { orderId, initData } = await req.json();
+    const { orderId, initData, shopId } = await req.json();
+    const isShop = !!shopId;
 
-    // ─── Auth ────────────────────────────────────
-    const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
-    if (!botToken) {
-      return new Response(
-        JSON.stringify({ error: "Not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    if (!initData) {
-      return new Response(
-        JSON.stringify({ error: "Authentication required" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    let tokens;
+    try { tokens = await resolveTokens(supabase, shopId); }
+    catch (e) { return jsonRes({ error: e.message }, 500); }
 
-    const tgUser = verifyAndExtractUser(initData, botToken);
-    if (!tgUser) {
-      return new Response(
-        JSON.stringify({ error: "Invalid authentication" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    if (!tokens.botToken) return jsonRes({ error: "Not configured" }, 500);
+    if (!initData) return jsonRes({ error: "Authentication required" }, 401);
 
-    if (!orderId) {
-      return new Response(
-        JSON.stringify({ error: "Missing orderId" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const tgUser = verifyAndExtractUser(initData, tokens.botToken);
+    if (!tgUser) return jsonRes({ error: "Invalid authentication" }, 401);
+    if (!orderId) return jsonRes({ error: "Missing orderId" }, 400);
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    // Get order from correct table
+    const orderTable = isShop ? "shop_orders" : "orders";
+    const telegramCol = isShop ? "buyer_telegram_id" : "telegram_id";
 
-    // ─── Get order & verify ownership ────────────
     const { data: order, error: orderError } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("id", orderId)
-      .eq("telegram_id", tgUser.id) // ownership check
-      .single();
+      .from(orderTable).select("*").eq("id", orderId).eq(telegramCol, tgUser.id).single();
+    if (orderError || !order) return jsonRes({ error: "Order not found" }, 404);
 
-    if (orderError || !order) {
-      return new Response(
-        JSON.stringify({ error: "Order not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    if (order.payment_status === "paid") return jsonRes({ status: order.status, paymentStatus: "paid" });
+    if (!order.invoice_id) return jsonRes({ status: order.status, paymentStatus: order.payment_status });
 
-    // Already paid
-    if (order.payment_status === "paid") {
-      return new Response(
-        JSON.stringify({ status: order.status, paymentStatus: "paid" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    if (!tokens.cryptobotToken) return jsonRes({ status: order.status, paymentStatus: order.payment_status });
 
-    // No invoice — nothing to check
-    if (!order.invoice_id) {
-      return new Response(
-        JSON.stringify({ status: order.status, paymentStatus: order.payment_status }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Poll CryptoBot for invoice status
-    const cryptobotToken = Deno.env.get("CRYPTOBOT_API_TOKEN");
-    if (!cryptobotToken) {
-      return new Response(
-        JSON.stringify({ error: "CryptoBot token not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
+    // Poll CryptoBot
     const response = await fetch(`${CRYPTOBOT_API_URL}/getInvoices`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Crypto-Pay-API-Token": cryptobotToken,
-      },
+      headers: { "Content-Type": "application/json", "Crypto-Pay-API-Token": tokens.cryptobotToken },
       body: JSON.stringify({ invoice_ids: order.invoice_id }),
     });
-
     const data = await response.json();
-
-    if (!data.ok || !data.result?.items?.length) {
-      return new Response(
-        JSON.stringify({ status: order.status, paymentStatus: order.payment_status }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    if (!data.ok || !data.result?.items?.length)
+      return jsonRes({ status: order.status, paymentStatus: order.payment_status });
 
     const invoice = data.result.items[0];
+    const telegramId = isShop ? order.buyer_telegram_id : order.telegram_id;
 
-    // Invoice paid but webhook missed — process via idempotent path
     if (invoice.status === "paid" && order.payment_status !== "paid") {
-      // Try dedup insert
-      const invoiceId = String(invoice.invoice_id);
-      const { error: dedupError } = await supabase
-        .from("processed_invoices")
-        .insert({
-          invoice_id: invoiceId,
-          type: "payment",
-          order_id: orderId,
-          telegram_id: tgUser.id,
-          amount: Number(invoice.amount) || 0,
-        });
+      // Idempotency
+      const { error: dedupError } = await supabase.from("processed_invoices").insert({
+        invoice_id: String(invoice.invoice_id), type: "payment", order_id: orderId,
+        telegram_id: telegramId, amount: Number(invoice.amount) || 0,
+      });
+      if (dedupError) return jsonRes({ status: "paid", paymentStatus: "paid" });
 
-      if (dedupError) {
-        // Already processed by webhook
-        return new Response(
-          JSON.stringify({ status: "paid", paymentStatus: "paid" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+      const { data: updatedRows } = await supabase.from(orderTable)
+        .update({ status: "paid", payment_status: "paid", updated_at: new Date().toISOString() })
+        .eq("id", orderId).neq("payment_status", "paid").select("id");
+      if (!updatedRows?.length) return jsonRes({ status: "paid", paymentStatus: "paid" });
 
-      // Atomic order update
-      const { data: updatedRows } = await supabase
-        .from("orders")
-        .update({
-          status: "paid",
-          payment_status: "paid",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", orderId)
-        .neq("payment_status", "paid")
-        .select("id");
-
-      if (!updatedRows || updatedRows.length === 0) {
-        return new Response(
-          JSON.stringify({ status: "paid", paymentStatus: "paid" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // Atomic promo increment
-      if (order.promo_code) {
+      // Promo (platform only)
+      if (!isShop && order.promo_code) {
         await supabase.rpc("increment_promo_usage", { p_code: order.promo_code });
       }
 
-      // Atomic balance deduction
+      // Balance deduction
       const balanceUsed = Number(order.balance_used || 0);
       if (balanceUsed > 0) {
         const { data: newBalance, error: balErr } = await supabase.rpc("deduct_balance", {
-          p_telegram_id: order.telegram_id,
-          p_amount: balanceUsed,
+          p_telegram_id: telegramId, p_amount: balanceUsed,
         });
-
         if (!balErr) {
           await supabase.from("balance_history").insert({
-            telegram_id: order.telegram_id,
-            amount: -balanceUsed,
-            balance_after: newBalance,
-            type: "purchase",
-            comment: `Заказ ${order.order_number}`,
-            admin_telegram_id: order.telegram_id,
+            telegram_id: telegramId, amount: -balanceUsed, balance_after: newBalance,
+            type: "purchase", comment: `Заказ ${order.order_number}`, admin_telegram_id: telegramId,
           });
         }
       }
 
-      // Atomic inventory reservation
-      const { data: orderItems } = await supabase
-        .from("order_items")
-        .select("product_id, quantity, product_title")
-        .eq("order_id", orderId);
+      // Inventory reservation
+      const itemsTable = isShop ? "shop_order_items" : "order_items";
+      const titleCol = isShop ? "product_name" : "product_title";
+      const reserveRpc = isShop ? "reserve_shop_inventory" : "reserve_inventory";
+      const inventoryTable = isShop ? "shop_inventory" : "inventory_items";
+      const productsTable = isShop ? "shop_products" : "products";
 
+      const { data: orderItems } = await supabase.from(itemsTable).select(`product_id, quantity, ${titleCol}`).eq("order_id", orderId);
       const deliveredContent: string[] = [];
       let allDelivered = true;
 
       if (orderItems) {
         for (const item of orderItems) {
-          const { data: reserved } = await supabase.rpc("reserve_inventory", {
-            p_product_id: item.product_id,
-            p_quantity: item.quantity,
-            p_order_id: orderId,
+          const itemTitle = (item as any)[titleCol];
+          const { data: reserved } = await supabase.rpc(reserveRpc, {
+            p_product_id: item.product_id, p_quantity: item.quantity, p_order_id: orderId,
           });
-
-          if (reserved && reserved.length > 0) {
-            deliveredContent.push(
-              `📦 <b>${item.product_title}</b> (×${reserved.length}):\n` +
-              reserved.map((i: any) => `<code>${i.content}</code>`).join("\n")
-            );
-
-            const { count: remaining } = await supabase
-              .from("inventory_items")
-              .select("id", { count: "exact", head: true })
-              .eq("product_id", item.product_id)
-              .eq("status", "available");
-
-            await supabase
-              .from("products")
-              .update({ stock: remaining || 0, updated_at: new Date().toISOString() })
-              .eq("id", item.product_id);
-
+          if (reserved?.length) {
+            deliveredContent.push(`📦 <b>${itemTitle}</b> (×${reserved.length}):\n${reserved.map((i: any) => `<code>${i.content}</code>`).join("\n")}`);
+            const { count: remaining } = await supabase.from(inventoryTable).select("id", { count: "exact", head: true })
+              .eq("product_id", item.product_id).eq("status", "available");
+            await supabase.from(productsTable).update({ stock: remaining || 0, updated_at: new Date().toISOString() }).eq("id", item.product_id);
             if (reserved.length < item.quantity) allDelivered = false;
-          } else {
-            allDelivered = false;
-          }
+          } else { allDelivered = false; }
         }
       }
 
       const finalStatus = allDelivered && deliveredContent.length > 0 ? "delivered" : "paid";
       if (finalStatus !== "paid") {
-        await supabase
-          .from("orders")
-          .update({ status: finalStatus, updated_at: new Date().toISOString() })
-          .eq("id", orderId);
+        await supabase.from(orderTable).update({ status: finalStatus, updated_at: new Date().toISOString() }).eq("id", orderId);
       }
 
       // TG notification
-      const tgBotToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
-      if (tgBotToken) {
-        let message = `✅ <b>Оплата подтверждена!</b>\n\n📦 Заказ: <code>${order.order_number}</code>\n💰 Сумма: ${invoice.amount} ${invoice.fiat || 'USD'}\n`;
+      if (tokens.botToken) {
+        let message = `✅ <b>Оплата подтверждена!</b>\n\n📦 Заказ: <code>${order.order_number}</code>\n💰 Сумма: ${invoice.amount} USD\n`;
         if (balanceUsed > 0) message += `💳 С баланса: $${balanceUsed.toFixed(2)}\n`;
         if (deliveredContent.length > 0) {
           message += `\n🎁 <b>Ваши товары:</b>\n\n${deliveredContent.join("\n\n")}\n\n⚠️ Сохраните данные!`;
-        } else {
-          message += `\nВаш товар будет доставлен в ближайшее время.`;
-        }
+        } else { message += `\nВаш товар будет доставлен в ближайшее время.`; }
         message += `\n\nСпасибо за покупку!`;
-
-        await fetch(`https://api.telegram.org/bot${tgBotToken}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: order.telegram_id, text: message, parse_mode: "HTML" }),
+        await fetch(`https://api.telegram.org/bot${tokens.botToken}/sendMessage`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: telegramId, text: message, parse_mode: "HTML" }),
         });
       }
 
-      return new Response(
-        JSON.stringify({ status: finalStatus, paymentStatus: "paid" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonRes({ status: finalStatus, paymentStatus: "paid" });
     }
 
-    // Invoice expired
     if (invoice.status === "expired") {
-      await supabase
-        .from("orders")
-        .update({
-          status: "cancelled",
-          payment_status: "expired",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", orderId);
-
-      return new Response(
-        JSON.stringify({ status: "cancelled", paymentStatus: "expired" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      await supabase.from(orderTable).update({ status: "cancelled", payment_status: "expired", updated_at: new Date().toISOString() }).eq("id", orderId);
+      return jsonRes({ status: "cancelled", paymentStatus: "expired" });
     }
 
-    return new Response(
-      JSON.stringify({ status: order.status, paymentStatus: order.payment_status, invoiceStatus: invoice.status }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonRes({ status: order.status, paymentStatus: order.payment_status, invoiceStatus: invoice.status });
   } catch (error) {
-    console.error("Check payment error:", error.message);
-    return new Response(
-      JSON.stringify({ error: "Internal error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    console.error("Check payment error:", error);
+    return jsonRes({ error: "Internal error" }, 500);
   }
 });
