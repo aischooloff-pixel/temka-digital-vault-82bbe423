@@ -801,6 +801,7 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
 // MAIN SERVE
 // ═══════════════════════════════════════════════
 serve(async (req) => {
+  if (req.method === "GET") return setupWebhook();
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*" } });
   }
