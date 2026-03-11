@@ -12,7 +12,6 @@ const CRYPTOBOT_API_URL = "https://pay.crypt.bot/api";
 const MAX_TOPUP_AMOUNT = 1000;
 const MIN_TOPUP_AMOUNT = 1;
 
-// ─── Telegram initData verification ───────────
 function verifyAndExtractUser(initData: string, botToken: string): { id: number } | null {
   const params = new URLSearchParams(initData);
   const hash = params.get("hash");
@@ -51,18 +50,18 @@ serve(async (req) => {
   try {
     const { initData, amount, shopId } = await req.json();
 
-    // ─── Validate initData ───────────────────────
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+    const encryptionKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
 
-    // Determine which bot token to use for initData validation
+    // ─── Resolve tenant context ─────────────────
     let botToken: string | null = null;
+    let cryptobotToken: string | null = null;
+    let paidBtnBotUsername: string | null = null;
 
     if (shopId) {
-      // Multi-tenant: Mini App opened via seller bot — use seller's bot token
       console.log(`[topup] Tenant context: shopId=${shopId}`);
-      const encryptionKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
       if (!encryptionKey) {
         console.error("[topup] TOKEN_ENCRYPTION_KEY not set");
         return new Response(
@@ -73,7 +72,7 @@ serve(async (req) => {
 
       const { data: shop, error: shopErr } = await supabase
         .from("shops")
-        .select("bot_token_encrypted")
+        .select("bot_token_encrypted, bot_username, cryptobot_token_encrypted")
         .eq("id", shopId)
         .maybeSingle();
 
@@ -85,24 +84,39 @@ serve(async (req) => {
         );
       }
 
-      // Decrypt seller bot token
-      const { data: decrypted, error: decryptErr } = await supabase.rpc("decrypt_token", {
+      // Decrypt seller bot token (for initData verification)
+      const { data: decryptedBot, error: decryptErr } = await supabase.rpc("decrypt_token", {
         p_encrypted: shop.bot_token_encrypted,
         p_key: encryptionKey,
       });
-
-      if (decryptErr || !decrypted) {
+      if (decryptErr || !decryptedBot) {
         console.error("[topup] Failed to decrypt seller bot token:", decryptErr);
         return new Response(
           JSON.stringify({ error: "Ошибка расшифровки токена магазина" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+      botToken = decryptedBot;
+      paidBtnBotUsername = shop.bot_username || null;
 
-      botToken = decrypted;
+      // Decrypt shop's CryptoBot token (for creating invoice)
+      if (shop.cryptobot_token_encrypted) {
+        const { data: decryptedCrypto } = await supabase.rpc("decrypt_token", {
+          p_encrypted: shop.cryptobot_token_encrypted,
+          p_key: encryptionKey,
+        });
+        cryptobotToken = decryptedCrypto || null;
+      }
+
+      // Fallback to platform CryptoBot token if shop doesn't have one
+      if (!cryptobotToken) {
+        cryptobotToken = Deno.env.get("CRYPTOBOT_API_TOKEN") || null;
+      }
     } else {
-      // Platform context: use global bot token
+      // Platform context
       botToken = Deno.env.get("TELEGRAM_BOT_TOKEN") || null;
+      cryptobotToken = Deno.env.get("CRYPTOBOT_API_TOKEN") || null;
+      paidBtnBotUsername = Deno.env.get("BOT_USERNAME") || "temkastore_bot";
     }
 
     if (!botToken) {
@@ -114,7 +128,6 @@ serve(async (req) => {
     }
 
     if (!initData) {
-      console.error("[topup] No initData provided");
       return new Response(
         JSON.stringify({ error: "Откройте приложение через Telegram" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -142,7 +155,6 @@ serve(async (req) => {
       );
     }
 
-    // ─── Check user is not blocked ───────────────
     // ─── Rate limiting ─────────────────────────
     await supabase.from("rate_limits").delete().lt("created_at", new Date(Date.now() - 3600000).toISOString());
     const { count: recentTopups } = await supabase
@@ -164,6 +176,7 @@ serve(async (req) => {
       action: "topup",
     });
 
+    // ─── Check user is not blocked ───────────────
     const { data: userProfile } = await supabase
       .from("user_profiles")
       .select("is_blocked")
@@ -178,16 +191,20 @@ serve(async (req) => {
     }
 
     // ─── Create CryptoBot invoice ────────────────
-    const cryptobotToken = Deno.env.get("CRYPTOBOT_API_TOKEN");
     if (!cryptobotToken) {
-      console.error("[topup] CRYPTOBOT_API_TOKEN not set");
+      console.error("[topup] No CryptoBot token available");
       return new Response(
         JSON.stringify({ error: "Платёжная система не настроена. Обратитесь в поддержку." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`[topup] Creating CryptoBot invoice for $${numAmount.toFixed(2)}`);
+    console.log(`[topup] Creating CryptoBot invoice for $${numAmount.toFixed(2)}, shopId=${shopId || "platform"}`);
+
+    // Build paid_btn_url pointing to the correct bot
+    const btnUrl = paidBtnBotUsername
+      ? `https://t.me/${paidBtnBotUsername}`
+      : `https://t.me/temkastore_bot`;
 
     const response = await fetch(`${CRYPTOBOT_API_URL}/createInvoice`, {
       method: "POST",
@@ -204,9 +221,10 @@ serve(async (req) => {
           type: "topup",
           telegramUserId,
           amount: numAmount,
+          shopId: shopId || null,
         }),
         paid_btn_name: "callback",
-        paid_btn_url: `https://t.me/${Deno.env.get("BOT_USERNAME") || "temkastore_bot"}`,
+        paid_btn_url: btnUrl,
       }),
     });
 
