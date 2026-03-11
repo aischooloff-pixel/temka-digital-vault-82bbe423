@@ -1,6 +1,21 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// ─── Webhook Setup (GET) ──────────────────────
+async function setupWebhook(): Promise<Response> {
+  const token = Deno.env.get("PLATFORM_BOT_TOKEN");
+  if (!token) return new Response(JSON.stringify({ error: "PLATFORM_BOT_TOKEN not set" }), { status: 500 });
+  const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/platform-bot`;
+  const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, allowed_updates: ["message", "callback_query"], drop_pending_updates: true }),
+  });
+  const data = await res.json();
+  console.log("setWebhook result:", data);
+  return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
+}
+
 // ─── Telegram API ─────────────────────────────
 const TG = (token: string) => {
   const call = (method: string, body: Record<string, unknown>) =>
