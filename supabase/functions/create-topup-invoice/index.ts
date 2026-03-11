@@ -91,6 +91,27 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // ─── Rate limiting ─────────────────────────
+    await supabase.from("rate_limits").delete().lt("created_at", new Date(Date.now() - 3600000).toISOString());
+    const { count: recentTopups } = await supabase
+      .from("rate_limits")
+      .select("id", { count: "exact", head: true })
+      .eq("identifier", String(telegramUserId))
+      .eq("action", "topup")
+      .gte("created_at", new Date(Date.now() - 3600000).toISOString());
+
+    if (recentTopups && recentTopups >= 10) {
+      return new Response(
+        JSON.stringify({ error: "Слишком много запросов на пополнение. Попробуйте позже." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    await supabase.from("rate_limits").insert({
+      identifier: String(telegramUserId),
+      action: "topup",
+    });
+
     const { data: userProfile } = await supabase
       .from("user_profiles")
       .select("is_blocked")
