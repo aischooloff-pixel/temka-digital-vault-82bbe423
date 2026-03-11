@@ -611,12 +611,36 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
   const parts = data.split(":");
   const cmd = parts[1];
 
-  // Don't clear session for wizard-related callbacks
-  const keepSession = ["useslug", "checksubscribe"].includes(cmd);
-  await clearSession(chatId); // clear FSM on any button press
+  // For useslug we need session data before clearing
+  if (cmd === "useslug") {
+    const session = await getSession(chatId);
+    const slug = parts.slice(2).join(":");
+    const name = (session?.data as Record<string, unknown>)?.name as string;
+    if (!name) {
+      await clearSession(chatId);
+      return tg.edit(chatId, msgId, "❌ Сессия истекла. Начните заново.", ikb([[btn("◀️ Меню", "p:menu")]]));
+    }
+    // Check slug availability
+    const { data: existing } = await db().from("shops").select("id").eq("slug", slug).maybeSingle();
+    if (existing) {
+      return tg.edit(chatId, msgId, `❌ Slug <code>${esc(slug)}</code> занят. Отправьте другой:`, ikb([[btn("❌ Отмена", "p:menu")]]));
+    }
+    return await finalizeShopCreation(tg, chatId, name, slug);
+  }
 
-  const parts = data.split(":");
-  const cmd = parts[1];
+  // Check subscription callback
+  if (cmd === "checksubscribe") {
+    const subscribed = await checkSubscription(tg, chatId);
+    if (!subscribed) {
+      return tg.edit(chatId, msgId, "❌ Вы ещё не подписались на канал. Подпишитесь и нажмите кнопку снова.");
+    }
+    await upsertUser({ id: chatId, first_name: "" });
+    await clearSession(chatId);
+    return showMainMenu(tg, chatId, msgId);
+  }
+
+  // Clear session for all other callbacks
+  await clearSession(chatId);
 
   if (cmd === "menu") return showMainMenu(tg, chatId, msgId);
   if (cmd === "noop") return;
@@ -627,17 +651,6 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
   if (cmd === "shops") return shopsList(tg, chatId, msgId, parseInt(parts[2]) || 0);
   if (cmd === "shop") return shopView(tg, chatId, msgId, parts[2]);
   if (cmd === "create") return startCreateShop(tg, chatId, msgId);
-
-  // Use suggested slug
-  if (cmd === "useslug") {
-    const session = await getSession(chatId);
-    // Session was cleared, re-read data
-    const slug = parts.slice(2).join(":");
-    // Need to get name from somewhere — let's re-check
-    // Actually we cleared session above, let's not clear on useslug
-    // Fix: Don't clear session for create wizard callbacks
-    return;
-  }
 
   // Shop settings
   if (cmd === "sett") return shopSettings(tg, chatId, msgId, parts[2]);
