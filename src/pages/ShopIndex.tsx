@@ -1,5 +1,4 @@
 import { Link, useParams } from 'react-router-dom';
-import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Zap, Shield, ChevronRight, ArrowRight, CheckCircle2, Package, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,37 +12,10 @@ const fadeIn = {
   visible: (i: number) => ({ opacity: 1, y: 0, transition: { delay: i * 0.08, duration: 0.4 } })
 };
 
-// Map product type to icon
-const typeIcons: Record<string, string> = {
-  'account': '👤',
-  'key': '🔑',
-  'subscription': '⭐',
-  'software': '💻',
-  'service': '⚡',
-  'digital': '📦',
-  'other': '🎁',
-};
-
 const ShopIndex = () => {
   const { shopId } = useParams();
   const { shop, products, productsLoading } = useShop();
   const base = `/shop/${shopId}`;
-
-  // Derive categories from product types
-  const categories = useMemo(() => {
-    if (!products.length) return [];
-    const typeMap = new Map<string, number>();
-    products.forEach(p => {
-      const type = p.type || 'other';
-      typeMap.set(type, (typeMap.get(type) || 0) + 1);
-    });
-    return Array.from(typeMap.entries()).map(([type, count]) => ({
-      type,
-      label: type.charAt(0).toUpperCase() + type.slice(1),
-      icon: typeIcons[type] || '📦',
-      count,
-    }));
-  }, [products]);
 
   if (!shop) return null;
 
@@ -60,7 +32,7 @@ const ShopIndex = () => {
               <Zap className="w-4 h-4" /> Мгновенная доставка
             </motion.div>
             <motion.h1 variants={fadeIn} custom={1} className="font-display text-3xl sm:text-4xl font-bold leading-tight tracking-tight">
-              {shop.hero_title || shop.name}
+              <span className="gradient-text">{shop.hero_title || shop.name}</span>
             </motion.h1>
             <motion.p variants={fadeIn} custom={2} className="text-muted-foreground text-base mt-4 max-w-sm mx-auto">
               {shop.hero_description}
@@ -81,7 +53,7 @@ const ShopIndex = () => {
         </div>
       </section>
 
-      {/* Stats — always show */}
+      {/* Stats — always visible */}
       <section className="border-y border-border/30 bg-card/30">
         <div className="container-main mx-auto px-4 py-6 grid grid-cols-3 gap-2">
           {productsLoading ? (
@@ -114,42 +86,8 @@ const ShopIndex = () => {
         </div>
       </section>
 
-      {/* Categories — derived from product types */}
-      <section className="px-4 py-8">
-        <div className="container-main mx-auto">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="font-display text-xl font-bold">Категории</h2>
-            <Link to={`${base}/catalog`} className="text-sm text-primary flex items-center gap-0.5">
-              Все <ChevronRight className="w-4 h-4" />
-            </Link>
-          </div>
-          {productsLoading ? (
-            <div className="grid grid-cols-4 gap-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-20 rounded-xl" />
-              ))}
-            </div>
-          ) : categories.length > 0 ? (
-            <div className="grid grid-cols-4 gap-2">
-              {categories.map((cat) => (
-                <Link
-                  key={cat.type}
-                  to={`${base}/catalog?type=${cat.type}`}
-                  className="p-3 bg-card border border-border/50 rounded-xl text-center hover:border-primary/30 transition-all"
-                >
-                  <div className="text-2xl mb-1.5">{cat.icon}</div>
-                  <h3 className="font-display font-medium text-xs leading-tight">{cat.label}</h3>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-4">Категории не найдены</p>
-          )}
-        </div>
-      </section>
-
       {/* Products */}
-      <section className="px-4 pb-8">
+      <section className="px-4 py-8">
         <div className="container-main mx-auto">
           <div className="flex items-center justify-between mb-5">
             <h2 className="font-display text-xl font-bold">Товары</h2>

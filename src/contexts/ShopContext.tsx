@@ -165,6 +165,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       document.documentElement.style.setProperty('--primary', '160 84% 50%');
       document.documentElement.style.setProperty('--ring', '160 84% 50%');
       document.documentElement.style.setProperty('--accent', '160 60% 40%');
+      document.documentElement.style.setProperty('--gradient-primary', 'linear-gradient(135deg, hsl(160, 84%, 50%), hsl(180, 70%, 45%))');
     };
   }, [shopId]);
 
