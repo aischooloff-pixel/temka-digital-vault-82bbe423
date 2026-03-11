@@ -1247,7 +1247,12 @@ serve(async (req) => {
           await tg.answer(cb.id, "⛔ Нет доступа");
           return new Response("ok");
         }
-        await handleCallback(tg, chatId, msgId, data, cb.id, shopId);
+        try {
+          await handleCallback(tg, chatId, msgId, data, cb.id, shopId);
+        } catch (cbErr) {
+          console.error("seller-bot-webhook: callback error:", cbErr, "data:", data);
+          try { await tg.answer(cb.id, "❌ Ошибка обработки"); } catch {}
+        }
       }
       return new Response("ok");
     }
