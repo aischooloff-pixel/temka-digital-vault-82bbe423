@@ -3,14 +3,16 @@ import { ArrowLeft, ShoppingCart, Zap, CheckCircle2, ChevronRight, Shield, Messa
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useShop } from '@/contexts/ShopContext';
+import { useStorefrontPath } from '@/contexts/StorefrontContext';
 import ShopProductCard from '@/components/ShopProductCard';
 import { toast } from 'sonner';
 
 const ShopProductDetails = () => {
-  const { shopId, productId } = useParams();
+  const { productId } = useParams();
   const { products, addToCart, productsLoading, shop } = useShop();
   const product = products.find(p => p.id === productId);
-  const base = `/shop/${shopId}`;
+  const buildPath = useStorefrontPath();
+  const shopId = shop?.id || '';
 
   if (productsLoading) {
     return (
