@@ -5,12 +5,46 @@ import { useShopStats } from '@/hooks/useProducts';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useStorefront, useStorefrontPath } from '@/contexts/StorefrontContext';
 import cryptobotLogo from '@/assets/cryptobot-logo.jpeg';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+
+/** Fetch stats scoped to a specific tenant shop */
+const useShopScopedStats = (shopId: string | undefined) => {
+  return useQuery({
+    queryKey: ['shop-scoped-stats', shopId],
+    queryFn: async () => {
+      if (!shopId) return null;
+
+      const [productsRes, ordersRes] = await Promise.all([
+        supabase.from('shop_products').select('id', { count: 'exact', head: true }).eq('shop_id', shopId).eq('is_active', true),
+        supabase.from('shop_orders').select('id', { count: 'exact', head: true }).eq('shop_id', shopId).eq('status', 'completed'),
+      ]);
+
+      return {
+        activeProducts: productsRes.count ?? 0,
+        completedOrders: ordersRes.count ?? 0,
+      };
+    },
+    enabled: !!shopId,
+    staleTime: 5 * 60 * 1000,
+  });
+};
 
 const About = () => {
-  const { data: stats, isLoading } = useShopStats();
-  const { shopName } = useStorefront();
+  const { shopName, basePath } = useStorefront();
   const buildPath = useStorefrontPath();
   const name = shopName || 'Магазин';
+
+  // Detect tenant context: basePath like "/shop/xxx" means tenant
+  const isTenant = basePath.startsWith('/shop/');
+  const shopId = isTenant ? basePath.split('/')[2] : undefined;
+
+  const platformStats = useShopStats();
+  const tenantStats = useShopScopedStats(shopId);
+
+  const stats = isTenant
+    ? { data: tenantStats.data ? { users: 0, completedOrders: tenantStats.data.completedOrders, totalOrders: 0, activeProducts: tenantStats.data.activeProducts, approvedReviews: 0 } : undefined, isLoading: tenantStats.isLoading }
+    : { data: platformStats.data, isLoading: platformStats.isLoading };
 
   return (
     <div className="container-main mx-auto px-4 py-8 sm:py-12">
@@ -58,48 +92,48 @@ const About = () => {
           <span className="text-xs font-medium">CryptoBot</span>
         </div>
 
-        {/* Dynamic stats from real DB */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-8">
-          {isLoading ? (
-            Array.from({ length: 4 }).map((_, i) => (
+        {/* Dynamic stats — hidden when no data per data-visibility-policy */}
+        {stats.isLoading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-8">
+            {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="text-center space-y-2">
                 <Skeleton className="h-8 w-16 mx-auto" />
                 <Skeleton className="h-4 w-20 mx-auto" />
               </div>
-            ))
-          ) : (
-            <>
-              {(stats?.users ?? 0) > 0 && (
-                <div className="text-center">
-                  <Users className="w-5 h-5 text-primary mx-auto mb-1" />
-                  <div className="font-display text-2xl sm:text-3xl font-bold text-primary">{stats!.users}</div>
-                  <div className="text-xs text-muted-foreground mt-1">Пользователей</div>
-                </div>
-              )}
-              {(stats?.completedOrders ?? 0) > 0 && (
-                <div className="text-center">
-                  <CheckCircle2 className="w-5 h-5 text-primary mx-auto mb-1" />
-                  <div className="font-display text-2xl sm:text-3xl font-bold text-primary">{stats!.completedOrders}</div>
-                  <div className="text-xs text-muted-foreground mt-1">Заказов выполнено</div>
-                </div>
-              )}
-              {(stats?.activeProducts ?? 0) > 0 && (
-                <div className="text-center">
-                  <Package className="w-5 h-5 text-primary mx-auto mb-1" />
-                  <div className="font-display text-2xl sm:text-3xl font-bold text-primary">{stats!.activeProducts}</div>
-                  <div className="text-xs text-muted-foreground mt-1">Товаров</div>
-                </div>
-              )}
-              {(stats?.approvedReviews ?? 0) > 0 && (
-                <div className="text-center">
-                  <MessageCircle className="w-5 h-5 text-primary mx-auto mb-1" />
-                  <div className="font-display text-2xl sm:text-3xl font-bold text-primary">{stats!.approvedReviews}</div>
-                  <div className="text-xs text-muted-foreground mt-1">Отзывов</div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+            ))}
+          </div>
+        ) : stats.data && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-8">
+            {(stats.data.users ?? 0) > 0 && (
+              <div className="text-center">
+                <Users className="w-5 h-5 text-primary mx-auto mb-1" />
+                <div className="font-display text-2xl sm:text-3xl font-bold text-primary">{stats.data.users}</div>
+                <div className="text-xs text-muted-foreground mt-1">Пользователей</div>
+              </div>
+            )}
+            {(stats.data.completedOrders ?? 0) > 0 && (
+              <div className="text-center">
+                <CheckCircle2 className="w-5 h-5 text-primary mx-auto mb-1" />
+                <div className="font-display text-2xl sm:text-3xl font-bold text-primary">{stats.data.completedOrders}</div>
+                <div className="text-xs text-muted-foreground mt-1">Заказов выполнено</div>
+              </div>
+            )}
+            {(stats.data.activeProducts ?? 0) > 0 && (
+              <div className="text-center">
+                <Package className="w-5 h-5 text-primary mx-auto mb-1" />
+                <div className="font-display text-2xl sm:text-3xl font-bold text-primary">{stats.data.activeProducts}</div>
+                <div className="text-xs text-muted-foreground mt-1">Товаров</div>
+              </div>
+            )}
+            {(stats.data.approvedReviews ?? 0) > 0 && (
+              <div className="text-center">
+                <MessageCircle className="w-5 h-5 text-primary mx-auto mb-1" />
+                <div className="font-display text-2xl sm:text-3xl font-bold text-primary">{stats.data.approvedReviews}</div>
+                <div className="text-xs text-muted-foreground mt-1">Отзывов</div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="text-center pt-6 sm:pt-8">
           <Link to={buildPath('/catalog')}><Button variant="hero" size="lg">Перейти в каталог</Button></Link>
