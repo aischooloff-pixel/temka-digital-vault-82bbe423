@@ -243,7 +243,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[topup] Creating CryptoBot invoice for $${numAmount.toFixed(2)}, shopId=${shopId || "platform"}`);
+    console.log(`[topup] Creating CryptoBot invoice for $${numAmount.toFixed(2)}, shopId=${resolvedShopId || "platform"}`);
 
     // Ensure CryptoBot webhook is configured for the token used to create the invoice
     await ensureCryptoBotWebhook(cryptobotToken);
@@ -268,7 +268,8 @@ serve(async (req) => {
           type: "topup",
           telegramUserId,
           amount: numAmount,
-          shopId: shopId || null,
+          shopId: resolvedShopId,
+          shopSlug: resolvedShopSlug,
         }),
         paid_btn_name: "callback",
         paid_btn_url: btnUrl,
