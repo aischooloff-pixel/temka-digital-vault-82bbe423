@@ -265,7 +265,7 @@ const Index = () => {
           <div className="container-main mx-auto">
             <div className="flex items-center justify-between mb-5">
               <h2 className="font-display text-xl font-bold">Новинки</h2>
-              <Link to="/catalog" className="text-sm text-primary flex items-center gap-0.5">
+              <Link to={buildPath('/catalog')} className="text-sm text-primary flex items-center gap-0.5">
                 Все <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
