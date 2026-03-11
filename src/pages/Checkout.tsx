@@ -221,7 +221,7 @@ const Checkout = () => {
 
           <p className="text-[10px] text-muted-foreground text-center pt-1">
             Нажимая «Оплатить», вы соглашаетесь с{' '}
-            <Link to="/terms" className="text-primary hover:underline">условиями сервиса</Link>.
+            <Link to={buildPath('/terms')} className="text-primary hover:underline">условиями сервиса</Link>.
           </p>
 
           <div className="space-y-1.5 pt-1 text-[10px] text-muted-foreground">
