@@ -1,77 +1,108 @@
 import { useParams, Link } from 'react-router-dom';
-import { Minus, Plus, Trash2, ShoppingCart, ArrowRight } from 'lucide-react';
+import { Trash2, Plus, Minus, ArrowRight, Shield, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useShop } from '@/contexts/ShopContext';
+import ShopProductCard from '@/components/ShopProductCard';
 
 const ShopCart = () => {
   const { shopId } = useParams();
-  const { cart, updateQuantity, removeFromCart, clearCart, cartTotal, cartCount } = useShop();
+  const { cart, updateQuantity, removeFromCart, clearCart, cartTotal, cartCount, products } = useShop();
   const base = `/shop/${shopId}`;
+
+  const recommended = products.filter(p => !cart.some(c => c.product.id === p.id) && p.stock > 0).slice(0, 4);
 
   if (cart.length === 0) {
     return (
-      <div className="px-4 py-16 text-center">
-        <ShoppingCart className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-        <h2 className="font-display text-xl font-bold mb-2">Корзина пуста</h2>
-        <p className="text-sm text-muted-foreground mb-6">Добавьте товары из каталога</p>
+      <div className="container-main mx-auto px-4 py-16 sm:py-20 text-center">
+        <div className="text-5xl sm:text-6xl mb-4">🛒</div>
+        <h2 className="font-display text-xl sm:text-2xl font-bold">Ваша корзина пуста</h2>
+        <p className="text-muted-foreground text-sm mt-2">Загляните в каталог и найдите то, что вам понравится!</p>
         <Link to={`${base}/catalog`}>
-          <Button>Перейти в каталог</Button>
+          <Button variant="hero" className="mt-6">Перейти в каталог <ArrowRight className="w-4 h-4 ml-1" /></Button>
         </Link>
       </div>
     );
   }
 
   return (
-    <div className="px-4 py-6">
-      <div className="container-main mx-auto max-w-lg">
-        <div className="flex items-center justify-between mb-5">
-          <h1 className="font-display text-xl font-bold">Корзина ({cartCount})</h1>
-          <Button variant="ghost" size="sm" onClick={clearCart} className="text-destructive hover:text-destructive">
-            <Trash2 className="w-3.5 h-3.5 mr-1" /> Очистить
-          </Button>
-        </div>
+    <div className="container-main mx-auto px-4 py-6 sm:py-8">
+      <h1 className="font-display text-2xl sm:text-3xl font-bold mb-6 sm:mb-8">Корзина</h1>
 
-        <div className="space-y-3">
-          {cart.map(({ product, quantity }) => (
-            <div key={product.id} className="bg-card border border-border/50 rounded-xl p-3 flex gap-3">
-              {product.image && (
-                <img src={product.image} alt={product.name} className="w-16 h-16 rounded-lg object-cover shrink-0" />
-              )}
-              <div className="flex-1 min-w-0">
-                <h3 className="font-display font-semibold text-sm line-clamp-1">{product.name}</h3>
-                <p className="text-xs text-muted-foreground">${product.price}</p>
-                <div className="flex items-center gap-2 mt-2">
-                  <button onClick={() => updateQuantity(product.id, quantity - 1)}
-                    className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center">
-                    <Minus className="w-3 h-3" />
-                  </button>
-                  <span className="text-sm font-medium w-6 text-center">{quantity}</span>
-                  <button onClick={() => updateQuantity(product.id, quantity + 1)}
-                    className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center">
-                    <Plus className="w-3 h-3" />
-                  </button>
-                  <button onClick={() => removeFromCart(product.id)} className="ml-auto text-destructive">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
+        <div className="lg:col-span-2 space-y-3 sm:space-y-4">
+          {cart.map(({ product, quantity }) => {
+            const outOfStock = product.stock <= 0;
+            return (
+              <div key={product.id} className={`bg-card border border-border/50 rounded-xl p-3 sm:p-4 flex gap-3 sm:gap-4 ${outOfStock ? 'opacity-60' : ''}`}>
+                <div className="w-16 h-16 sm:w-20 sm:h-20 bg-secondary/50 rounded-lg flex items-center justify-center text-2xl sm:text-3xl shrink-0 overflow-hidden">
+                  {product.image ? (
+                    <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                  ) : (
+                    '📦'
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <Link to={`${base}/product/${product.id}`} className="font-display font-semibold text-xs sm:text-sm hover:text-primary transition-colors line-clamp-1">{product.name}</Link>
+                  {product.subtitle && <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">{product.subtitle}</p>}
+                  <div className="flex items-center gap-1 mt-1">
+                    <span className="text-[10px] text-primary flex items-center gap-0.5"><Zap className="w-3 h-3" /> Мгновенно</span>
+                    {outOfStock && <span className="text-[10px] text-destructive ml-2">Нет в наличии</span>}
+                  </div>
+                  <div className="flex items-center justify-between mt-2 sm:mt-3">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <button onClick={() => updateQuantity(product.id, quantity - 1)}
+                        className="w-7 h-7 rounded-md bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors">
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <span className="text-sm font-medium w-6 text-center">{quantity}</span>
+                      <button onClick={() => updateQuantity(product.id, quantity + 1)}
+                        disabled={quantity >= product.stock}
+                        className="w-7 h-7 rounded-md bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <span className="font-display font-bold text-sm sm:text-base">${(Number(product.price) * quantity).toFixed(2)}</span>
+                      <button onClick={() => removeFromCart(product.id)} className="text-muted-foreground hover:text-destructive transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="font-display font-bold text-sm shrink-0">
-                ${(product.price * quantity).toFixed(2)}
-              </div>
-            </div>
-          ))}
+            );
+          })}
+          <Button variant="ghost" size="sm" onClick={clearCart} className="text-muted-foreground">Очистить корзину</Button>
         </div>
 
-        <div className="mt-6 bg-card border border-border/50 rounded-xl p-4">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Итого</span>
-            <span className="font-display font-bold text-lg">${cartTotal.toFixed(2)}</span>
+        <div className="space-y-4">
+          <div className="bg-card border border-border/50 rounded-xl p-4 sm:p-6 space-y-4 sticky top-24">
+            <h3 className="font-display font-semibold text-base sm:text-lg">Итого</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">Подытог</span><span>${cartTotal.toFixed(2)}</span></div>
+              <div className="border-t border-border/30 pt-2 flex justify-between font-display font-bold text-lg">
+                <span>Итого</span><span>${cartTotal.toFixed(2)}</span>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Оплата через CryptoBot. Товары будут выданы мгновенно после оплаты.
+            </p>
+            <div className="space-y-2 pt-2 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5"><Shield className="w-3 h-3 text-primary" /> Безопасная оплата</span>
+              <span className="flex items-center gap-1.5"><Zap className="w-3 h-3 text-primary" /> Мгновенная цифровая доставка</span>
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-3">
-            Оплата через CryptoBot. Товары будут выданы мгновенно после оплаты.
-          </p>
         </div>
       </div>
+
+      {recommended.length > 0 && (
+        <section className="mt-12 sm:mt-16">
+          <h2 className="font-display text-lg sm:text-xl font-bold mb-4 sm:mb-6">Вам может понравиться</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {recommended.map(p => <ShopProductCard key={p.id} product={p} shopId={shopId!} />)}
+          </div>
+        </section>
+      )}
     </div>
   );
 };
