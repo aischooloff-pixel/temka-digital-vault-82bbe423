@@ -601,7 +601,8 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
   let webhookStatus = "none";
 
   if (sData.bot_token && sData.bot_valid && encKey) {
-    const { data: enc } = await db().rpc("encrypt_token", { p_token: sData.bot_token as string, p_key: encKey });
+    const { data: enc, error: encErr } = await db().rpc("encrypt_token", { p_token: sData.bot_token as string, p_key: encKey });
+    if (encErr) console.error("finalizeShop: encryption error", encErr);
     botTokenEnc = enc;
     botId = (sData.bot_id as number) || null;
     botUsername = (sData.bot_username as string) || null;
