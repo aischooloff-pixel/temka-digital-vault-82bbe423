@@ -121,7 +121,7 @@ const ShopCatalog = () => {
               <p className="text-xs sm:text-sm text-muted-foreground mb-4">Найдено товаров: {filtered.length}</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
                 {filtered.map(product => (
-                  <ShopProductCard key={product.id} product={product} shopId={shopId!} />
+                  <ShopProductCard key={product.id} product={product} shopId={shopId} />
                 ))}
               </div>
             </>
