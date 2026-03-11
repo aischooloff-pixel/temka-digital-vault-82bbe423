@@ -70,16 +70,14 @@ const Checkout = () => {
         // CryptoBot payment (partial or full)
         const { data, error: fnError } = await supabase.functions.invoke('create-invoice', {
           body: {
+            initData,
             amount: toPay.toFixed(2),
             currency: 'USD',
             description,
             orderNumber,
-            telegramUserId: user?.id,
             items: itemsPayload,
-            discountAmount: discount,
             promoCode: promoResult?.code || null,
             balanceUsed: balanceUsed,
-            totalOriginal: cartTotal,
           },
         });
 
