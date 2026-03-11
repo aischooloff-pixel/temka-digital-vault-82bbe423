@@ -493,7 +493,7 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     return tg.edit(chatId, msgId, `❌ Ошибка: ${error?.message || "unknown"}`, ikb([[btn("◀️ Меню", "p:home")]]));
   }
 
-  const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.slug}`;
+  const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
   const text =
     `🎉 <b>Магазин создан!</b>\n\n` +
     `Вот твоя ссылка:\n${esc(shopUrl)}`;
