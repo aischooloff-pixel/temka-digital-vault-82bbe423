@@ -27,6 +27,8 @@ const ProductDetails = () => {
   const { data: allProducts } = useProducts();
   const { addToCart } = useStore();
   const { data: supportUsername } = useSupportUsername();
+  const { supportLink } = useStorefront();
+  const buildPath = useStorefrontPath();
 
   if (isLoading) {
     return (
