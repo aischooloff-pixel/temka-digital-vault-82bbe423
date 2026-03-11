@@ -100,7 +100,7 @@ const ShopCart = () => {
         <section className="mt-12 sm:mt-16">
           <h2 className="font-display text-lg sm:text-xl font-bold mb-4 sm:mb-6">Вам может понравиться</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            {recommended.map(p => <ShopProductCard key={p.id} product={p} shopId={shopId!} />)}
+            {recommended.map(p => <ShopProductCard key={p.id} product={p} shopId={shopId} />)}
           </div>
         </section>
       )}
