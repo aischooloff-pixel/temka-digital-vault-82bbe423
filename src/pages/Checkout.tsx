@@ -109,7 +109,7 @@ const Checkout = () => {
 
   return (
     <div className="container-main mx-auto px-4 py-4 sm:py-6">
-      <Link to="/cart" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-3">
+      <Link to={buildPath('/cart')} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-3">
         <ArrowLeft className="w-3 h-3" /> Назад в корзину
       </Link>
       <h1 className="font-display text-xl sm:text-2xl font-bold mb-4">Оформление заказа</h1>
