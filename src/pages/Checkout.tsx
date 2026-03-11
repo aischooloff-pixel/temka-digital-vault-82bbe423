@@ -11,7 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 const Checkout = () => {
   const { cart, cartTotal, clearCart, discount, totalAfterDiscount, promoResult } = useStore();
-  const { user, isInTelegram, openTelegramLink, haptic } = useTelegram();
+  const { user, isInTelegram, openTelegramLink, haptic, initData } = useTelegram();
   const { data: profile } = useUserProfile();
   const navigate = useNavigate();
   const [processing, setProcessing] = useState(false);
