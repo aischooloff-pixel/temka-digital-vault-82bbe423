@@ -12,26 +12,9 @@ const CRYPTOBOT_API_URL = "https://pay.crypt.bot/api";
 const MAX_TOPUP_AMOUNT = 1000;
 const MIN_TOPUP_AMOUNT = 0.1;
 
-async function ensureCryptoBotWebhook(cryptobotToken: string) {
-  try {
-    const webhookUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/cryptobot-webhook`;
-    const response = await fetch(`${CRYPTOBOT_API_URL}/setWebhook`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Crypto-Pay-API-Token": cryptobotToken,
-      },
-      body: JSON.stringify({ url: webhookUrl }),
-    });
-
-    const data = await response.json();
-    if (!data?.ok) {
-      console.warn("[topup] Failed to ensure CryptoBot webhook:", JSON.stringify(data));
-    }
-  } catch (error) {
-    console.warn("[topup] Error ensuring CryptoBot webhook:", error);
-  }
-}
+// NOTE: CryptoBot webhook must be configured manually in @CryptoBot → Crypto Pay → My Apps → Webhooks
+// URL: ${SUPABASE_URL}/functions/v1/cryptobot-webhook
+// The setWebhook API method does not exist in Crypto Pay API.
 
 function verifyAndExtractUser(initData: string, botToken: string): { id: number } | null {
   const params = new URLSearchParams(initData);
@@ -245,8 +228,7 @@ serve(async (req) => {
 
     console.log(`[topup] Creating CryptoBot invoice for $${numAmount.toFixed(2)}, shopId=${resolvedShopId || "platform"}`);
 
-    // Ensure CryptoBot webhook is configured for the token used to create the invoice
-    await ensureCryptoBotWebhook(cryptobotToken);
+    // Webhook must be configured manually in @CryptoBot app settings
 
     // Build paid_btn_url pointing to the correct bot
     const btnUrl = paidBtnBotUsername
