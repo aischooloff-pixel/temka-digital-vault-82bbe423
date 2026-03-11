@@ -55,6 +55,8 @@ import ShopIndex from "./pages/ShopIndex";
 import ShopCatalog from "./pages/ShopCatalog";
 import ShopProductDetails from "./pages/ShopProductDetails";
 import ShopCart from "./pages/ShopCart";
+import ShopCheckout from "./pages/ShopCheckout";
+import ShopOrderSuccess from "./pages/ShopOrderSuccess";
 
 const queryClient = new QueryClient();
 
@@ -73,6 +75,8 @@ const App = () => (
                 <Route path="catalog" element={<ShopCatalog />} />
                 <Route path="product/:productId" element={<ShopProductDetails />} />
                 <Route path="cart" element={<ShopCart />} />
+                <Route path="checkout" element={<ShopCheckout />} />
+                <Route path="order-success" element={<ShopOrderSuccess />} />
                 <Route path="account" element={<Account />} />
                 <Route path="faq" element={<FAQ />} />
                 <Route path="about" element={<About />} />
