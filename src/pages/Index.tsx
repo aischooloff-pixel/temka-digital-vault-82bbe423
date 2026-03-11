@@ -48,6 +48,7 @@ const ReviewCard = ({ review }: {review: DbReview;}) =>
 
 
 const Index = () => {
+  const buildPath = useStorefrontPath();
   const { data: products, isLoading: productsLoading } = useProducts();
   const { data: categories, isLoading: categoriesLoading } = useCategories();
   const { data: stats } = useProductStats();
