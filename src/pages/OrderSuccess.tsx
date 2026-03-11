@@ -31,7 +31,7 @@ const OrderSuccess = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke('check-payment', {
-        body: { orderId: order.id },
+        body: { orderId: order.id, initData },
       });
 
       if (error) {
