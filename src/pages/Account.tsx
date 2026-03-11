@@ -4,6 +4,7 @@ import { Package, CheckCircle2, Clock, MessageCircle, ChevronRight, AlertCircle,
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { useStorefront, useStorefrontPath } from '@/contexts/StorefrontContext';
+import { useShopOptional } from '@/contexts/ShopContext';
 import { useTelegram } from '@/contexts/TelegramContext';
 import { useOrders, useUserStats, useUserProfile, useBalanceHistory } from '@/hooks/useOrders';
 import { useSupportUsername } from '@/hooks/useSupportUsername';
@@ -54,10 +55,10 @@ const Account = () => {
   const { supportLink, basePath } = useStorefront();
   const buildPath = useStorefrontPath();
   const { user, isInTelegram, openTelegramLink, haptic, initData } = useTelegram();
+  const shopCtx = useShopOptional();
 
-  // Extract shopId from basePath for multi-tenant context
-  const isTenant = basePath.startsWith('/shop/');
-  const shopId = isTenant ? basePath.split('/')[2] : undefined;
+  // Use shop UUID from ShopContext (not slug from URL)
+  const shopId = shopCtx?.shop?.id;
   const { data: orders, isLoading: ordersLoading } = useOrders(shopId);
   const { data: balanceHistory, isLoading: balanceLoading } = useBalanceHistory(shopId);
   const { data: stats, isLoading: statsLoading } = useUserStats(shopId);
