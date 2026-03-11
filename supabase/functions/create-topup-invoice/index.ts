@@ -63,6 +63,27 @@ function verifyAndExtractUser(initData: string, botToken: string): { id: number 
   }
 }
 
+async function resolveShopByHint(supabase: any, shopHint: string) {
+  const normalized = String(shopHint).trim();
+  if (!normalized) return null;
+
+  const { data: byId } = await supabase
+    .from("shops")
+    .select("id, slug, bot_token_encrypted, bot_username, cryptobot_token_encrypted")
+    .eq("id", normalized)
+    .maybeSingle();
+
+  if (byId) return byId;
+
+  const { data: bySlug } = await supabase
+    .from("shops")
+    .select("id, slug, bot_token_encrypted, bot_username, cryptobot_token_encrypted")
+    .eq("slug", normalized)
+    .maybeSingle();
+
+  return bySlug || null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
