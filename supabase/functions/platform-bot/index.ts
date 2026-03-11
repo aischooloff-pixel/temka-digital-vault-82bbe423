@@ -834,16 +834,7 @@ serve(async (req) => {
 
       // ─── /start ───────────────────────────
       if (text === "/start" || text.startsWith("/start ")) {
-        // Check channel subscription
-        const subscribed = await checkAllChannels(tg, chatId);
-        if (!subscribed) {
-          await tg.send(chatId,
-            "👋 <b>Добро пожаловать!</b>\n\nДля использования платформы подпишись на наши каналы:",
-            ikb(channelButtons()),
-          );
-          return new Response("ok");
-        }
-        // Upsert & welcome
+        // Upsert & welcome (subscription check disabled)
         await upsertUser(from);
         await clearSession(chatId);
         await sendWelcome(tg, chatId, from.first_name || "друг");
