@@ -69,7 +69,7 @@ const FAQ = () => {
     items: cat.items.filter(i => !search || i.q.toLowerCase().includes(search.toLowerCase()) || i.a.toLowerCase().includes(search.toLowerCase())),
   })).filter(cat => cat.items.length > 0);
 
-  const resolvedSupportLink = supportLink || 'https://t.me/temka_support';
+  const resolvedSupportLink = supportLink;
 
   return (
     <div className="container-main mx-auto px-4 py-6 sm:py-8">
@@ -122,10 +122,12 @@ const FAQ = () => {
         )}
       </div>
 
-      <div className="text-center mt-10 sm:mt-12">
-        <p className="text-muted-foreground text-sm">Не нашли ответ?</p>
-        <a href={resolvedSupportLink} target="_blank" rel="noopener noreferrer"><Button variant="hero" className="mt-3"><Headphones className="w-4 h-4 mr-1" /> Связаться с поддержкой</Button></a>
-      </div>
+      {resolvedSupportLink && (
+        <div className="text-center mt-10 sm:mt-12">
+          <p className="text-muted-foreground text-sm">Не нашли ответ?</p>
+          <a href={resolvedSupportLink} target="_blank" rel="noopener noreferrer"><Button variant="hero" className="mt-3"><Headphones className="w-4 h-4 mr-1" /> Связаться с поддержкой</Button></a>
+        </div>
+      )}
     </div>
   );
 };

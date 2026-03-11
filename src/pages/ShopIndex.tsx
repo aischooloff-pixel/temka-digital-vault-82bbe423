@@ -117,40 +117,36 @@ const ShopIndex = () => {
         </div>
       </section>
 
-      {/* Products — carousel */}
-      <section className="px-4 pb-8">
-        <div className="container-main mx-auto">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="font-display text-xl font-bold">Товары</h2>
-            <Link to={buildPath('/catalog')} className="text-sm text-primary flex items-center gap-0.5">
-              Все <ChevronRight className="w-4 h-4" />
-            </Link>
+      {/* Products — carousel (hidden when empty per data-visibility-policy) */}
+      {(productsLoading || products.length > 0) && (
+        <section className="px-4 pb-8">
+          <div className="container-main mx-auto">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="font-display text-xl font-bold">Товары</h2>
+              <Link to={buildPath('/catalog')} className="text-sm text-primary flex items-center gap-0.5">
+                Все <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+            {productsLoading ? (
+              <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="min-w-[260px] sm:min-w-[300px] snap-start shrink-0">
+                    <ProductCardSkeleton />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
+                {products.slice(0, 8).map((product) => (
+                  <div key={product.id} className="min-w-[260px] sm:min-w-[300px] snap-start shrink-0">
+                    <ShopProductCard product={product} shopId={shop.id} />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          {productsLoading ? (
-            <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="min-w-[260px] sm:min-w-[300px] snap-start shrink-0">
-                  <ProductCardSkeleton />
-                </div>
-              ))}
-            </div>
-          ) : products.length > 0 ? (
-            <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
-              {products.slice(0, 8).map((product) => (
-                <div key={product.id} className="min-w-[260px] sm:min-w-[300px] snap-start shrink-0">
-                  <ShopProductCard product={product} shopId={shop.id} />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <Package className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-50" />
-              <p className="text-sm text-muted-foreground">Товары скоро появятся</p>
-              <p className="text-xs text-muted-foreground mt-1">Магазин готовится к запуску</p>
-            </div>
-          )}
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* FAQ */}
       <section className="px-4 py-8">
