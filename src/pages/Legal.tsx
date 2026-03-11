@@ -1,11 +1,14 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useStorefrontPath } from '@/contexts/StorefrontContext';
 
 const Legal = () => {
+  const buildPath = useStorefrontPath();
+
   return (
     <div className="container-main mx-auto px-4 py-4 sm:py-6">
-      <Link to="/">
+      <Link to={buildPath('/')}>
         <Button variant="ghost" size="sm" className="mb-3 -ml-2 text-xs text-muted-foreground">
           <ArrowLeft className="w-3 h-3 mr-1" /> На главную
         </Button>

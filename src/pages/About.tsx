@@ -3,15 +3,19 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useShopStats } from '@/hooks/useProducts';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useStorefront, useStorefrontPath } from '@/contexts/StorefrontContext';
 import cryptobotLogo from '@/assets/cryptobot-logo.jpeg';
 
 const About = () => {
   const { data: stats, isLoading } = useShopStats();
+  const { shopName } = useStorefront();
+  const buildPath = useStorefrontPath();
+  const name = shopName || 'Магазин';
 
   return (
     <div className="container-main mx-auto px-4 py-8 sm:py-12">
       <div className="text-center mb-10 sm:mb-14">
-        <h1 className="font-display text-3xl sm:text-4xl md:text-5xl font-bold">О TEMKA.STORE</h1>
+        <h1 className="font-display text-3xl sm:text-4xl md:text-5xl font-bold">О {name}</h1>
         <p className="text-muted-foreground text-sm sm:text-base mt-4 max-w-2xl mx-auto leading-relaxed">
           Премиум маркетплейс цифровых товаров в Telegram. Мгновенная доставка, оплата криптовалютой через CryptoBot, гарантия качества на каждый товар.
         </p>
@@ -35,7 +39,7 @@ const About = () => {
         <h2 className="font-display text-2xl sm:text-3xl font-bold">Как это работает</h2>
         <div className="space-y-3">
           {[
-            'Откройте TEMKA.STORE в Telegram как Mini App',
+            'Откройте магазин в Telegram как Mini App',
             'Выберите товары в каталоге и добавьте в корзину',
             'Примените промокод или используйте баланс для скидки',
             'Оплатите через CryptoBot (криптовалюта) или с баланса',
@@ -98,7 +102,7 @@ const About = () => {
         </div>
 
         <div className="text-center pt-6 sm:pt-8">
-          <Link to="/catalog"><Button variant="hero" size="lg">Перейти в каталог</Button></Link>
+          <Link to={buildPath('/catalog')}><Button variant="hero" size="lg">Перейти в каталог</Button></Link>
         </div>
       </div>
     </div>

@@ -4,6 +4,7 @@ interface StorefrontContextType {
   basePath: string;
   cartCount: number;
   shopName?: string;
+  supportLink?: string;
 }
 
 const StorefrontContext = createContext<StorefrontContextType>({ basePath: '', cartCount: 0 });
@@ -12,9 +13,10 @@ export const StorefrontProvider: React.FC<{
   basePath: string;
   cartCount: number;
   shopName?: string;
+  supportLink?: string;
   children: React.ReactNode;
-}> = ({ basePath, cartCount, shopName, children }) => (
-  <StorefrontContext.Provider value={{ basePath, cartCount, shopName }}>
+}> = ({ basePath, cartCount, shopName, supportLink, children }) => (
+  <StorefrontContext.Provider value={{ basePath, cartCount, shopName, supportLink }}>
     {children}
   </StorefrontContext.Provider>
 );

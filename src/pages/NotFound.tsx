@@ -1,9 +1,11 @@
 import { useLocation, Link } from "react-router-dom";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { useStorefrontPath } from "@/contexts/StorefrontContext";
 
 const NotFound = () => {
   const location = useLocation();
+  const buildPath = useStorefrontPath();
 
   useEffect(() => {
     console.error("404 Error: User attempted to access non-existent route:", location.pathname);
@@ -16,8 +18,8 @@ const NotFound = () => {
         <h1 className="font-display text-xl sm:text-2xl font-bold mb-2">Страница не найдена</h1>
         <p className="text-sm text-muted-foreground mb-6">Страница, которую вы ищете, не существует или была перемещена.</p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Link to="/"><Button variant="hero">На главную</Button></Link>
-          <Link to="/catalog"><Button variant="outline">Перейти в каталог</Button></Link>
+          <Link to={buildPath('/')}><Button variant="hero">На главную</Button></Link>
+          <Link to={buildPath('/catalog')}><Button variant="outline">Перейти в каталог</Button></Link>
         </div>
       </div>
     </div>
