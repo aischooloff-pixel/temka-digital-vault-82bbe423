@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom';
 import { XCircle, MessageCircle, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useSupportUsername } from '@/hooks/useSupportUsername';
 
 const OrderFailed = () => {
+  const { data: supportUsername } = useSupportUsername();
   return (
     <div className="container-main mx-auto px-4 py-12 sm:py-16 text-center max-w-md">
       <div className="animate-fade-in">
