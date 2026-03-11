@@ -1,9 +1,10 @@
-import { Link, useParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Zap, Shield, ChevronRight, ArrowRight, CheckCircle2, Package, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useShop } from '@/contexts/ShopContext';
+import { useStorefrontPath } from '@/contexts/StorefrontContext';
 import ShopProductCard from '@/components/ShopProductCard';
 import ProductCardSkeleton from '@/components/ProductCardSkeleton';
 
@@ -13,9 +14,8 @@ const fadeIn = {
 };
 
 const ShopIndex = () => {
-  const { shopId } = useParams();
   const { shop, products, productsLoading } = useShop();
-  const base = `/shop/${shopId}`;
+  const buildPath = useStorefrontPath();
 
   if (!shop) return null;
 
@@ -38,7 +38,7 @@ const ShopIndex = () => {
               {shop.hero_description}
             </motion.p>
             <motion.div variants={fadeIn} custom={3} className="mt-6">
-              <Link to={`${base}/catalog`}>
+              <Link to={buildPath('/catalog')}>
                 <Button variant="hero" size="xl" className="w-full sm:w-auto text-base px-8 py-3">
                   Перейти в каталог <ArrowRight className="w-5 h-5 ml-1" />
                 </Button>
@@ -86,12 +86,12 @@ const ShopIndex = () => {
         </div>
       </section>
 
-      {/* Products — identical carousel structure to platform Index "Популярные" section */}
+      {/* Products — identical carousel structure to platform Index */}
       <section className="px-4 py-8">
         <div className="container-main mx-auto">
           <div className="flex items-center justify-between mb-5">
             <h2 className="font-display text-xl font-bold">Товары</h2>
-            <Link to={`${base}/catalog`} className="text-sm text-primary flex items-center gap-0.5">
+            <Link to={buildPath('/catalog')} className="text-sm text-primary flex items-center gap-0.5">
               Все <ChevronRight className="w-4 h-4" />
             </Link>
           </div>
@@ -107,7 +107,7 @@ const ShopIndex = () => {
             <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
               {products.slice(0, 8).map((product) => (
                 <div key={product.id} className="min-w-[260px] sm:min-w-[300px] snap-start shrink-0">
-                  <ShopProductCard product={product} shopId={shopId!} />
+                  <ShopProductCard product={product} shopId={shop.id} />
                 </div>
               ))}
             </div>
@@ -136,6 +136,11 @@ const ShopIndex = () => {
                 <p className="text-sm text-muted-foreground mt-1">{faq.a}</p>
               </div>
             ))}
+          </div>
+          <div className="text-center mt-5">
+            <Link to={buildPath('/faq')}>
+              <Button variant="outline" size="sm">Все вопросы <ChevronRight className="w-3.5 h-3.5 ml-0.5" /></Button>
+            </Link>
           </div>
         </div>
       </section>
