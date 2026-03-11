@@ -302,7 +302,7 @@ const Account = () => {
       </div>
 
       {/* Support */}
-      <a href={`https://t.me/${supportUsername}`} target="_blank" rel="noopener noreferrer" className="mt-4 block">
+      <a href={supportLink || `https://t.me/${supportUsername}`} target="_blank" rel="noopener noreferrer" className="mt-4 block">
         <div className="bg-card border border-border/50 rounded-xl p-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <MessageCircle className="w-4 h-4 text-primary" />

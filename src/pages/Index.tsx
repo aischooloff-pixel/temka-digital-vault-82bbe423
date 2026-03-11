@@ -422,7 +422,7 @@ const Index = () => {
             )}
           </div>
           <div className="text-center mt-5">
-            <Link to="/faq"><Button variant="outline" size="sm">Все вопросы <ChevronRight className="w-3.5 h-3.5 ml-0.5" /></Button></Link>
+            <Link to={buildPath('/faq')}><Button variant="outline" size="sm">Все вопросы <ChevronRight className="w-3.5 h-3.5 ml-0.5" /></Button></Link>
           </div>
         </div>
       </section>
