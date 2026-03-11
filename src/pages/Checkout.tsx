@@ -67,7 +67,7 @@ const Checkout = () => {
         if (data?.error) throw new Error(data.error);
         haptic.notification('success');
         clearCart();
-        navigate(`/order-success?order=${data?.orderNumber || orderNumber}`);
+        navigate(`${buildPath('/order-success')}?order=${data?.orderNumber || orderNumber}`);
       } else {
         // CryptoBot payment (partial or full)
         const { data, error: fnError } = await supabase.functions.invoke('create-invoice', {
