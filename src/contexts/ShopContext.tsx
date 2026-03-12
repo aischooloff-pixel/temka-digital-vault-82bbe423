@@ -163,8 +163,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       supabase.rpc('check_shop_payments_configured', { p_shop_id: data.id })
         .then(({ data: configured }) => {
           setShop(prev => prev ? { ...prev, paymentsConfigured: !!configured } : prev);
-        })
-        .catch(() => {});
+        });
 
 
       // Apply color theme
