@@ -405,6 +405,13 @@ async function shopSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     }
   }
 
+  let opStatus = "❌ выключена";
+  if (shop.is_subscription_required) {
+    opStatus = shop.required_channel_id
+      ? `✅ включена (${shop.required_channel_link || shop.required_channel_id})`
+      : "⚠️ включена, канал не указан";
+  }
+
   const text =
     `⚙️ <b>Настройки: ${esc(shop.name)}</b>\n\n` +
     `📛 Название: ${esc(shop.name)}\n` +
@@ -414,7 +421,8 @@ async function shopSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     `👋 Приветствие: ${shop.welcome_message ? esc(shop.welcome_message.slice(0, 50)) + "…" : "—"}\n` +
     `🔗 Поддержка: ${shop.support_link || "—"}\n` +
     `🤖 Бот: ${botStatus}\n` +
-    `💰 CryptoBot: ${shop.cryptobot_token_encrypted ? "✅ подключён" : "❌ не подключён"}`;
+    `💰 CryptoBot: ${shop.cryptobot_token_encrypted ? "✅ подключён" : "❌ не подключён"}\n` +
+    `📢 ОП: ${opStatus}`;
 
   return tg.edit(chatId, msgId, text, ikb([
     [btn("✏️ Название", `p:edit:${shopId}:name`), btn("🎨 Цвет", `p:edit:${shopId}:color`)],
@@ -422,6 +430,7 @@ async function shopSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     [btn("📝 Описание витрины", `p:edit:${shopId}:hero_desc`)],
     [btn("👋 Приветствие", `p:edit:${shopId}:welcome`), btn("🔗 Поддержка", `p:edit:${shopId}:support`)],
     [btn("🤖 Токен бота", `p:setbot:${shopId}`), btn("💰 CryptoBot", `p:setcb:${shopId}`)],
+    [btn(`📢 ОП ${shop.is_subscription_required ? "✅" : "❌"}`, `p:opsettings:${shopId}`)],
     [btn("◀️ К магазину", `p:shop:${shopId}`)],
   ]));
 }
