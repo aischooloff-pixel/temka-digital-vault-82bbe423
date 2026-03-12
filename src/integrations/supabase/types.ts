@@ -1426,6 +1426,10 @@ export type Database = {
         Returns: number
       }
       validate_promo_code: { Args: { p_code: string }; Returns: Json }
+      validate_shop_promo_code: {
+        Args: { p_code: string; p_shop_id: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
