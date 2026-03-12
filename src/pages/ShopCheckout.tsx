@@ -186,7 +186,7 @@ const ShopCheckout = () => {
             ) : (
               <div className="flex justify-between font-display font-bold text-base">
                 <span>К оплате (баланс)</span>
-                <span>${cartTotal.toFixed(2)}</span>
+                <span>${totalAfterDiscount.toFixed(2)}</span>
               </div>
             )}
           </div>
