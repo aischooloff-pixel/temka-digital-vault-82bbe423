@@ -1409,6 +1409,10 @@ export type Database = {
         Returns: string
       }
       increment_promo_usage: { Args: { p_code: string }; Returns: undefined }
+      increment_shop_promo_usage: {
+        Args: { p_code: string; p_shop_id: string }
+        Returns: undefined
+      }
       reserve_inventory: {
         Args: { p_order_id: string; p_product_id: string; p_quantity: number }
         Returns: {
