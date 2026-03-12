@@ -15,6 +15,7 @@ interface Props {
   order: DbOrder | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  shopId?: string;
 }
 
 const statusBadgeVariant = (status: DbOrder['status']): 'default' | 'secondary' | 'destructive' | 'outline' => {
