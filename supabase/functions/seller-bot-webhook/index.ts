@@ -19,7 +19,7 @@ const TG = (token: string) => {
         return r;
       }),
     answer: (cbId: string, text?: string) =>
-      call("answerCallbackQuery", { callback_query_id: cbId, ...(text ? { text, show_alert: text ? true : false } : {}) }),
+      call("answerCallbackQuery", { callback_query_id: cbId, ...(text ? { text, show_alert: true } : {}) }),
     sendPhoto: (chatId: number, photo: string, caption: string, markup?: unknown) =>
       call("sendPhoto", { chat_id: chatId, photo, caption, parse_mode: "HTML", ...(markup ? { reply_markup: markup } : {}) }),
     getFile: (fileId: string) =>
@@ -36,23 +36,9 @@ const TG = (token: string) => {
 
 type Btn = { text: string; callback_data?: string; url?: string; web_app?: { url: string } };
 
-// ─── Callback data shortening ──────────────
-// shopId (UUID = 36 chars) is stripped from callback_data to stay within Telegram's 64-byte limit.
-// The shopId is injected back from the webhook URL query param when processing callbacks.
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function normalizeCallbackData(cb: string): string {
-  if (!cb.startsWith("s:") || cb.length <= 64) return cb;
-  const parts = cb.split(":");
-  if (parts.length >= 4 && UUID_RE.test(parts[2])) {
-    const shortened = `s:${parts[1]}:${parts.slice(3).join(":")}`;
-    if (shortened.length <= 64) return shortened;
-  }
-  console.error("seller-bot-webhook: callback_data too long", { original: cb, length: cb.length });
-  return "s:noop";
-}
-
-const btn = (t: string, cb: string): Btn => ({ text: t, callback_data: normalizeCallbackData(cb) });
+// shopId is NEVER included in callback_data — it comes from the webhook URL query param.
+// This avoids exceeding Telegram's 64-byte callback_data limit and UUID confusion.
+const btn = (t: string, cb: string): Btn => ({ text: t, callback_data: cb });
 const ikb = (rows: Btn[][]) => ({ inline_keyboard: rows });
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const WEBAPP_DOMAIN = Deno.env.get("WEBAPP_URL") || "https://temka-digital-vault.lovable.app";
@@ -62,11 +48,11 @@ function paginate<T>(items: T[], page: number, perPage = 6) {
   const p = Math.min(Math.max(0, page), total - 1);
   return { items: items.slice(p * perPage, (p + 1) * perPage), total, page: p };
 }
-function pgRow(prefix: string, page: number, total: number, shopId: string): Btn[] {
+function pgRow(prefix: string, page: number, total: number): Btn[] {
   const r: Btn[] = [];
-  if (page > 0) r.push(btn("◀️", `${prefix}:${shopId}:${page - 1}`));
+  if (page > 0) r.push(btn("◀️", `${prefix}:${page - 1}`));
   r.push(btn(`${page + 1}/${total}`, "s:noop"));
-  if (page < total - 1) r.push(btn("▶️", `${prefix}:${shopId}:${page + 1}`));
+  if (page < total - 1) r.push(btn("▶️", `${prefix}:${page + 1}`));
   return r;
 }
 
@@ -105,8 +91,22 @@ async function isShopOwner(shopId: string, telegramId: number): Promise<boolean>
   return shop.owner_id === user.id;
 }
 
+// ─── Ensure user profile exists ──────────────
+async function ensureUserProfile(tgUser: { id: number; first_name?: string; last_name?: string; username?: string; is_premium?: boolean; language_code?: string }) {
+  const { data: existing } = await supabase().from("user_profiles").select("id").eq("telegram_id", tgUser.id).maybeSingle();
+  if (existing) return;
+  await supabase().from("user_profiles").insert({
+    telegram_id: tgUser.id,
+    first_name: tgUser.first_name || "",
+    last_name: tgUser.last_name || null,
+    username: tgUser.username || null,
+    is_premium: tgUser.is_premium || false,
+    language_code: tgUser.language_code || null,
+  });
+}
+
 // ═══════════════════════════════════════════════
-// ADMIN HOME — identical to template
+// ADMIN HOME
 // ═══════════════════════════════════════════════
 async function adminHome(tg: ReturnType<typeof TG>, chatId: number, shopId: string, msgId?: number) {
   const { data: shop } = await supabase().from("shops").select("*").eq("id", shopId).single();
@@ -126,12 +126,12 @@ async function adminHome(tg: ReturnType<typeof TG>, chatId: number, shopId: stri
     `🛍 Заказов: ${orderCount || 0}\n\nВыберите раздел:`;
 
   const kb = ikb([
-    [btn("📦 Товары", `s:pl:${shopId}:0`), btn("📁 Категории", `s:cl:${shopId}:0`)],
-    [btn("🛒 Заказы", `s:ol:${shopId}:0`), btn("👥 Пользователи", `s:ul:${shopId}:0`)],
-    [btn("📊 Статистика", `s:st:${shopId}`), btn("🎟 Промокоды", `s:prl:${shopId}:0`)],
-    [btn("🗃 Склад", `s:sk:${shopId}:0`), btn("📋 Логи", `s:lg:${shopId}:0`)],
-    [btn("⚙️ Настройки", `s:se:${shopId}`), btn("📢 Рассылка", `s:bc:${shopId}`)],
-    [btn("⭐ Отзывы", `s:rvl:${shopId}:0`)],
+    [btn("📦 Товары", "s:pl:0"), btn("📁 Категории", "s:cl:0")],
+    [btn("🛒 Заказы", "s:ol:0"), btn("👥 Пользователи", "s:ul:0")],
+    [btn("📊 Статистика", "s:st"), btn("🎟 Промокоды", "s:prl:0")],
+    [btn("🗃 Склад", "s:sk:0"), btn("📋 Логи", "s:lg:0")],
+    [btn("⚙️ Настройки", "s:se"), btn("📢 Рассылка", "s:bc")],
+    [btn("⭐ Отзывы", "s:rvl:0")],
   ]);
 
   if (msgId) return tg.edit(chatId, msgId, text, kb);
@@ -139,12 +139,12 @@ async function adminHome(tg: ReturnType<typeof TG>, chatId: number, shopId: stri
 }
 
 // ═══════════════════════════════════════════════
-// PRODUCTS — matching template exactly
+// PRODUCTS
 // ═══════════════════════════════════════════════
 async function productsList(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, page: number) {
   const { data: products } = await supabase().from("shop_products").select("id, name, price, stock, is_active").eq("shop_id", shopId).order("sort_order").order("created_at", { ascending: false });
   if (!products?.length) {
-    return tg.edit(cid, mid, "📦 <b>Товары</b>\n\nТоваров нет.", ikb([[btn("➕ Добавить", `s:pa:${shopId}`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
+    return tg.edit(cid, mid, "📦 <b>Товары</b>\n\nТоваров нет.", ikb([[btn("➕ Добавить", "s:pa")], [btn("◀️ Меню", "s:m")]]));
   }
   const pg = paginate(products, page, 8);
   let t = `📦 <b>Товары</b> (${products.length})\n\n`;
@@ -152,15 +152,15 @@ async function productsList(tg: ReturnType<typeof TG>, cid: number, mid: number,
     const s = p.is_active ? "✅" : "❌";
     t += `${s} <b>${esc(p.name)}</b>\n💰 $${Number(p.price).toFixed(2)} | 📦 ${p.stock}\n\n`;
   });
-  const rows: Btn[][] = pg.items.map(p => [btn(`${p.is_active ? "✅" : "❌"} ${p.name.slice(0, 28)}`, `s:pv:${shopId}:${p.id}`)]);
-  if (pg.total > 1) rows.push(pgRow("s:pl", pg.page, pg.total, shopId));
-  rows.push([btn("➕ Добавить", `s:pa:${shopId}`), btn("◀️ Меню", `s:m:${shopId}`)]);
+  const rows: Btn[][] = pg.items.map(p => [btn(`${p.is_active ? "✅" : "❌"} ${p.name.slice(0, 28)}`, `s:pv:${p.id}`)]);
+  if (pg.total > 1) rows.push(pgRow("s:pl", pg.page, pg.total));
+  rows.push([btn("➕ Добавить", "s:pa"), btn("◀️ Меню", "s:m")]);
   return tg.edit(cid, mid, t, ikb(rows));
 }
 
 async function productView(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, pid: string) {
   const { data: p } = await supabase().from("shop_products").select("*").eq("id", pid).single();
-  if (!p) return tg.edit(cid, mid, "❌ Товар не найден", ikb([[btn("◀️ Назад", `s:pl:${shopId}:0`)]]));
+  if (!p) return tg.edit(cid, mid, "❌ Товар не найден", ikb([[btn("◀️ Назад", "s:pl:0")]]));
   const { count: invCount } = await supabase().from("shop_inventory").select("id", { count: "exact", head: true }).eq("product_id", pid).eq("status", "available");
   let t = `📦 <b>${esc(p.name)}</b>\n\n`;
   t += `📝 ${esc(p.subtitle || "—")}\n`;
@@ -173,65 +173,63 @@ async function productView(tg: ReturnType<typeof TG>, cid: number, mid: number, 
   if (p.image) t += `🖼 Фото: есть\n`;
   if (p.features?.length) t += `🏷 Особенности: ${p.features.join(", ")}\n`;
   return tg.edit(cid, mid, t, ikb([
-    [btn("✏️ Название", `s:pe:${shopId}:${pid}:n`), btn("✏️ Цена", `s:pe:${shopId}:${pid}:p`)],
-    [btn("✏️ Остаток", `s:pe:${shopId}:${pid}:s`), btn("✏️ Описание", `s:pe:${shopId}:${pid}:d`)],
-    [btn("✏️ Стар.цена", `s:pe:${shopId}:${pid}:o`), btn("✏️ Подзаголовок", `s:pe:${shopId}:${pid}:sub`)],
-    [btn("🖼 Фото", `s:pe:${shopId}:${pid}:img`), btn("🏷 Особенности", `s:pe:${shopId}:${pid}:f`)],
-    [btn(p.is_active ? "❌ Скрыть" : "✅ Показать", `s:pt:${shopId}:${pid}`)],
-    [btn("🗃 Склад", `s:iv:${shopId}:${pid}:0`), btn("🗑 Удалить", `s:pd:${shopId}:${pid}`)],
-    [btn("◀️ К товарам", `s:pl:${shopId}:0`)],
+    [btn("✏️ Название", `s:pe:${pid}:n`), btn("✏️ Цена", `s:pe:${pid}:p`)],
+    [btn("✏️ Остаток", `s:pe:${pid}:s`), btn("✏️ Описание", `s:pe:${pid}:d`)],
+    [btn("✏️ Стар.цена", `s:pe:${pid}:o`), btn("✏️ Подзаголовок", `s:pe:${pid}:sub`)],
+    [btn("🖼 Фото", `s:pe:${pid}:img`), btn("🏷 Особенности", `s:pe:${pid}:f`)],
+    [btn(p.is_active ? "❌ Скрыть" : "✅ Показать", `s:pt:${pid}`)],
+    [btn("🗃 Склад", `s:iv:${pid}:0`), btn("🗑 Удалить", `s:pd:${pid}`)],
+    [btn("◀️ К товарам", "s:pl:0")],
   ]));
 }
 
 // ═══════════════════════════════════════════════
-// CATEGORIES — matching template exactly
+// CATEGORIES
 // ═══════════════════════════════════════════════
 async function categoriesList(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, _page: number) {
   const { data: cats } = await supabase().from("shop_categories").select("*").eq("shop_id", shopId).order("sort_order");
-  const { data: products } = await supabase().from("shop_products").select("id").eq("shop_id", shopId).eq("is_active", true);
-  // shop_products don't have category_id, so we just show count of products
-  if (!cats?.length) return tg.edit(cid, mid, "📁 <b>Категории</b>\n\nНет.", ikb([[btn("➕ Добавить", `s:ca:${shopId}`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
+  if (!cats?.length) return tg.edit(cid, mid, "📁 <b>Категории</b>\n\nНет.", ikb([[btn("➕ Добавить", "s:ca")], [btn("◀️ Меню", "s:m")]]));
   let t = `📁 <b>Категории</b> (${cats.length})\n\n`;
   cats.forEach(c => { t += `${c.icon} <b>${esc(c.name)}</b> ${c.is_active ? "" : "❌"}\n`; });
-  const rows: Btn[][] = cats.map(c => [btn(`${c.icon} ${c.name}`, `s:cv:${shopId}:${c.id}`)]);
-  rows.push([btn("➕ Добавить", `s:ca:${shopId}`), btn("◀️ Меню", `s:m:${shopId}`)]);
+  const rows: Btn[][] = cats.map(c => [btn(`${c.icon} ${c.name}`, `s:cv:${c.id}`)]);
+  rows.push([btn("➕ Добавить", "s:ca"), btn("◀️ Меню", "s:m")]);
   return tg.edit(cid, mid, t, ikb(rows));
 }
 
 async function categoryView(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, catId: string) {
   const { data: c } = await supabase().from("shop_categories").select("*").eq("id", catId).single();
-  if (!c) return tg.edit(cid, mid, "Не найдена", ikb([[btn("◀️ Назад", `s:cl:${shopId}:0`)]]));
+  if (!c) return tg.edit(cid, mid, "Не найдена", ikb([[btn("◀️ Назад", "s:cl:0")]]));
   let t = `📁 <b>${c.icon} ${esc(c.name)}</b>\n\n📊 Сортировка: ${c.sort_order}\n${c.is_active ? "✅ Активна" : "❌ Скрыта"}\n`;
   return tg.edit(cid, mid, t, ikb([
-    [btn("✏️ Название", `s:ce:${shopId}:${catId}:n`), btn("✏️ Иконка", `s:ce:${shopId}:${catId}:i`)],
-    [btn("✏️ Сортировка", `s:ce:${shopId}:${catId}:s`)],
-    [btn(c.is_active ? "❌ Скрыть" : "✅ Показать", `s:ct:${shopId}:${catId}`)],
-    [btn("🗑 Удалить", `s:cd:${shopId}:${catId}`)],
-    [btn("◀️ К категориям", `s:cl:${shopId}:0`)],
+    [btn("✏️ Название", `s:ce:${catId}:n`), btn("✏️ Иконка", `s:ce:${catId}:i`)],
+    [btn("✏️ Сортировка", `s:ce:${catId}:s`)],
+    [btn(c.is_active ? "❌ Скрыть" : "✅ Показать", `s:ct:${catId}`)],
+    [btn("🗑 Удалить", `s:cd:${catId}`)],
+    [btn("◀️ К категориям", "s:cl:0")],
   ]));
 }
 
 // ═══════════════════════════════════════════════
-// ORDERS — matching template exactly
+// ORDERS
 // ═══════════════════════════════════════════════
 async function ordersList(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, page: number) {
   const { data: orders } = await supabase().from("shop_orders").select("*").eq("shop_id", shopId).order("created_at", { ascending: false }).limit(100);
-  if (!orders?.length) return tg.edit(cid, mid, "🛒 <b>Заказы</b>\n\nНет.", ikb([[btn("◀️ Меню", `s:m:${shopId}`)]]));
+  if (!orders?.length) return tg.edit(cid, mid, "🛒 <b>Заказы</b>\n\nНет.", ikb([[btn("◀️ Меню", "s:m")]]));
   const se: Record<string, string> = { pending: "⏳", awaiting_payment: "💳", paid: "✅", processing: "⚙️", delivered: "📬", completed: "✅", cancelled: "❌", error: "⚠️" };
   const pg = paginate(orders, page, 6);
   let t = `🛒 <b>Заказы</b> (${orders.length})\n\n`;
   pg.items.forEach(o => {
     t += `${se[o.status] || "❓"} <b>${esc(o.order_number)}</b> — $${Number(o.total_amount).toFixed(2)}\n👤 ${o.buyer_telegram_id} | 📅 ${new Date(o.created_at).toLocaleDateString("ru-RU")}\n\n`;
   });
-  const rows: Btn[][] = pg.items.map(o => [btn(`${se[o.status] || "❓"} ${o.order_number}`, `s:ov:${shopId}:${o.id}`)]);
-  if (pg.total > 1) rows.push(pgRow("s:ol", pg.page, pg.total, shopId));
-  rows.push([btn("◀️ Меню", `s:m:${shopId}`)]);
+  const rows: Btn[][] = pg.items.map(o => [btn(`${se[o.status] || "❓"} ${o.order_number}`, `s:ov:${o.id}`)]);
+  if (pg.total > 1) rows.push(pgRow("s:ol", pg.page, pg.total));
+  rows.push([btn("◀️ Меню", "s:m")]);
   return tg.edit(cid, mid, t, ikb(rows));
 }
 
 async function orderView(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, oid: string) {
   const { data: o } = await supabase().from("shop_orders").select("*").eq("id", oid).single();
-  if (!o) return tg.edit(cid, mid, "Не найден", ikb([[btn("◀️ Назад", `s:ol:${shopId}:0`)]]));
+  if (!o) return tg.edit(cid, mid, "Не найден", ikb([[btn("◀️ Назад", "s:ol:0")]]));
   const { data: items } = await supabase().from("shop_order_items").select("*").eq("order_id", oid);
   const { data: user } = await supabase().from("user_profiles").select("*").eq("telegram_id", o.buyer_telegram_id).maybeSingle();
   let t = `🛒 <b>Заказ ${esc(o.order_number)}</b>\n\n`;
@@ -245,9 +243,9 @@ async function orderView(tg: ReturnType<typeof TG>, cid: number, mid: number, sh
   t += `📅 ${new Date(o.created_at).toLocaleString("ru-RU")}\n`;
   const statuses = ["paid", "processing", "delivered", "completed", "cancelled"].filter(s => s !== o.status);
   const sBtns: Btn[][] = [];
-  for (let i = 0; i < statuses.length; i += 3) sBtns.push(statuses.slice(i, i + 3).map(s => btn(s, `s:os:${shopId}:${oid}:${s}`)));
-  sBtns.push([btn("👤 Пользователь", `s:uvt:${shopId}:${o.buyer_telegram_id}`)]);
-  return tg.edit(cid, mid, t, ikb([...sBtns, [btn("◀️ К заказам", `s:ol:${shopId}:0`)]]));
+  for (let i = 0; i < statuses.length; i += 3) sBtns.push(statuses.slice(i, i + 3).map(s => btn(s, `s:os:${oid}:${s}`)));
+  sBtns.push([btn("👤 Пользователь", `s:uvt:${o.buyer_telegram_id}`)]);
+  return tg.edit(cid, mid, t, ikb([...sBtns, [btn("◀️ К заказам", "s:ol:0")]]));
 }
 
 async function orderSetStatus(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, oid: string, status: string, adminId: number) {
@@ -258,20 +256,20 @@ async function orderSetStatus(tg: ReturnType<typeof TG>, cid: number, mid: numbe
 }
 
 // ═══════════════════════════════════════════════
-// USERS — matching template exactly
+// USERS
 // ═══════════════════════════════════════════════
 async function usersList(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, page: number, filter?: string) {
   // Get unique buyers for this shop
   const { data: ordersRaw } = await supabase().from("shop_orders").select("buyer_telegram_id").eq("shop_id", shopId);
   const buyerIds = [...new Set(ordersRaw?.map(o => o.buyer_telegram_id) || [])];
-  if (!buyerIds.length) return tg.edit(cid, mid, "👥 <b>Пользователи</b>\n\nНет.", ikb([[btn("◀️ Меню", `s:m:${shopId}`)]]));
+  if (!buyerIds.length) return tg.edit(cid, mid, "👥 <b>Пользователи</b>\n\nНет.", ikb([[btn("◀️ Меню", "s:m")]]));
 
   let query = supabase().from("user_profiles").select("*").in("telegram_id", buyerIds).order("created_at", { ascending: false });
   if (filter === "vip") query = query.eq("role", "vip");
   else if (filter === "blocked") query = query.eq("is_blocked", true);
   const { data: users } = await query;
 
-  if (!users?.length) return tg.edit(cid, mid, `👥 <b>Пользователи</b>${filter ? ` [${filter}]` : ""}\n\nНет.`, ikb([[btn("◀️ Меню", `s:m:${shopId}`)]]));
+  if (!users?.length) return tg.edit(cid, mid, `👥 <b>Пользователи</b>${filter ? ` [${filter}]` : ""}\n\nНет.`, ikb([[btn("◀️ Меню", "s:m")]]));
   const pg = paginate(users, page, 8);
   let t = `👥 <b>Пользователи</b> (${users.length})${filter ? ` [${filter}]` : ""}\n\n`;
   pg.items.forEach(u => {
@@ -281,16 +279,16 @@ async function usersList(tg: ReturnType<typeof TG>, cid: number, mid: number, sh
     t += ` | ${u.telegram_id}\n`;
   });
   const pfx = filter ? `s:ulf:${filter}` : "s:ul";
-  const rows: Btn[][] = pg.items.map(u => [btn(`${u.is_blocked ? "🚫 " : ""}${u.first_name} ${u.last_name || ""}`.trim().slice(0, 28), `s:uv:${shopId}:${u.id}`)]);
-  if (pg.total > 1) rows.push(pgRow(pfx, pg.page, pg.total, shopId));
-  rows.push([btn("🔍 Поиск", `s:usq:${shopId}`), btn("📊 Фильтр", `s:usf:${shopId}`)]);
-  rows.push([btn("◀️ Меню", `s:m:${shopId}`)]);
+  const rows: Btn[][] = pg.items.map(u => [btn(`${u.is_blocked ? "🚫 " : ""}${u.first_name} ${u.last_name || ""}`.trim().slice(0, 28), `s:uv:${u.id}`)]);
+  if (pg.total > 1) rows.push(pgRow(pfx, pg.page, pg.total));
+  rows.push([btn("🔍 Поиск", "s:usq"), btn("📊 Фильтр", "s:usf")]);
+  rows.push([btn("◀️ Меню", "s:m")]);
   return tg.edit(cid, mid, t, ikb(rows));
 }
 
 async function userView(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, uid: string) {
   const { data: u } = await supabase().from("user_profiles").select("*").eq("id", uid).single();
-  if (!u) return tg.edit(cid, mid, "Не найден", ikb([[btn("◀️ Назад", `s:ul:${shopId}:0`)]]));
+  if (!u) return tg.edit(cid, mid, "Не найден", ikb([[btn("◀️ Назад", "s:ul:0")]]));
   const { data: orders } = await supabase().from("shop_orders").select("id, total_amount, status, payment_status").eq("shop_id", shopId).eq("buyer_telegram_id", u.telegram_id);
   const paid = orders?.filter(o => ["paid", "completed", "delivered", "processing"].includes(o.status)) || [];
   const spent = paid.reduce((s, o) => s + Number(o.total_amount), 0);
@@ -305,31 +303,31 @@ async function userView(tg: ReturnType<typeof TG>, cid: number, mid: number, sho
   t += `🛒 Заказов: ${orders?.length || 0}\n💵 Потрачено: $${spent.toFixed(2)}\n`;
   if (u.internal_note) t += `\n📝 <i>${esc(u.internal_note)}</i>\n`;
   return tg.edit(cid, mid, t, ikb([
-    [btn("📢 Написать", `s:um:${shopId}:${u.telegram_id}`), btn("🛒 Заказы", `s:uo:${shopId}:${u.telegram_id}:0`)],
-    [btn("💰 Баланс", `s:ub:${shopId}:${u.telegram_id}`), btn("🏷 Роль", `s:ur:${shopId}:${u.telegram_id}`)],
-    [btn(u.is_blocked ? "✅ Разблокировать" : "🚫 Заблокировать", `s:ux:${shopId}:${u.telegram_id}`)],
-    [btn("📝 Заметка", `s:un:${shopId}:${u.telegram_id}`), btn("📋 Логи", `s:ula:${shopId}:${u.telegram_id}:0`)],
-    [btn("◀️ К пользователям", `s:ul:${shopId}:0`)],
+    [btn("📢 Написать", `s:um:${u.telegram_id}`), btn("🛒 Заказы", `s:uo:${u.telegram_id}:0`)],
+    [btn("💰 Баланс", `s:ub:${u.telegram_id}`), btn("🏷 Роль", `s:ur:${u.telegram_id}`)],
+    [btn(u.is_blocked ? "✅ Разблокировать" : "🚫 Заблокировать", `s:ux:${u.telegram_id}`)],
+    [btn("📝 Заметка", `s:un:${u.telegram_id}`), btn("📋 Логи", `s:ula:${u.telegram_id}:0`)],
+    [btn("◀️ К пользователям", "s:ul:0")],
   ]));
 }
 
 async function userViewByTg(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, tgId: number) {
   const { data: u } = await supabase().from("user_profiles").select("id").eq("telegram_id", tgId).maybeSingle();
-  if (!u) return tg.edit(cid, mid, "Пользователь не найден", ikb([[btn("◀️ Назад", `s:ul:${shopId}:0`)]]));
+  if (!u) return tg.edit(cid, mid, "Пользователь не найден", ikb([[btn("◀️ Назад", "s:ul:0")]]));
   return userView(tg, cid, mid, shopId, u.id);
 }
 
 // User orders
 async function userOrdersList(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, tgId: number, page: number) {
   const { data: orders } = await supabase().from("shop_orders").select("*").eq("shop_id", shopId).eq("buyer_telegram_id", tgId).order("created_at", { ascending: false });
-  if (!orders?.length) return tg.edit(cid, mid, `🛒 <b>Заказы пользователя ${tgId}</b>\n\nНет.`, ikb([[btn("◀️ Назад", `s:uvt:${shopId}:${tgId}`)]]));
+  if (!orders?.length) return tg.edit(cid, mid, `🛒 <b>Заказы пользователя ${tgId}</b>\n\nНет.`, ikb([[btn("◀️ Назад", `s:uvt:${tgId}`)]]));
   const se: Record<string, string> = { pending: "⏳", paid: "✅", processing: "⚙️", delivered: "📬", completed: "✅", cancelled: "❌" };
   const pg = paginate(orders, page, 6);
   let t = `🛒 <b>Заказы</b> (${orders.length}) — TG ${tgId}\n\n`;
   pg.items.forEach(o => { t += `${se[o.status] || "❓"} ${esc(o.order_number)} — $${Number(o.total_amount).toFixed(2)}\n`; });
-  const rows: Btn[][] = pg.items.map(o => [btn(`${se[o.status] || "❓"} ${o.order_number}`, `s:ov:${shopId}:${o.id}`)]);
-  if (pg.total > 1) rows.push(pgRow(`s:uo:${tgId}`, pg.page, pg.total, shopId));
-  rows.push([btn("◀️ К пользователю", `s:uvt:${shopId}:${tgId}`)]);
+  const rows: Btn[][] = pg.items.map(o => [btn(`${se[o.status] || "❓"} ${o.order_number}`, `s:ov:${o.id}`)]);
+  if (pg.total > 1) rows.push(pgRow(`s:uo:${tgId}`, pg.page, pg.total));
+  rows.push([btn("◀️ К пользователю", `s:uvt:${tgId}`)]);
   return tg.edit(cid, mid, t, ikb(rows));
 }
 
@@ -347,31 +345,31 @@ async function balanceMenu(tg: ReturnType<typeof TG>, cid: number, mid: number, 
     });
   }
   return tg.edit(cid, mid, t, ikb([
-    [btn("➕ Начислить", `s:ubc:${shopId}:${tgId}`), btn("➖ Списать", `s:ubd:${shopId}:${tgId}`)],
-    [btn("🎯 Установить", `s:ubs:${shopId}:${tgId}`)],
-    [btn("◀️ К пользователю", `s:uvt:${shopId}:${tgId}`)],
+    [btn("➕ Начислить", `s:ubc:${tgId}`), btn("➖ Списать", `s:ubd:${tgId}`)],
+    [btn("🎯 Установить", `s:ubs:${tgId}`)],
+    [btn("◀️ К пользователю", `s:uvt:${tgId}`)],
   ]));
 }
 
 // User logs
 async function userLogsList(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, tgId: number, page: number) {
   const { data: logs } = await supabase().from("shop_admin_logs").select("*").eq("shop_id", shopId).eq("entity_id", String(tgId)).order("created_at", { ascending: false }).limit(30);
-  if (!logs?.length) return tg.edit(cid, mid, `📋 <b>Логи</b> — TG ${tgId}\n\nПусто.`, ikb([[btn("◀️ Назад", `s:uvt:${shopId}:${tgId}`)]]));
+  if (!logs?.length) return tg.edit(cid, mid, `📋 <b>Логи</b> — TG ${tgId}\n\nПусто.`, ikb([[btn("◀️ Назад", `s:uvt:${tgId}`)]]));
   const pg = paginate(logs, page, 6);
   let t = `📋 <b>Логи</b> — TG ${tgId}\n\n`;
   pg.items.forEach(l => { t += `${new Date(l.created_at).toLocaleString("ru-RU")} | <b>${esc(l.action)}</b>\n`; });
   const rows: Btn[][] = [];
-  if (pg.total > 1) rows.push(pgRow(`s:ula:${tgId}`, pg.page, pg.total, shopId));
-  rows.push([btn("◀️ К пользователю", `s:uvt:${shopId}:${tgId}`)]);
+  if (pg.total > 1) rows.push(pgRow(`s:ula:${tgId}`, pg.page, pg.total));
+  rows.push([btn("◀️ К пользователю", `s:uvt:${tgId}`)]);
   return tg.edit(cid, mid, t, ikb(rows));
 }
 
 // ═══════════════════════════════════════════════
-// PROMOCODES — matching template exactly
+// PROMOCODES
 // ═══════════════════════════════════════════════
 async function promosList(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, page: number) {
   const { data: promos } = await supabase().from("shop_promocodes").select("*").eq("shop_id", shopId).order("created_at", { ascending: false });
-  if (!promos?.length) return tg.edit(cid, mid, "🎟 <b>Промокоды</b>\n\nНет.", ikb([[btn("➕ Создать", `s:pra:${shopId}`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
+  if (!promos?.length) return tg.edit(cid, mid, "🎟 <b>Промокоды</b>\n\nНет.", ikb([[btn("➕ Создать", "s:pra")], [btn("◀️ Меню", "s:m")]]));
   const pg = paginate(promos, page, 6);
   let t = `🎟 <b>Промокоды</b> (${promos.length})\n\n`;
   pg.items.forEach(p => {
@@ -379,15 +377,15 @@ async function promosList(tg: ReturnType<typeof TG>, cid: number, mid: number, s
     const disc = p.discount_type === "percent" ? `${p.discount_value}%` : `$${Number(p.discount_value).toFixed(2)}`;
     t += `${st} <code>${esc(p.code)}</code> — ${disc} | ${p.used_count}/${p.max_uses ?? "∞"}\n`;
   });
-  const rows: Btn[][] = pg.items.map(p => [btn(`${p.is_active ? "✅" : "❌"} ${p.code}`, `s:prv:${shopId}:${p.id}`)]);
-  if (pg.total > 1) rows.push(pgRow("s:prl", pg.page, pg.total, shopId));
-  rows.push([btn("➕ Создать", `s:pra:${shopId}`), btn("◀️ Меню", `s:m:${shopId}`)]);
+  const rows: Btn[][] = pg.items.map(p => [btn(`${p.is_active ? "✅" : "❌"} ${p.code}`, `s:prv:${p.id}`)]);
+  if (pg.total > 1) rows.push(pgRow("s:prl", pg.page, pg.total));
+  rows.push([btn("➕ Создать", "s:pra"), btn("◀️ Меню", "s:m")]);
   return tg.edit(cid, mid, t, ikb(rows));
 }
 
 async function promoView(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, prId: string) {
   const { data: p } = await supabase().from("shop_promocodes").select("*").eq("id", prId).single();
-  if (!p) return tg.edit(cid, mid, "Не найден", ikb([[btn("◀️ Назад", `s:prl:${shopId}:0`)]]));
+  if (!p) return tg.edit(cid, mid, "Не найден", ikb([[btn("◀️ Назад", "s:prl:0")]]));
   const disc = p.discount_type === "percent" ? `${p.discount_value}%` : `$${Number(p.discount_value).toFixed(2)}`;
   let t = `🎟 <b>${esc(p.code)}</b>\n\n`;
   t += `💰 Скидка: <b>${disc}</b> (${p.discount_type})\n`;
@@ -397,14 +395,14 @@ async function promoView(tg: ReturnType<typeof TG>, cid: number, mid: number, sh
   if (p.valid_from) t += `📅 С: ${new Date(p.valid_from).toLocaleDateString("ru-RU")}\n`;
   if (p.valid_until) t += `📅 До: ${new Date(p.valid_until).toLocaleDateString("ru-RU")}\n`;
   return tg.edit(cid, mid, t, ikb([
-    [btn(p.is_active ? "❌ Деактивировать" : "✅ Активировать", `s:prt:${shopId}:${prId}`)],
-    [btn("🗑 Удалить", `s:prd:${shopId}:${prId}`)],
-    [btn("◀️ К промокодам", `s:prl:${shopId}:0`)],
+    [btn(p.is_active ? "❌ Деактивировать" : "✅ Активировать", `s:prt:${prId}`)],
+    [btn("🗑 Удалить", `s:prd:${prId}`)],
+    [btn("◀️ К промокодам", "s:prl:0")],
   ]));
 }
 
 // ═══════════════════════════════════════════════
-// STATS — matching template exactly
+// STATS
 // ═══════════════════════════════════════════════
 async function statsView(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string) {
   const { data: shop } = await supabase().from("shops").select("name").eq("id", shopId).single();
@@ -428,15 +426,15 @@ async function statsView(tg: ReturnType<typeof TG>, cid: number, mid: number, sh
   let t = `📊 <b>Статистика: ${esc(shop?.name || "")}</b>\n\n👥 Покупателей: <b>${uniqueBuyers}</b>\n📦 Товаров: <b>${ap || 0}</b>/${pc || 0}\n🗃 На складе: <b>${invCount}</b>\n\n`;
   t += `🛒 Заказов: <b>${orders?.length || 0}</b>\n✅ Оплаченных: <b>${paid.length}</b>\n⚠️ Проблемных: <b>${problems}</b>\n\n`;
   t += `💰 Выручка: <b>$${rev.toFixed(2)}</b>\n📈 Средний чек: <b>$${avg.toFixed(2)}</b>\n`;
-  return tg.edit(cid, mid, t, ikb([[btn("🔄 Обновить", `s:st:${shopId}`), btn("◀️ Меню", `s:m:${shopId}`)]]));
+  return tg.edit(cid, mid, t, ikb([[btn("🔄 Обновить", "s:st"), btn("◀️ Меню", "s:m")]]));
 }
 
 // ═══════════════════════════════════════════════
-// SETTINGS — matching template exactly
+// SETTINGS
 // ═══════════════════════════════════════════════
 async function settingsView(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string) {
   const { data: shop } = await supabase().from("shops").select("*").eq("id", shopId).single();
-  if (!shop) return tg.edit(cid, mid, "❌ Не найден", ikb([[btn("◀️ Меню", `s:m:${shopId}`)]]));
+  if (!shop) return tg.edit(cid, mid, "❌ Не найден", ikb([[btn("◀️ Меню", "s:m")]]));
 
   let botStatus = "❌ не подключён";
   if (shop.bot_token_encrypted) {
@@ -461,38 +459,38 @@ async function settingsView(tg: ReturnType<typeof TG>, cid: number, mid: number,
     `💰 CryptoBot: ${shop.cryptobot_token_encrypted ? "✅ подключён" : "❌ не подключён"}`;
 
   return tg.edit(cid, mid, text, ikb([
-    [btn("✏️ Название", `s:edit:${shopId}:name`), btn("🎨 Цвет", `s:edit:${shopId}:color`)],
-    [btn("📌 Заголовок витрины", `s:edit:${shopId}:hero_title`)],
-    [btn("📝 Описание витрины", `s:edit:${shopId}:hero_desc`)],
-    [btn("👋 Приветствие", `s:edit:${shopId}:welcome`), btn("🔗 Поддержка", `s:edit:${shopId}:support`)],
-    [btn("💰 CryptoBot", `s:setcb:${shopId}`)],
-    [btn("◀️ Меню", `s:m:${shopId}`)],
+    [btn("✏️ Название", "s:edit:name"), btn("🎨 Цвет", "s:edit:color")],
+    [btn("📌 Заголовок витрины", "s:edit:hero_title")],
+    [btn("📝 Описание витрины", "s:edit:hero_desc")],
+    [btn("👋 Приветствие", "s:edit:welcome"), btn("🔗 Поддержка", "s:edit:support")],
+    [btn("💰 CryptoBot", "s:setcb")],
+    [btn("◀️ Меню", "s:m")],
   ]));
 }
 
 // ═══════════════════════════════════════════════
-// LOGS — matching template exactly
+// LOGS
 // ═══════════════════════════════════════════════
 async function logsList(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, page: number) {
   const { data: logs } = await supabase().from("shop_admin_logs").select("*").eq("shop_id", shopId).order("created_at", { ascending: false }).limit(50);
-  if (!logs?.length) return tg.edit(cid, mid, "📋 <b>Логи</b>\n\nПусто.", ikb([[btn("◀️ Меню", `s:m:${shopId}`)]]));
+  if (!logs?.length) return tg.edit(cid, mid, "📋 <b>Логи</b>\n\nПусто.", ikb([[btn("◀️ Меню", "s:m")]]));
   const pg = paginate(logs, page, 8);
   let t = `📋 <b>Логи</b> (${logs.length})\n\n`;
   pg.items.forEach(l => {
     t += `${new Date(l.created_at).toLocaleString("ru-RU")}\n👤 ${l.admin_telegram_id} | <b>${esc(l.action)}</b>${l.entity_type ? ` | ${l.entity_type}` : ""}\n\n`;
   });
   const rows: Btn[][] = [];
-  if (pg.total > 1) rows.push(pgRow("s:lg", pg.page, pg.total, shopId));
-  rows.push([btn("◀️ Меню", `s:m:${shopId}`)]);
+  if (pg.total > 1) rows.push(pgRow("s:lg", pg.page, pg.total));
+  rows.push([btn("◀️ Меню", "s:m")]);
   return tg.edit(cid, mid, t, ikb(rows));
 }
 
 // ═══════════════════════════════════════════════
-// STOCK OVERVIEW — matching template exactly
+// STOCK OVERVIEW
 // ═══════════════════════════════════════════════
 async function stockOverview(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, page: number) {
   const { data: products } = await supabase().from("shop_products").select("id, name, stock, is_active").eq("shop_id", shopId).order("stock", { ascending: true });
-  if (!products?.length) return tg.edit(cid, mid, "🗃 <b>Склад</b>\n\nНет товаров.", ikb([[btn("◀️ Меню", `s:m:${shopId}`)]]));
+  if (!products?.length) return tg.edit(cid, mid, "🗃 <b>Склад</b>\n\nНет товаров.", ikb([[btn("◀️ Меню", "s:m")]]));
   const oos = products.filter(p => p.stock <= 0).length;
   const low = products.filter(p => p.stock > 0 && p.stock <= 5).length;
   const pg = paginate(products, page, 8);
@@ -501,14 +499,14 @@ async function stockOverview(tg: ReturnType<typeof TG>, cid: number, mid: number
     const ic = p.stock <= 0 ? "❌" : p.stock <= 5 ? "⚠️" : "✅";
     t += `${ic} ${esc(p.name)} — <b>${p.stock}</b>\n`;
   });
-  const rows: Btn[][] = pg.items.map(p => [btn(`${p.stock <= 0 ? "❌" : p.stock <= 5 ? "⚠️" : "✅"} ${p.name.slice(0, 25)}`, `s:iv:${shopId}:${p.id}:0`)]);
-  if (pg.total > 1) rows.push(pgRow("s:sk", pg.page, pg.total, shopId));
-  rows.push([btn("◀️ Меню", `s:m:${shopId}`)]);
+  const rows: Btn[][] = pg.items.map(p => [btn(`${p.stock <= 0 ? "❌" : p.stock <= 5 ? "⚠️" : "✅"} ${p.name.slice(0, 25)}`, `s:iv:${p.id}:0`)]);
+  if (pg.total > 1) rows.push(pgRow("s:sk", pg.page, pg.total));
+  rows.push([btn("◀️ Меню", "s:m")]);
   return tg.edit(cid, mid, t, ikb(rows));
 }
 
 // ═══════════════════════════════════════════════
-// INVENTORY — matching template exactly
+// INVENTORY
 // ═══════════════════════════════════════════════
 async function inventoryView(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, pid: string, page: number) {
   const { data: p } = await supabase().from("shop_products").select("name, stock").eq("id", pid).single();
@@ -523,12 +521,12 @@ async function inventoryView(tg: ReturnType<typeof TG>, cid: number, mid: number
       t += `${st} <code>${esc(i.content.slice(0, 30))}${i.content.length > 30 ? "…" : ""}</code>\n`;
     });
     const rows: Btn[][] = [];
-    if (pg.total > 1) rows.push(pgRow(`s:iv:${pid}`, pg.page, pg.total, shopId));
-    rows.push([btn("➕ Добавить", `s:ia:${shopId}:${pid}`), btn("🔄 Синхр.", `s:is:${shopId}:${pid}`)]);
-    rows.push([btn("◀️ К товару", `s:pv:${shopId}:${pid}`)]);
+    if (pg.total > 1) rows.push(pgRow(`s:iv:${pid}`, pg.page, pg.total));
+    rows.push([btn("➕ Добавить", `s:ia:${pid}`), btn("🔄 Синхр.", `s:is:${pid}`)]);
+    rows.push([btn("◀️ К товару", `s:pv:${pid}`)]);
     return tg.edit(cid, mid, t, ikb(rows));
   }
-  return tg.edit(cid, mid, t, ikb([[btn("➕ Добавить", `s:ia:${shopId}:${pid}`)], [btn("◀️ К товару", `s:pv:${shopId}:${pid}`)]]));
+  return tg.edit(cid, mid, t, ikb([[btn("➕ Добавить", `s:ia:${pid}`)], [btn("◀️ К товару", `s:pv:${pid}`)]]));
 }
 
 async function inventorySync(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, pid: string, adminId: number) {
@@ -539,17 +537,17 @@ async function inventorySync(tg: ReturnType<typeof TG>, cid: number, mid: number
 }
 
 // ═══════════════════════════════════════════════
-// BROADCAST — matching template exactly (with photo)
+// BROADCAST
 // ═══════════════════════════════════════════════
 async function broadcastMenu(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string) {
   const { data: ordersRaw } = await supabase().from("shop_orders").select("buyer_telegram_id").eq("shop_id", shopId);
   const uniqueIds = [...new Set(ordersRaw?.map(o => o.buyer_telegram_id) || [])];
   return tg.edit(cid, mid, `📢 <b>Рассылка</b>\n\n👥 Получателей: <b>${uniqueIds.length}</b>\n\nОтправьте текст (HTML) или фото с подписью.\nПеред отправкой будет показан предпросмотр.`,
-    ikb([[btn("✍️ Написать", `s:bs:${shopId}`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
+    ikb([[btn("✍️ Написать", "s:bs")], [btn("◀️ Меню", "s:m")]]));
 }
 
 // ═══════════════════════════════════════════════
-// REVIEWS — matching template exactly (with filters)
+// REVIEWS
 // ═══════════════════════════════════════════════
 async function reviewsList(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, page: number, filter?: string) {
   let query = supabase().from("shop_reviews").select("*").eq("shop_id", shopId).order("created_at", { ascending: false });
@@ -560,9 +558,9 @@ async function reviewsList(tg: ReturnType<typeof TG>, cid: number, mid: number, 
   const { data: reviews } = await query;
   const statusLabel = filter === "approved" ? "одобренные" : filter === "rejected" ? "отклонённые" : filter === "all" ? "все" : "на модерации";
   if (!reviews?.length) return tg.edit(cid, mid, `⭐ <b>Отзывы (${statusLabel})</b>\n\nНет отзывов.`, ikb([
-    [btn("⏳ Ожидающие", `s:rvl:${shopId}:0`), btn("✅ Одобренные", `s:rvf:approved:${shopId}:0`)],
-    [btn("❌ Отклонённые", `s:rvf:rejected:${shopId}:0`), btn("📋 Все", `s:rvf:all:${shopId}:0`)],
-    [btn("◀️ Меню", `s:m:${shopId}`)],
+    [btn("⏳ Ожидающие", "s:rvl:0"), btn("✅ Одобренные", "s:rvf:approved:0")],
+    [btn("❌ Отклонённые", "s:rvf:rejected:0"), btn("📋 Все", "s:rvf:all:0")],
+    [btn("◀️ Меню", "s:m")],
   ]));
   const pg = paginate(reviews, page, 5);
   const se: Record<string, string> = { pending: "⏳", approved: "✅", rejected: "❌" };
@@ -571,19 +569,19 @@ async function reviewsList(tg: ReturnType<typeof TG>, cid: number, mid: number, 
     t += `${se[r.moderation_status] || "❓"} <b>${esc(r.author)}</b> | ${"⭐".repeat(r.rating)}\n${esc(r.text.slice(0, 80))}\n\n`;
   });
   const rows: Btn[][] = pg.items.map(r => [
-    ...(r.moderation_status === "pending" ? [btn("✅", `s:rva:${shopId}:${r.id}`), btn("❌", `s:rvr:${shopId}:${r.id}`)] : []),
-    btn(`${se[r.moderation_status] || ""} ${r.author.slice(0, 18)}`, `s:rvv:${shopId}:${r.id}`)
+    ...(r.moderation_status === "pending" ? [btn("✅", `s:rva:${r.id}`), btn("❌", `s:rvr:${r.id}`)] : []),
+    btn(`${se[r.moderation_status] || ""} ${r.author.slice(0, 18)}`, `s:rvv:${r.id}`)
   ]);
   const pfx = filter && filter !== "pending" ? `s:rvf:${filter}` : "s:rvl";
-  if (pg.total > 1) rows.push(pgRow(pfx, pg.page, pg.total, shopId));
-  rows.push([btn("⏳ Ожидающие", `s:rvl:${shopId}:0`), btn("✅ Одобренные", `s:rvf:approved:${shopId}:0`)]);
-  rows.push([btn("❌ Отклонённые", `s:rvf:rejected:${shopId}:0`), btn("📋 Все", `s:rvf:all:${shopId}:0`)]);
-  rows.push([btn("◀️ Меню", `s:m:${shopId}`)]);
+  if (pg.total > 1) rows.push(pgRow(pfx, pg.page, pg.total));
+  rows.push([btn("⏳ Ожидающие", "s:rvl:0"), btn("✅ Одобренные", "s:rvf:approved:0")]);
+  rows.push([btn("❌ Отклонённые", "s:rvf:rejected:0"), btn("📋 Все", "s:rvf:all:0")]);
+  rows.push([btn("◀️ Меню", "s:m")]);
   return tg.edit(cid, mid, t, ikb(rows));
 }
 
 // ═══════════════════════════════════════════════
-// TEXT FSM HANDLER — matching template exactly
+// TEXT FSM HANDLER
 // ═══════════════════════════════════════════════
 async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, photo: any[] | null, shopId: string, adminId: number) {
   const session = await getSession(cid, shopId);
@@ -591,6 +589,13 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
 
   const { state, data: sData } = session;
   const val = text.trim();
+
+  // ─── /cancel ──────────────────────────────
+  if (val === "/cancel") {
+    await clearSession(cid);
+    await tg.send(cid, "❌ Отменено.", ikb([[btn("◀️ Меню", "s:m")]]));
+    return true;
+  }
 
   // ─── Edit product field ───────────────────
   if (state.startsWith("ep:")) {
@@ -617,7 +622,7 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
       await supabase().from("shop_products").update({ image: imageUrl, updated_at: new Date().toISOString() }).eq("id", pid);
       await logAction(shopId, adminId, "upload_image", "product", pid);
       await clearSession(cid);
-      await tg.send(cid, `✅ Фото загружено!`, ikb([[btn("📦 Открыть товар", `s:pv:${shopId}:${pid}`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
+      await tg.send(cid, `✅ Фото загружено!`, ikb([[btn("📦 Открыть товар", `s:pv:${pid}`)], [btn("◀️ Меню", "s:m")]]));
       return true;
     }
 
@@ -631,7 +636,7 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
     await supabase().from("shop_products").update({ [dbF]: v, updated_at: new Date().toISOString() }).eq("id", pid);
     await logAction(shopId, adminId, `edit_${dbF}`, "product", pid, { [dbF]: v });
     await clearSession(cid);
-    await tg.send(cid, `✅ <b>${dbF}</b> обновлено!`, ikb([[btn("📦 Открыть товар", `s:pv:${shopId}:${pid}`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
+    await tg.send(cid, `✅ <b>${dbF}</b> обновлено!`, ikb([[btn("📦 Открыть товар", `s:pv:${pid}`)], [btn("◀️ Меню", "s:m")]]));
     return true;
   }
 
@@ -650,7 +655,7 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
     await logAction(shopId, adminId, "create_product", "product", product.id, { title, price });
     await clearSession(cid);
     await tg.send(cid, `✅ <b>${esc(title)}</b> создан ($${price.toFixed(2)}).\nТовар скрыт — активируйте через админку.`,
-      ikb([[btn("📦 Открыть", `s:pv:${shopId}:${product.id}`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
+      ikb([[btn("📦 Открыть", `s:pv:${product.id}`)], [btn("◀️ Меню", "s:m")]]));
     return true;
   }
 
@@ -666,7 +671,7 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
     await clearSession(cid);
     if (error) { await tg.send(cid, `❌ ${error.message}`); return true; }
     await logAction(shopId, adminId, "create_category", "category", undefined, { name });
-    await tg.send(cid, `✅ ${val.trim()} <b>${esc(name)}</b> создана!`, ikb([[btn("📁 К категориям", `s:cl:${shopId}:0`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
+    await tg.send(cid, `✅ ${val.trim()} <b>${esc(name)}</b> создана!`, ikb([[btn("📁 К категориям", "s:cl:0")], [btn("◀️ Меню", "s:m")]]));
     return true;
   }
 
@@ -682,7 +687,7 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
     await supabase().from("shop_categories").update({ [dbF]: v }).eq("id", catId);
     await logAction(shopId, adminId, `edit_cat_${dbF}`, "category", catId, { [dbF]: v });
     await clearSession(cid);
-    await tg.send(cid, `✅ Обновлено!`, ikb([[btn("📁 Открыть", `s:cv:${shopId}:${catId}`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
+    await tg.send(cid, `✅ Обновлено!`, ikb([[btn("📁 Открыть", `s:cv:${catId}`)], [btn("◀️ Меню", "s:m")]]));
     return true;
   }
 
@@ -710,13 +715,13 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
 
   // ─── Set CryptoBot token ──────────────────
   if (state === "s_set_cryptobot") {
-    if (val.length < 10) { await tg.send(cid, "❌ Неверный формат:"); return true; }
+    if (val.length < 10) { await tg.send(cid, "❌ Неверный формат."); return true; }
     const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
     if (!encKey) { await tg.send(cid, "❌ Ошибка конфигурации."); return true; }
     const { data: enc } = await supabase().rpc("encrypt_token", { p_token: val, p_key: encKey });
     await supabase().from("shops").update({ cryptobot_token_encrypted: enc, updated_at: new Date().toISOString() }).eq("id", shopId);
     await clearSession(cid);
-    await tg.send(cid, "✅ CryptoBot-токен сохранён!", ikb([[btn("◀️ К настройкам", `s:se:${shopId}`)]]));
+    await tg.send(cid, "✅ CryptoBot-токен сохранён!", ikb([[btn("◀️ К настройкам", "s:se")]]));
     return true;
   }
 
@@ -732,7 +737,7 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
     await logAction(shopId, adminId, "add_inventory", "product", pid, { added: lines.length });
     await clearSession(cid);
     await tg.send(cid, `✅ Добавлено <b>${lines.length}</b> единиц. Остаток: <b>${count}</b>.`,
-      ikb([[btn("🗃 Склад товара", `s:iv:${shopId}:${pid}:0`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
+      ikb([[btn("🗃 Склад товара", `s:iv:${pid}:0`)], [btn("◀️ Меню", "s:m")]]));
     return true;
   }
 
@@ -742,10 +747,10 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
     const previewText = val || "(без текста)";
     if (photo?.length) {
       await tg.sendPhoto(cid, photo[photo.length - 1].file_id, `📢 <b>Предпросмотр:</b>\n\n${previewText}`,
-        ikb([[btn("✅ Отправить", `s:bcsend:${shopId}`), btn("✏️ Редактировать", `s:bcedit:${shopId}`), btn("❌ Отмена", `s:bccancel:${shopId}`)]]));
+        ikb([[btn("✅ Отправить", "s:bcsend"), btn("✏️ Редактировать", "s:bcedit"), btn("❌ Отмена", "s:bccancel")]]));
     } else {
       await tg.send(cid, `📢 <b>Предпросмотр:</b>\n\n${val}`,
-        ikb([[btn("✅ Отправить", `s:bcsend:${shopId}`), btn("✏️ Редактировать", `s:bcedit:${shopId}`), btn("❌ Отмена", `s:bccancel:${shopId}`)]]));
+        ikb([[btn("✅ Отправить", "s:bcsend"), btn("✏️ Редактировать", "s:bcedit"), btn("❌ Отмена", "s:bccancel")]]));
     }
     return true;
   }
@@ -763,10 +768,9 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
 
   // ─── User search ──────────────────────────
   if (state === "us:q") {
-    // Get shop buyers first
     const { data: ordersRaw } = await supabase().from("shop_orders").select("buyer_telegram_id").eq("shop_id", shopId);
     const buyerIds = [...new Set(ordersRaw?.map(o => o.buyer_telegram_id) || [])];
-    if (!buyerIds.length) { await clearSession(cid); await tg.send(cid, "❌ Нет покупателей.", ikb([[btn("◀️ К пользователям", `s:ul:${shopId}:0`)]])); return true; }
+    if (!buyerIds.length) { await clearSession(cid); await tg.send(cid, "❌ Нет покупателей.", ikb([[btn("◀️ К пользователям", "s:ul:0")]])); return true; }
 
     const isNum = /^\d+$/.test(val);
     let query = supabase().from("user_profiles").select("*").in("telegram_id", buyerIds);
@@ -777,11 +781,11 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
     }
     const { data: users } = await query.limit(10);
     await clearSession(cid);
-    if (!users?.length) { await tg.send(cid, "❌ Ничего не найдено.", ikb([[btn("◀️ К пользователям", `s:ul:${shopId}:0`)]])); return true; }
+    if (!users?.length) { await tg.send(cid, "❌ Ничего не найдено.", ikb([[btn("◀️ К пользователям", "s:ul:0")]])); return true; }
     let t = `🔍 <b>Результаты</b> (${users.length})\n\n`;
     users.forEach(u => { t += `👤 <b>${esc(u.first_name)}</b> ${u.username ? `@${esc(u.username)}` : ""} | ${u.telegram_id}\n`; });
-    const rows: Btn[][] = users.map(u => [btn(`${u.first_name} ${u.last_name || ""}`.trim().slice(0, 28), `s:uv:${shopId}:${u.id}`)]);
-    rows.push([btn("◀️ К пользователям", `s:ul:${shopId}:0`)]);
+    const rows: Btn[][] = users.map(u => [btn(`${u.first_name} ${u.last_name || ""}`.trim().slice(0, 28), `s:uv:${u.id}`)]);
+    rows.push([btn("◀️ К пользователям", "s:ul:0")]);
     await tg.send(cid, t, ikb(rows));
     return true;
   }
@@ -792,14 +796,14 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
     await supabase().from("user_profiles").update({ internal_note: val, updated_at: new Date().toISOString() }).eq("telegram_id", tgId);
     await logAction(shopId, adminId, "set_note", "user", String(tgId), { note: val });
     await clearSession(cid);
-    await tg.send(cid, "✅ Заметка сохранена.", ikb([[btn("◀️ К пользователю", `s:uvt:${shopId}:${tgId}`)]]));
+    await tg.send(cid, "✅ Заметка сохранена.", ikb([[btn("◀️ К пользователю", `s:uvt:${tgId}`)]]));
     return true;
   }
 
   // ─── Balance operations ───────────────────
   if (state.startsWith("bal:")) {
     const parts = state.split(":");
-    const op = parts[1]; // c=credit, d=debit, s=set
+    const op = parts[1];
     const tgId = parseInt(parts[2]);
 
     if (!sData.amount) {
@@ -826,7 +830,7 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
     await supabase().from("balance_history").insert({ telegram_id: tgId, amount: histAmount, balance_after: newBalance, type: histType, comment, admin_telegram_id: adminId });
     await logAction(shopId, adminId, `balance_${histType}`, "user", String(tgId), { amount: histAmount, balance_after: newBalance, comment });
     await clearSession(cid);
-    await tg.send(cid, `✅ Баланс: <b>$${newBalance.toFixed(2)}</b>`, ikb([[btn("💰 Баланс", `s:ub:${shopId}:${tgId}`)], [btn("◀️ К пользователю", `s:uvt:${shopId}:${tgId}`)]]));
+    await tg.send(cid, `✅ Баланс: <b>$${newBalance.toFixed(2)}</b>`, ikb([[btn("💰 Баланс", `s:ub:${tgId}`)], [btn("◀️ К пользователю", `s:uvt:${tgId}`)]]));
     return true;
   }
 
@@ -853,14 +857,7 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
     await clearSession(cid);
     if (error) { await tg.send(cid, `❌ ${error.message}`); return true; }
     await logAction(shopId, adminId, "create_promo", "promocode", sData.code as string, { discount_type: sData.discount_type, discount_value: v });
-    await tg.send(cid, `✅ Промокод <b>${esc(sData.code as string)}</b> создан!`, ikb([[btn("🎟 К промокодам", `s:prl:${shopId}:0`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
-    return true;
-  }
-
-  // ─── /cancel ──────────────────────────────
-  if (val === "/cancel") {
-    await clearSession(cid);
-    await tg.send(cid, "❌ Отменено.", ikb([[btn("◀️ Меню", `s:m:${shopId}`)]]));
+    await tg.send(cid, `✅ Промокод <b>${esc(sData.code as string)}</b> создан!`, ikb([[btn("🎟 К промокодам", "s:prl:0")], [btn("◀️ Меню", "s:m")]]));
     return true;
   }
 
@@ -868,20 +865,11 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
 }
 
 // ═══════════════════════════════════════════════
-// CALLBACK HANDLER — matching template exactly
+// CALLBACK HANDLER
 // ═══════════════════════════════════════════════
 async function handleCallback(tg: ReturnType<typeof TG>, cid: number, mid: number, data: string, cbId: string, shopId: string, adminId: number) {
+  // Format: s:<cmd>:<arg1>:<arg2>:... — NO shopId in callback_data
   const parts = data.split(":");
-
-  // Backward/forward compat: if parts[2] is not shopId, inject it
-  if (parts.length >= 3 && parts[2] !== shopId && !UUID_RE.test(parts[2])) {
-    // Shortened format: s:<cmd>:<arg...>, inject shopId at [2]
-    parts.splice(2, 0, shopId);
-  } else if (parts.length >= 3 && UUID_RE.test(parts[2]) && parts[2] !== shopId) {
-    // Wrong shopId somehow — replace
-    parts[2] = shopId;
-  }
-
   const cmd = parts[1];
 
   // Don't clear session for broadcast actions
@@ -896,37 +884,37 @@ async function handleCallback(tg: ReturnType<typeof TG>, cid: number, mid: numbe
     if (cmd === "m") return adminHome(tg, cid, shopId, mid);
 
     // Products
-    if (cmd === "pl") return productsList(tg, cid, mid, shopId, parseInt(parts[3]) || 0);
-    if (cmd === "pv") return productView(tg, cid, mid, shopId, parts[3]);
+    if (cmd === "pl") return productsList(tg, cid, mid, shopId, parseInt(parts[2]) || 0);
+    if (cmd === "pv") return productView(tg, cid, mid, shopId, parts[2]);
     if (cmd === "pt") {
-      const pid = parts[3];
+      const pid = parts[2];
       const { data: p } = await supabase().from("shop_products").select("is_active, name").eq("id", pid).single();
       if (p) {
         await supabase().from("shop_products").update({ is_active: !p.is_active, updated_at: new Date().toISOString() }).eq("id", pid);
-        await logAction(shopId, adminId, `toggle_active`, "product", pid, { is_active: !p.is_active });
+        await logAction(shopId, adminId, "toggle_active", "product", pid, { is_active: !p.is_active });
       }
       return productView(tg, cid, mid, shopId, pid);
     }
     if (cmd === "pd") {
-      const pid = parts[3];
+      const pid = parts[2];
       const { data: p } = await supabase().from("shop_products").select("name").eq("id", pid).single();
       return tg.edit(cid, mid, `⚠️ <b>Удалить?</b>\n\n${esc(p?.name || "?")}\n\nЭто необратимо!`,
-        ikb([[btn("✅ Да, удалить", `s:py:${shopId}:${pid}`), btn("❌ Отмена", `s:pv:${shopId}:${pid}`)]]));
+        ikb([[btn("✅ Да, удалить", `s:py:${pid}`), btn("❌ Отмена", `s:pv:${pid}`)]]));
     }
     if (cmd === "py") {
-      const pid = parts[3];
+      const pid = parts[2];
       const { data: p } = await supabase().from("shop_products").select("name").eq("id", pid).single();
       await supabase().from("shop_inventory").delete().eq("product_id", pid);
       await supabase().from("shop_products").delete().eq("id", pid);
       await logAction(shopId, adminId, "delete_product", "product", pid, { name: p?.name });
-      return tg.edit(cid, mid, `✅ Товар <b>${esc(p?.name || "")}</b> удалён.`, ikb([[btn("◀️ К товарам", `s:pl:${shopId}:0`)]]));
+      return tg.edit(cid, mid, `✅ Товар <b>${esc(p?.name || "")}</b> удалён.`, ikb([[btn("◀️ К товарам", "s:pl:0")]]));
     }
     if (cmd === "pa") {
       await setSession(cid, "ap:t", shopId);
       return tg.send(cid, "📦 <b>Новый товар</b>\n\nВведите название:");
     }
     if (cmd === "pe") {
-      const pid = parts[3]; const f = parts[4];
+      const pid = parts[2]; const f = parts[3];
       if (f === "img") {
         await setSession(cid, `ep:img:${pid}`, shopId);
         return tg.send(cid, "🖼 Отправьте фото товара:\n\n/cancel — отмена");
@@ -937,83 +925,83 @@ async function handleCallback(tg: ReturnType<typeof TG>, cid: number, mid: numbe
     }
 
     // Categories
-    if (cmd === "cl") return categoriesList(tg, cid, mid, shopId, parseInt(parts[3]) || 0);
-    if (cmd === "cv") return categoryView(tg, cid, mid, shopId, parts[3]);
+    if (cmd === "cl") return categoriesList(tg, cid, mid, shopId, parseInt(parts[2]) || 0);
+    if (cmd === "cv") return categoryView(tg, cid, mid, shopId, parts[2]);
     if (cmd === "ct") {
-      const catId = parts[3];
+      const catId = parts[2];
       const { data: c } = await supabase().from("shop_categories").select("is_active").eq("id", catId).single();
       if (c) { await supabase().from("shop_categories").update({ is_active: !c.is_active }).eq("id", catId); await logAction(shopId, adminId, "toggle_cat", "category", catId); }
       return categoryView(tg, cid, mid, shopId, catId);
     }
     if (cmd === "ca") { await setSession(cid, "ac:n", shopId); return tg.send(cid, "📁 <b>Новая категория</b>\n\nВведите название:"); }
     if (cmd === "ce") {
-      const catId = parts[3]; const f = parts[4];
+      const catId = parts[2]; const f = parts[3];
       const labels: Record<string, string> = { n: "название", i: "иконку (emoji)", s: "порядок сортировки" };
       await setSession(cid, `ec:${f}:${catId}`, shopId);
       return tg.send(cid, `✏️ Введите <b>${labels[f] || f}</b>:\n\n/cancel — отмена`);
     }
     if (cmd === "cd") {
-      const catId = parts[3];
+      const catId = parts[2];
       const { data: c } = await supabase().from("shop_categories").select("name").eq("id", catId).single();
       return tg.edit(cid, mid, `⚠️ <b>Удалить категорию?</b>\n\n${esc(c?.name || "?")}`,
-        ikb([[btn("✅ Удалить", `s:cdy:${shopId}:${catId}`), btn("❌ Отмена", `s:cv:${shopId}:${catId}`)]]));
+        ikb([[btn("✅ Удалить", `s:cdy:${catId}`), btn("❌ Отмена", `s:cv:${catId}`)]]));
     }
     if (cmd === "cdy") {
-      const catId = parts[3];
+      const catId = parts[2];
       await supabase().from("shop_categories").delete().eq("id", catId);
       await logAction(shopId, adminId, "delete_category", "category", catId);
-      return tg.edit(cid, mid, "✅ Категория удалена.", ikb([[btn("◀️ К категориям", `s:cl:${shopId}:0`)]]));
+      return tg.edit(cid, mid, "✅ Категория удалена.", ikb([[btn("◀️ К категориям", "s:cl:0")]]));
     }
 
     // Orders
-    if (cmd === "ol") return ordersList(tg, cid, mid, shopId, parseInt(parts[3]) || 0);
-    if (cmd === "ov") return orderView(tg, cid, mid, shopId, parts[3]);
-    if (cmd === "os") return orderSetStatus(tg, cid, mid, shopId, parts[3], parts[4], adminId);
+    if (cmd === "ol") return ordersList(tg, cid, mid, shopId, parseInt(parts[2]) || 0);
+    if (cmd === "ov") return orderView(tg, cid, mid, shopId, parts[2]);
+    if (cmd === "os") return orderSetStatus(tg, cid, mid, shopId, parts[2], parts[3], adminId);
 
     // Users
-    if (cmd === "ul") return usersList(tg, cid, mid, shopId, parseInt(parts[3]) || 0);
+    if (cmd === "ul") return usersList(tg, cid, mid, shopId, parseInt(parts[2]) || 0);
     if (cmd === "ulf") {
-      const filter = parts[2] === shopId ? parts[3] : parts[2];
-      const page = parseInt(parts[parts.length - 1]) || 0;
+      const filter = parts[2];
+      const page = parseInt(parts[3]) || 0;
       return usersList(tg, cid, mid, shopId, page, filter);
     }
     if (cmd === "usf") {
       return tg.edit(cid, mid, "📊 <b>Фильтр пользователей</b>", ikb([
-        [btn("Все", `s:ul:${shopId}:0`), btn("👑 VIP", `s:ulf:vip:${shopId}:0`), btn("🚫 Заблокированные", `s:ulf:blocked:${shopId}:0`)],
-        [btn("◀️ Назад", `s:ul:${shopId}:0`)],
+        [btn("Все", "s:ul:0"), btn("👑 VIP", "s:ulf:vip:0"), btn("🚫 Заблокированные", "s:ulf:blocked:0")],
+        [btn("◀️ Назад", "s:ul:0")],
       ]));
     }
     if (cmd === "usq") { await setSession(cid, "us:q", shopId); return tg.send(cid, "🔍 Введите TG ID, username или имя:\n\n/cancel — отмена"); }
-    if (cmd === "uv") return userView(tg, cid, mid, shopId, parts[3]);
-    if (cmd === "uvt") return userViewByTg(tg, cid, mid, shopId, parseInt(parts[3]));
+    if (cmd === "uv") return userView(tg, cid, mid, shopId, parts[2]);
+    if (cmd === "uvt") return userViewByTg(tg, cid, mid, shopId, parseInt(parts[2]));
     if (cmd === "um") {
-      const uid = parts[3];
+      const uid = parts[2];
       await setSession(cid, `um:${uid}`, shopId);
       return tg.send(cid, "✍️ Введите сообщение:\n\n/cancel — отмена");
     }
 
     // User orders
     if (cmd === "uo") {
-      const tgId = parseInt(parts[3]); const page = parseInt(parts[4] || "0");
+      const tgId = parseInt(parts[2]); const page = parseInt(parts[3] || "0");
       return userOrdersList(tg, cid, mid, shopId, tgId, page);
     }
 
     // User balance
-    if (cmd === "ub") return balanceMenu(tg, cid, mid, shopId, parseInt(parts[3]));
-    if (cmd === "ubc") { const tgId = parts[3]; await setSession(cid, `bal:c:${tgId}`, shopId); return tg.send(cid, "➕ Введите сумму для начисления:\n\n/cancel — отмена"); }
-    if (cmd === "ubd") { const tgId = parts[3]; await setSession(cid, `bal:d:${tgId}`, shopId); return tg.send(cid, "➖ Введите сумму для списания:\n\n/cancel — отмена"); }
-    if (cmd === "ubs") { const tgId = parts[3]; await setSession(cid, `bal:s:${tgId}`, shopId); return tg.send(cid, "🎯 Введите новое значение баланса:\n\n/cancel — отмена"); }
+    if (cmd === "ub") return balanceMenu(tg, cid, mid, shopId, parseInt(parts[2]));
+    if (cmd === "ubc") { const tgId = parts[2]; await setSession(cid, `bal:c:${tgId}`, shopId); return tg.send(cid, "➕ Введите сумму для начисления:\n\n/cancel — отмена"); }
+    if (cmd === "ubd") { const tgId = parts[2]; await setSession(cid, `bal:d:${tgId}`, shopId); return tg.send(cid, "➖ Введите сумму для списания:\n\n/cancel — отмена"); }
+    if (cmd === "ubs") { const tgId = parts[2]; await setSession(cid, `bal:s:${tgId}`, shopId); return tg.send(cid, "🎯 Введите новое значение баланса:\n\n/cancel — отмена"); }
 
     // User role
     if (cmd === "ur") {
-      const tgId = parseInt(parts[3]);
+      const tgId = parseInt(parts[2]);
       return tg.edit(cid, mid, `🏷 <b>Изменить роль</b> — TG ${tgId}`, ikb([
-        [btn("👤 user", `s:urs:${shopId}:${tgId}:user`), btn("👑 vip", `s:urs:${shopId}:${tgId}:vip`), btn("🚫 blocked", `s:urs:${shopId}:${tgId}:blocked`)],
-        [btn("◀️ Назад", `s:uvt:${shopId}:${tgId}`)],
+        [btn("👤 user", `s:urs:${tgId}:user`), btn("👑 vip", `s:urs:${tgId}:vip`), btn("🚫 blocked", `s:urs:${tgId}:blocked`)],
+        [btn("◀️ Назад", `s:uvt:${tgId}`)],
       ]));
     }
     if (cmd === "urs") {
-      const tgId = parseInt(parts[3]); const role = parts[4];
+      const tgId = parseInt(parts[2]); const role = parts[3];
       await supabase().from("user_profiles").update({ role, updated_at: new Date().toISOString() }).eq("telegram_id", tgId);
       await logAction(shopId, adminId, "set_role", "user", String(tgId), { role });
       return userViewByTg(tg, cid, mid, shopId, tgId);
@@ -1021,7 +1009,7 @@ async function handleCallback(tg: ReturnType<typeof TG>, cid: number, mid: numbe
 
     // User block/unblock
     if (cmd === "ux") {
-      const tgId = parseInt(parts[3]);
+      const tgId = parseInt(parts[2]);
       const { data: u } = await supabase().from("user_profiles").select("is_blocked").eq("telegram_id", tgId).single();
       if (u) {
         const newVal = !u.is_blocked;
@@ -1033,56 +1021,56 @@ async function handleCallback(tg: ReturnType<typeof TG>, cid: number, mid: numbe
 
     // User note
     if (cmd === "un") {
-      const tgId = parts[3];
+      const tgId = parts[2];
       await setSession(cid, `un:${tgId}`, shopId);
       return tg.send(cid, "📝 Введите заметку:\n\n/cancel — отмена");
     }
 
     // User logs
     if (cmd === "ula") {
-      const tgId = parseInt(parts[3]); const page = parseInt(parts[4] || "0");
+      const tgId = parseInt(parts[2]); const page = parseInt(parts[3] || "0");
       return userLogsList(tg, cid, mid, shopId, tgId, page);
     }
 
     // Promocodes
-    if (cmd === "prl") return promosList(tg, cid, mid, shopId, parseInt(parts[3]) || 0);
-    if (cmd === "prv") return promoView(tg, cid, mid, shopId, parts[3]);
+    if (cmd === "prl") return promosList(tg, cid, mid, shopId, parseInt(parts[2]) || 0);
+    if (cmd === "prv") return promoView(tg, cid, mid, shopId, parts[2]);
     if (cmd === "pra") { await setSession(cid, "pr:c", shopId); return tg.send(cid, "🎟 <b>Новый промокод</b>\n\nВведите код:"); }
     if (cmd === "prt") {
-      const prId = parts[3];
+      const prId = parts[2];
       const { data: p } = await supabase().from("shop_promocodes").select("is_active").eq("id", prId).single();
       if (p) { await supabase().from("shop_promocodes").update({ is_active: !p.is_active }).eq("id", prId); await logAction(shopId, adminId, "toggle_promo", "promocode", prId); }
       return promoView(tg, cid, mid, shopId, prId);
     }
     if (cmd === "prd") {
-      const prId = parts[3];
+      const prId = parts[2];
       const { data: p } = await supabase().from("shop_promocodes").select("code").eq("id", prId).single();
       return tg.edit(cid, mid, `⚠️ <b>Удалить промокод?</b>\n\n<code>${esc(p?.code || "?")}</code>`,
-        ikb([[btn("✅ Удалить", `s:prdy:${shopId}:${prId}`), btn("❌ Отмена", `s:prv:${shopId}:${prId}`)]]));
+        ikb([[btn("✅ Удалить", `s:prdy:${prId}`), btn("❌ Отмена", `s:prv:${prId}`)]]));
     }
     if (cmd === "prdy") {
-      const prId = parts[3];
+      const prId = parts[2];
       await supabase().from("shop_promocodes").delete().eq("id", prId);
       await logAction(shopId, adminId, "delete_promo", "promocode", prId);
-      return tg.edit(cid, mid, "✅ Промокод удалён.", ikb([[btn("◀️ К промокодам", `s:prl:${shopId}:0`)]]));
+      return tg.edit(cid, mid, "✅ Промокод удалён.", ikb([[btn("◀️ К промокодам", "s:prl:0")]]));
     }
 
     // Stats, Settings, Logs, Stock
     if (cmd === "st") return statsView(tg, cid, mid, shopId);
     if (cmd === "se") return settingsView(tg, cid, mid, shopId);
-    if (cmd === "lg") return logsList(tg, cid, mid, shopId, parseInt(parts[3]) || 0);
-    if (cmd === "sk") return stockOverview(tg, cid, mid, shopId, parseInt(parts[3]) || 0);
+    if (cmd === "lg") return logsList(tg, cid, mid, shopId, parseInt(parts[2]) || 0);
+    if (cmd === "sk") return stockOverview(tg, cid, mid, shopId, parseInt(parts[2]) || 0);
 
     // Edit shop field
     if (cmd === "edit") {
-      const field = parts[3];
+      const field = parts[2];
       const labels: Record<string, string> = {
         name: "📛 название магазина", color: "🎨 HEX цвет (например #FF5500)",
         hero_title: "📌 заголовок витрины", hero_desc: "📝 описание витрины",
         welcome: "👋 приветственное сообщение", support: "🔗 ссылку на поддержку",
       };
       await setSession(cid, "s_edit_field", shopId, { field });
-      return tg.edit(cid, mid, `✏️ Введи новое ${labels[field] || field}:`, ikb([[btn("❌ Отмена", `s:se:${shopId}`)]]));
+      return tg.edit(cid, mid, `✏️ Введи новое ${labels[field] || field}:`, ikb([[btn("❌ Отмена", "s:se")]]));
     }
 
     // Set CryptoBot token
@@ -1090,30 +1078,28 @@ async function handleCallback(tg: ReturnType<typeof TG>, cid: number, mid: numbe
       await setSession(cid, "s_set_cryptobot", shopId, {});
       return tg.edit(cid, mid,
         "💰 <b>Подключение CryptoBot</b>\n\nОтправь API-токен от @CryptoBot:\n\n⚠️ Токен будет зашифрован.",
-        ikb([[btn("❌ Отмена", `s:se:${shopId}`)]]),
+        ikb([[btn("❌ Отмена", "s:se")]]),
       );
     }
 
     // Inventory
     if (cmd === "iv") {
-      const pid = parts[3]; const page = parseInt(parts[4] || "0");
+      const pid = parts[2]; const page = parseInt(parts[3] || "0");
       return inventoryView(tg, cid, mid, shopId, pid, page);
     }
     if (cmd === "ia") {
-      const pid = parts[3];
+      const pid = parts[2];
       await setSession(cid, `ai:${pid}`, shopId);
       return tg.send(cid, "🗃 <b>Добавление единиц</b>\n\nОтправьте ключи/аккаунты, каждый с новой строки.\n\n💡 Для загрузки файлов используйте ссылку на Яндекс Диск / Google Drive / другое внешнее хранилище.\n\n/cancel — отмена");
     }
-    if (cmd === "is") return inventorySync(tg, cid, mid, shopId, parts[3], adminId);
+    if (cmd === "is") return inventorySync(tg, cid, mid, shopId, parts[2], adminId);
 
     // Broadcast
     if (cmd === "bc") return broadcastMenu(tg, cid, mid, shopId);
     if (cmd === "bs") { await setSession(cid, "bc:t", shopId); return tg.send(cid, "📢 Введите текст рассылки (поддерживается HTML: &lt;b&gt;, &lt;i&gt;, &lt;u&gt;, &lt;a&gt;) или отправьте фото с подписью:\n\n/cancel — отмена"); }
     if (cmd === "bcsend") {
       const session = await getSession(cid, shopId);
-      if (!session || session.state !== "bc:preview") {
-        return;
-      }
+      if (!session || session.state !== "bc:preview") return;
       const sd = session.data;
       const { data: ordersRaw } = await supabase().from("shop_orders").select("buyer_telegram_id").eq("shop_id", shopId);
       const uniqueIds = [...new Set(ordersRaw?.map(o => o.buyer_telegram_id) || [])];
@@ -1132,43 +1118,43 @@ async function handleCallback(tg: ReturnType<typeof TG>, cid: number, mid: numbe
       }
       await logAction(shopId, adminId, "broadcast", "broadcast", undefined, { ok, fail, total: uniqueIds.length });
       await clearSession(cid);
-      return tg.send(cid, `📢 <b>Рассылка завершена!</b>\n\n✅ ${ok}\n❌ ${fail}\n📊 ${uniqueIds.length}`, ikb([[btn("◀️ Меню", `s:m:${shopId}`)]]));
+      return tg.send(cid, `📢 <b>Рассылка завершена!</b>\n\n✅ ${ok}\n❌ ${fail}\n📊 ${uniqueIds.length}`, ikb([[btn("◀️ Меню", "s:m")]]));
     }
     if (cmd === "bcedit") { await setSession(cid, "bc:t", shopId); return tg.send(cid, "✏️ Введите новый текст рассылки:\n\n/cancel — отмена"); }
-    if (cmd === "bccancel") { await clearSession(cid); return tg.send(cid, "❌ Рассылка отменена.", ikb([[btn("◀️ Меню", `s:m:${shopId}`)]])); }
+    if (cmd === "bccancel") { await clearSession(cid); return tg.send(cid, "❌ Рассылка отменена.", ikb([[btn("◀️ Меню", "s:m")]])); }
 
     // Reviews
-    if (cmd === "rvl") return reviewsList(tg, cid, mid, shopId, parseInt(parts[3]) || 0);
+    if (cmd === "rvl") return reviewsList(tg, cid, mid, shopId, parseInt(parts[2]) || 0);
     if (cmd === "rvf") {
-      const filter = parts[2] === shopId ? parts[3] : parts[2];
-      const page = parseInt(parts[parts.length - 1]) || 0;
+      const filter = parts[2];
+      const page = parseInt(parts[3]) || 0;
       return reviewsList(tg, cid, mid, shopId, page, filter);
     }
     if (cmd === "rva") {
-      const rid = parts[3];
+      const rid = parts[2];
       await supabase().from("shop_reviews").update({ verified: true, moderation_status: "approved" }).eq("id", rid);
       await logAction(shopId, adminId, "approve_review", "review", rid);
       return reviewsList(tg, cid, mid, shopId, 0);
     }
     if (cmd === "rvr") {
-      const rid = parts[3];
+      const rid = parts[2];
       await supabase().from("shop_reviews").update({ moderation_status: "rejected" }).eq("id", rid);
       await logAction(shopId, adminId, "reject_review", "review", rid);
       return reviewsList(tg, cid, mid, shopId, 0);
     }
     if (cmd === "rvv") {
-      const rid = parts[3];
+      const rid = parts[2];
       const { data: r } = await supabase().from("shop_reviews").select("*").eq("id", rid).single();
       if (!r) return;
       const t = `⭐ <b>Отзыв</b>\n\n👤 ${esc(r.author)}\n${"⭐".repeat(r.rating)}\n\n${esc(r.text)}\n\n📅 ${new Date(r.created_at).toLocaleDateString("ru-RU")}`;
       return tg.edit(cid, mid, t, ikb([
-        [btn("✅ Одобрить", `s:rva:${shopId}:${rid}`), btn("❌ Отклонить", `s:rvr:${shopId}:${rid}`)],
-        [btn("🗑 Удалить", `s:rvd:${shopId}:${rid}`)],
-        [btn("◀️ К отзывам", `s:rvl:${shopId}:0`)],
+        [btn("✅ Одобрить", `s:rva:${rid}`), btn("❌ Отклонить", `s:rvr:${rid}`)],
+        [btn("🗑 Удалить", `s:rvd:${rid}`)],
+        [btn("◀️ К отзывам", "s:rvl:0")],
       ]));
     }
     if (cmd === "rvd") {
-      const rid = parts[3];
+      const rid = parts[2];
       await supabase().from("shop_reviews").delete().eq("id", rid);
       await logAction(shopId, adminId, "delete_review", "review", rid);
       return reviewsList(tg, cid, mid, shopId, 0);
@@ -1284,6 +1270,18 @@ serve(async (req) => {
 
     // ─── /start command ─────────────────────
     if (text === "/start" || text.startsWith("/start ")) {
+      // Create user profile if not exists
+      if (msg.from) {
+        await ensureUserProfile({
+          id: msg.from.id,
+          first_name: msg.from.first_name,
+          last_name: msg.from.last_name,
+          username: msg.from.username,
+          is_premium: msg.from.is_premium || false,
+          language_code: msg.from.language_code,
+        });
+      }
+
       const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
       const welcomeText = shop.welcome_message || `Добро пожаловать в ${shop.name}!`;
 
@@ -1328,7 +1326,7 @@ serve(async (req) => {
     if (text === "/cancel") {
       await clearSession(chatId);
       if (owner) {
-        await tg.send(chatId, "❌ Отменено.", ikb([[btn("◀️ Меню", `s:m:${shopId}`)]]));
+        await tg.send(chatId, "❌ Отменено.", ikb([[btn("◀️ Меню", "s:m")]]));
       }
       return new Response("ok");
     }
