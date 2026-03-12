@@ -221,7 +221,7 @@ async function handleReview(
       author: displayName,
       avatar: avatarUrl,
       verified: false,
-      moderation_status: "approved", // auto-approve for now
+      moderation_status: "pending",
     });
 
     if (error) {
