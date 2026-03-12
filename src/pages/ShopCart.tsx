@@ -110,6 +110,7 @@ const ShopCart = () => {
               {promoError && <p className="text-xs text-destructive">{promoError}</p>}
               {promoResult && <p className="text-xs text-primary">✅ Промокод применён!</p>}
             </div>
+            <div className="border-t border-border pt-4">
             <Link to={buildPath('/checkout')}>
               <Button variant="hero" size="lg" className="w-full">
                 Перейти к оплате <ArrowRight className="w-4 h-4 ml-1" />
