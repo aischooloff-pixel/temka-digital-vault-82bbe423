@@ -48,10 +48,11 @@ const OrderDetailSheet = ({ order, open, onOpenChange, shopId }: Props) => {
 
   if (!order) return null;
 
-  const subtotal = items?.reduce((s, i) => s + Number(i.product_price) * i.quantity, 0) || 0;
+  const grossAmount = Number(order.total_amount) || 0;
+  const subtotal = (items?.reduce((s, i) => s + Number(i.product_price) * i.quantity, 0) || 0) || grossAmount;
   const discountAmount = Number(order.discount_amount) || 0;
   const balanceUsed = Number(order.balance_used) || 0;
-  const totalAmount = Number(order.total_amount);
+  const totalAmount = Math.max(0, grossAmount - discountAmount);
   const cryptobotPaid = Math.max(0, totalAmount - balanceUsed);
 
   return (
