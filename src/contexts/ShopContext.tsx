@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
+import type { PromoResult } from '@/contexts/StoreContext';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface ShopData {
@@ -80,6 +81,16 @@ interface ShopContextType {
   cartCount: number;
   searchQuery: string;
   setSearchQuery: (q: string) => void;
+  // Promo
+  promoCode: string;
+  setPromoCode: (code: string) => void;
+  promoResult: PromoResult | null;
+  promoError: string;
+  promoLoading: boolean;
+  applyPromo: (code: string, telegramId?: number) => Promise<void>;
+  clearPromo: () => void;
+  discount: number;
+  totalAfterDiscount: number;
 }
 
 const ShopContext = createContext<ShopContextType | undefined>(undefined);
@@ -117,6 +128,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [reviewsLoading, setReviewsLoading] = useState(true);
   const [cart, setCart] = useState<ShopCartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [promoCode, setPromoCode] = useState('');
+  const [promoResult, setPromoResult] = useState<PromoResult | null>(null);
+  const [promoError, setPromoError] = useState('');
+  const [promoLoading, setPromoLoading] = useState(false);
 
   // Load cart from localStorage scoped to shop
   useEffect(() => {
@@ -241,10 +256,60 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ));
   }, []);
 
-  const clearCart = useCallback(() => setCart([]), []);
+  const clearCart = useCallback(() => {
+    setCart([]);
+    setPromoResult(null);
+    setPromoCode('');
+    setPromoError('');
+  }, []);
 
   const cartTotal = cart.reduce((sum, item) => sum + Number(item.product.price) * item.quantity, 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  const discount = promoResult
+    ? promoResult.discountType === 'percent'
+      ? cartTotal * (promoResult.discountValue / 100)
+      : promoResult.discountValue
+    : 0;
+  const totalAfterDiscount = Math.max(0, cartTotal - discount);
+
+  const applyPromo = useCallback(async (code: string, telegramId?: number) => {
+    if (!shop?.id) return;
+    const trimmed = code.trim().toUpperCase();
+    if (!trimmed) return;
+    setPromoLoading(true);
+    setPromoError('');
+    try {
+      const { data: rpcResult, error } = await supabase.rpc('validate_shop_promo_code' as any, {
+        p_shop_id: shop.id,
+        p_code: trimmed,
+      });
+      if (error) throw error;
+      const data = rpcResult as any;
+      if (!data || !data.found) { setPromoError('Промокод не найден'); setPromoResult(null); return; }
+      const now = new Date().toISOString();
+      if (data.valid_from && now < data.valid_from) { setPromoError('Промокод ещё не активен'); return; }
+      if (data.valid_until && now > data.valid_until) { setPromoError('Промокод истёк'); return; }
+      if (data.max_uses !== null && data.used_count >= data.max_uses) { setPromoError('Лимит использований исчерпан'); return; }
+      setPromoResult({
+        id: data.id,
+        code: trimmed,
+        discountType: data.discount_type as 'percent' | 'fixed',
+        discountValue: Number(data.discount_value),
+      });
+      setPromoError('');
+    } catch {
+      setPromoError('Ошибка проверки');
+    } finally {
+      setPromoLoading(false);
+    }
+  }, [shop?.id]);
+
+  const clearPromo = useCallback(() => {
+    setPromoResult(null);
+    setPromoCode('');
+    setPromoError('');
+  }, []);
 
   return (
     <ShopContext.Provider value={{
@@ -255,6 +320,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       cart, addToCart, removeFromCart, updateQuantity, clearCart,
       cartTotal, cartCount,
       searchQuery, setSearchQuery,
+      promoCode, setPromoCode, promoResult, promoError, promoLoading,
+      applyPromo, clearPromo, discount, totalAfterDiscount,
     }}>
       {children}
     </ShopContext.Provider>

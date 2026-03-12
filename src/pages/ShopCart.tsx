@@ -1,12 +1,17 @@
 import { Link } from 'react-router-dom';
-import { Trash2, Plus, Minus, ArrowRight, Shield, Zap } from 'lucide-react';
+import { Trash2, Plus, Minus, ArrowRight, Shield, Zap, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useShop } from '@/contexts/ShopContext';
 import { useStorefrontPath } from '@/contexts/StorefrontContext';
+import { useTelegram } from '@/contexts/TelegramContext';
 import ShopProductCard from '@/components/ShopProductCard';
 
 const ShopCart = () => {
-  const { cart, updateQuantity, removeFromCart, clearCart, cartTotal, cartCount, products, shop } = useShop();
+  const {
+    cart, updateQuantity, removeFromCart, clearCart, cartTotal, cartCount, products, shop,
+    promoCode, setPromoCode, promoResult, promoError, promoLoading, applyPromo, discount, totalAfterDiscount,
+  } = useShop();
+  const { user } = useTelegram();
   const buildPath = useStorefrontPath();
   const shopId = shop?.id || '';
 
@@ -81,9 +86,29 @@ const ShopCart = () => {
             <h3 className="font-display font-semibold text-base sm:text-lg">Итого</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-muted-foreground">Подытог</span><span>${cartTotal.toFixed(2)}</span></div>
+              {promoResult && (
+                <div className="flex justify-between text-primary">
+                  <span>Промокод ({promoResult.discountType === 'percent' ? `-${promoResult.discountValue}%` : `-$${promoResult.discountValue}`})</span>
+                  <span>-${discount.toFixed(2)}</span>
+                </div>
+              )}
               <div className="border-t border-border/30 pt-2 flex justify-between font-display font-bold text-lg">
-                <span>Итого</span><span>${cartTotal.toFixed(2)}</span>
+                <span>Итого</span><span>${totalAfterDiscount.toFixed(2)}</span>
               </div>
+            </div>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                  <input type="text" placeholder="Промокод" value={promoCode} onChange={e => { setPromoCode(e.target.value); }}
+                    className="w-full h-9 pl-8 pr-3 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                </div>
+                <Button variant="outline" size="sm" onClick={() => applyPromo(promoCode, user?.id)} disabled={promoLoading}>
+                  {promoLoading ? '...' : 'Применить'}
+                </Button>
+              </div>
+              {promoError && <p className="text-xs text-destructive">{promoError}</p>}
+              {promoResult && <p className="text-xs text-primary">✅ Промокод применён!</p>}
             </div>
             <Link to={buildPath('/checkout')}>
               <Button variant="hero" size="lg" className="w-full">

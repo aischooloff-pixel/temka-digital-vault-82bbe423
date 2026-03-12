@@ -10,7 +10,7 @@ import { useUserProfile } from '@/hooks/useOrders';
 import { supabase } from '@/integrations/supabase/client';
 
 const ShopCheckout = () => {
-  const { cart, clearCart, cartTotal, shop } = useShop();
+  const { cart, clearCart, cartTotal, shop, discount, totalAfterDiscount, promoResult } = useShop();
   const { user, isInTelegram, openTelegramLink, haptic, initData } = useTelegram();
   const navigate = useNavigate();
   const buildPath = useStorefrontPath();
@@ -22,8 +22,8 @@ const ShopCheckout = () => {
   const displayName = user ? `${user.firstName}${user.lastName ? ` ${user.lastName}` : ''}` : 'Telegram User';
   const avatar = user?.firstName?.[0]?.toUpperCase() || 'T';
   const balance = Number(profile?.balance || 0);
-  const balanceUsed = Math.min(balance, cartTotal);
-  const toPay = Math.max(0, cartTotal - balanceUsed);
+  const balanceUsed = Math.min(balance, totalAfterDiscount);
+  const toPay = Math.max(0, totalAfterDiscount - balanceUsed);
 
   if (cart.length === 0) {
     return (
@@ -53,7 +53,7 @@ const ShopCheckout = () => {
 
       if (toPay <= 0) {
         const { data, error: fnError } = await supabase.functions.invoke('pay-with-balance', {
-          body: { initData, orderNumber, items: itemsPayload, shopId },
+          body: { initData, orderNumber, items: itemsPayload, shopId, promoCode: promoResult?.code || null },
         });
         if (fnError) throw new Error(fnError.message);
         if (data?.error) throw new Error(data.error);
@@ -62,7 +62,7 @@ const ShopCheckout = () => {
         navigate(`${buildPath('/order-success')}?order=${data?.orderNumber || orderNumber}`);
       } else {
         const { data, error: fnError } = await supabase.functions.invoke('create-invoice', {
-          body: { initData, amount: toPay.toFixed(2), currency: 'USD', description, orderNumber, items: itemsPayload, shopId, balanceUsed },
+          body: { initData, amount: toPay.toFixed(2), currency: 'USD', description, orderNumber, items: itemsPayload, shopId, balanceUsed, promoCode: promoResult?.code || null },
         });
         if (fnError) throw new Error(fnError.message);
         if (data?.error) throw new Error(data.error);
@@ -159,6 +159,13 @@ const ShopCheckout = () => {
             ))}
           </div>
 
+          {discount > 0 && (
+            <div className="flex justify-between text-xs text-primary">
+              <span>Промокод ({promoResult?.code})</span>
+              <span>-${discount.toFixed(2)}</span>
+            </div>
+          )}
+
           {balanceUsed > 0 && (
             <div className="flex justify-between text-xs text-primary">
               <span>Списание с баланса</span>
@@ -169,7 +176,7 @@ const ShopCheckout = () => {
           <div className="border-t border-border/30 pt-2 space-y-1">
             <div className="flex justify-between text-sm text-muted-foreground">
               <span>Сумма заказа</span>
-              <span>${cartTotal.toFixed(2)}</span>
+              <span>${totalAfterDiscount.toFixed(2)}</span>
             </div>
             {toPay > 0 ? (
               <div className="flex justify-between font-display font-bold text-base">
@@ -179,7 +186,7 @@ const ShopCheckout = () => {
             ) : (
               <div className="flex justify-between font-display font-bold text-base">
                 <span>К оплате (баланс)</span>
-                <span>${cartTotal.toFixed(2)}</span>
+                <span>${totalAfterDiscount.toFixed(2)}</span>
               </div>
             )}
           </div>
