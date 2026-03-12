@@ -253,6 +253,11 @@ async function handleShopOrderPayment(supabase: any, invoice: any, orderData: an
     .eq("id", orderData.orderId).neq("payment_status", "paid").select("id");
   if (!updatedRows?.length) return;
 
+  // Shop promo increment
+  if (order.promo_code) {
+    await supabase.rpc("increment_shop_promo_usage", { p_shop_id: shopId, p_code: order.promo_code });
+  }
+
   const balanceUsed = Number(order.balance_used || 0);
   if (balanceUsed > 0) {
     const { data: nb, error: be } = await supabase.rpc("shop_deduct_balance", {

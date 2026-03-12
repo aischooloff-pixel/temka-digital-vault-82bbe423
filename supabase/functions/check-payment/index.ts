@@ -279,9 +279,13 @@ serve(async (req) => {
         .eq("id", orderId).neq("payment_status", "paid").select("id");
       if (!updatedRows?.length) return jsonRes({ status: "paid", paymentStatus: "paid" });
 
-      // Promo (platform only)
-      if (!isShop && order.promo_code) {
-        await supabase.rpc("increment_promo_usage", { p_code: order.promo_code });
+      // Promo increment
+      if (order.promo_code) {
+        if (isShop) {
+          await supabase.rpc("increment_shop_promo_usage", { p_shop_id: resolvedShopId, p_code: order.promo_code });
+        } else {
+          await supabase.rpc("increment_promo_usage", { p_code: order.promo_code });
+        }
       }
 
       // Balance deduction — tenant-scoped
