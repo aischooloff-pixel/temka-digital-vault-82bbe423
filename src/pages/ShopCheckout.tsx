@@ -53,7 +53,7 @@ const ShopCheckout = () => {
 
       if (toPay <= 0) {
         const { data, error: fnError } = await supabase.functions.invoke('pay-with-balance', {
-          body: { initData, orderNumber, items: itemsPayload, shopId },
+          body: { initData, orderNumber, items: itemsPayload, shopId, promoCode: promoResult?.code || null },
         });
         if (fnError) throw new Error(fnError.message);
         if (data?.error) throw new Error(data.error);
