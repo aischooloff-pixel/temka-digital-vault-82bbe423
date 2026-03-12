@@ -81,6 +81,16 @@ interface ShopContextType {
   cartCount: number;
   searchQuery: string;
   setSearchQuery: (q: string) => void;
+  // Promo
+  promoCode: string;
+  setPromoCode: (code: string) => void;
+  promoResult: PromoResult | null;
+  promoError: string;
+  promoLoading: boolean;
+  applyPromo: (code: string, telegramId?: number) => Promise<void>;
+  clearPromo: () => void;
+  discount: number;
+  totalAfterDiscount: number;
 }
 
 const ShopContext = createContext<ShopContextType | undefined>(undefined);
