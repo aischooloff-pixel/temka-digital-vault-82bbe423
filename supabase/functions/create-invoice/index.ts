@@ -44,9 +44,10 @@ async function resolveTokens(supabase: any, shopId?: string) {
     const { data } = await supabase.rpc("decrypt_token", { p_encrypted: enc, p_key: ek });
     return data;
   };
+  const shopCryptobot = shop.cryptobot_token_encrypted ? await decrypt(shop.cryptobot_token_encrypted) : null;
   return {
     botToken: shop.bot_token_encrypted ? await decrypt(shop.bot_token_encrypted) : null,
-    cryptobotToken: shop.cryptobot_token_encrypted ? await decrypt(shop.cryptobot_token_encrypted) : null,
+    cryptobotToken: shopCryptobot || Deno.env.get("CRYPTOBOT_API_TOKEN") || null,
     botUsername: shop.bot_username || "",
   };
 }

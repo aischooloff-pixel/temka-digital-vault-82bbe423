@@ -86,6 +86,31 @@ async function setupSellerWebhook(botToken: string, shopId: string): Promise<{ o
     });
     const data = await res.json();
     if (!data.ok) return { ok: false, error: data.description || "Failed to set webhook" };
+
+    // Set bot commands so users see /start, /admin, /help
+    await fetch(`https://api.telegram.org/bot${botToken}/setMyCommands`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        commands: [
+          { command: "start", description: "Открыть магазин" },
+          { command: "admin", description: "Админ-панель" },
+          { command: "help", description: "Помощь" },
+          { command: "cancel", description: "Отмена текущего действия" },
+        ],
+      }),
+    }).catch(() => {});
+
+    // Set menu button to open the storefront Mini App
+    const webappUrl = `${Deno.env.get("WEBAPP_URL") || "https://temka-digital-vault.lovable.app"}/shop/${shopId}`;
+    await fetch(`https://api.telegram.org/bot${botToken}/setChatMenuButton`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        menu_button: { type: "web_app", text: "🛍 Магазин", web_app: { url: webappUrl } },
+      }),
+    }).catch(() => {});
+
     return { ok: true };
   } catch (e) {
     return { ok: false, error: "Network error setting webhook" };
@@ -690,6 +715,9 @@ async function deleteShopExecute(tg: ReturnType<typeof TG>, chatId: number, msgI
     await db().from("shop_inventory").delete().in("product_id", prodIds);
     await db().from("shop_order_items").delete().in("product_id", prodIds);
   }
+  await db().from("shop_reviews").delete().eq("shop_id", shopId);
+  await db().from("shop_promocodes").delete().eq("shop_id", shopId);
+  await db().from("shop_admin_logs").delete().eq("shop_id", shopId);
   await db().from("shop_products").delete().eq("shop_id", shopId);
   await db().from("shop_orders").delete().eq("shop_id", shopId);
   await db().from("shop_categories").delete().eq("shop_id", shopId);
