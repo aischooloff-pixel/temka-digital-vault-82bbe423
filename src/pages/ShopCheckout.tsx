@@ -62,7 +62,7 @@ const ShopCheckout = () => {
         navigate(`${buildPath('/order-success')}?order=${data?.orderNumber || orderNumber}`);
       } else {
         const { data, error: fnError } = await supabase.functions.invoke('create-invoice', {
-          body: { initData, amount: toPay.toFixed(2), currency: 'USD', description, orderNumber, items: itemsPayload, shopId, balanceUsed },
+          body: { initData, amount: toPay.toFixed(2), currency: 'USD', description, orderNumber, items: itemsPayload, shopId, balanceUsed, promoCode: promoResult?.code || null },
         });
         if (fnError) throw new Error(fnError.message);
         if (data?.error) throw new Error(data.error);
