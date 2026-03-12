@@ -135,11 +135,27 @@ const OrderSuccess = () => {
             <span className="text-muted-foreground">ID заказа</span>
             <span className="font-mono font-medium">{orderNumber || '—'}</span>
           </div>
-          {order && (
+          {order && (() => {
+            const total = Number(order.total_amount);
+            const discountAmt = Number(order.discount_amount || 0);
+            const finalAmount = Math.max(0, total - discountAmt);
+            return (
             <>
+              {discountAmt > 0 && (
+                <>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Сумма</span>
+                    <span className="font-medium line-through text-muted-foreground">${total.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Промокод {order.promo_code ? `(${order.promo_code})` : ''}</span>
+                    <span className="font-medium text-primary">-${discountAmt.toFixed(2)}</span>
+                  </div>
+                </>
+              )}
               <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Сумма</span>
-                <span className="font-medium">${Number(order.total_amount).toFixed(2)}</span>
+                <span className="text-muted-foreground">{discountAmt > 0 ? 'Итого' : 'Сумма'}</span>
+                <span className="font-medium">${finalAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Статус оплаты</span>
