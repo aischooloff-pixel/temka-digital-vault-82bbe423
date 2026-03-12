@@ -62,7 +62,7 @@ const ShopIndex = () => {
 
   if (!shop) return null;
 
-  const inStock = products.filter(p => p.stock > 0).length;
+  const inStock = products.reduce((sum, p) => sum + Math.max(0, p.stock), 0);
 
   // Check if user has already reviewed this shop
   const { data: userReviewCheck } = useQuery({
