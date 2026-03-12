@@ -423,6 +423,7 @@ const Account = () => {
         order={selectedOrder}
         open={!!selectedOrder}
         onOpenChange={open => { if (!open) setSelectedOrder(null); }}
+        shopId={shopId}
       />
       <BalanceDetailSheet
         entry={selectedBalance}
