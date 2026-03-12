@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
+import type { PromoResult } from '@/contexts/StoreContext';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface ShopData {
