@@ -96,7 +96,7 @@ const ShopCart = () => {
                 <span>Итого</span><span>${totalAfterDiscount.toFixed(2)}</span>
               </div>
             </div>
-            <div className="border-t border-border/30 pt-3 space-y-2">
+            <div className="border-t border-border pt-4 mt-1 space-y-2">
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
