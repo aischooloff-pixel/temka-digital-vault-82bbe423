@@ -99,7 +99,8 @@ serve(async (req) => {
             id: o.id, order_number: o.order_number, telegram_id: o.buyer_telegram_id,
             status: o.status, payment_status: o.payment_status, total_amount: o.total_amount,
             currency: o.currency, invoice_id: o.invoice_id, pay_url: o.pay_url,
-            notes: null, discount_amount: 0, promo_code: null, balance_used: o.balance_used || 0,
+            notes: null, discount_amount: Number(o.discount_amount) || 0,
+            promo_code: o.promo_code || null, balance_used: Number(o.balance_used) || 0,
             created_at: o.created_at, updated_at: o.updated_at,
           }));
           return jsonRes({ orders: normalized });

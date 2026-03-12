@@ -214,9 +214,12 @@ serve(async (req) => {
         return jsonRes({ error: "Insufficient balance" }, 400);
       }
       newBalance = nb;
+      const balCommentP = validatedPromoCode
+        ? `Заказ ${orderNumber} (промо ${validatedPromoCode}, скидка $${discountAmount.toFixed(2)})`
+        : `Заказ ${orderNumber}`;
       await supabase.from("balance_history").insert({
         telegram_id: telegramUserId, amount: -balanceUsed, balance_after: newBalance,
-        type: "purchase", comment: `Заказ ${orderNumber}`, admin_telegram_id: telegramUserId,
+        type: "purchase", comment: balCommentP, admin_telegram_id: telegramUserId,
       });
     }
 
