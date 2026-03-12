@@ -88,20 +88,37 @@ const ShopOrderSuccess = () => {
             <span className="text-muted-foreground">ID заказа</span>
             <span className="font-mono font-medium">{orderNumber || '—'}</span>
           </div>
-          {order && (
-            <>
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Сумма</span>
-                <span className="font-medium">${Number(order.total_amount).toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Статус</span>
-                <span className={`font-medium ${isPaid ? 'text-primary' : expired ? 'text-destructive' : 'text-warning'}`}>
-                  {isPaid ? '✅ Оплачен' : expired ? '❌ Истёк' : '⏳ Ожидание'}
-                </span>
-              </div>
-            </>
-          )}
+          {order && (() => {
+            const total = Number(order.total_amount);
+            const discountAmt = Number(order.discount_amount || 0);
+            const finalAmount = Math.max(0, total - discountAmt);
+            return (
+              <>
+                {discountAmt > 0 && (
+                  <>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Сумма</span>
+                      <span className="font-medium line-through text-muted-foreground">${total.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Промокод {order.promo_code ? `(${order.promo_code})` : ''}</span>
+                      <span className="font-medium text-primary">-${discountAmt.toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">{discountAmt > 0 ? 'Итого' : 'Сумма'}</span>
+                  <span className="font-medium">${finalAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Статус</span>
+                  <span className={`font-medium ${isPaid ? 'text-primary' : expired ? 'text-destructive' : 'text-warning'}`}>
+                    {isPaid ? '✅ Оплачен' : expired ? '❌ Истёк' : '⏳ Ожидание'}
+                  </span>
+                </div>
+              </>
+            );
+          })()}
         </div>
 
         <div className="flex flex-col gap-2 mt-5">
