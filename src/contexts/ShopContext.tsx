@@ -128,6 +128,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [reviewsLoading, setReviewsLoading] = useState(true);
   const [cart, setCart] = useState<ShopCartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [promoCode, setPromoCode] = useState('');
+  const [promoResult, setPromoResult] = useState<PromoResult | null>(null);
+  const [promoError, setPromoError] = useState('');
+  const [promoLoading, setPromoLoading] = useState(false);
 
   // Load cart from localStorage scoped to shop
   useEffect(() => {
