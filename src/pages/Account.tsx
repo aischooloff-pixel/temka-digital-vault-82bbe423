@@ -210,6 +210,7 @@ const Account = () => {
   const renderCard = (item: TimelineItem, onClick: () => void) => {
     if (item.type === 'order') {
       const order = item.data;
+      const finalAmount = Math.max(0, Number(order.total_amount) - Number(order.discount_amount || 0));
       return (
         <button
           key={`o-${order.id}`}
