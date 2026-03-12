@@ -1372,7 +1372,7 @@ serve(async (req) => {
           return new Response("ok");
         }
         try {
-          await handleCallback(tg, chatId, msgId, data, cb.id, shopId, chatId);
+          await handleCallback(tg, chatId, msgId, data, cb.id, shopId, chatId, botToken);
         } catch (cbErr) {
           console.error("seller-bot-webhook: callback error:", cbErr, "data:", data);
           try { await tg.answer(cb.id, "❌ Ошибка обработки"); } catch {}
