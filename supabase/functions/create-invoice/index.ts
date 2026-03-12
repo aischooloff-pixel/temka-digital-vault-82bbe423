@@ -73,7 +73,7 @@ serve(async (req) => {
     const telegramUserId = tgUser.id;
 
     if (!items?.length || !orderNumber) return jsonRes({ error: "Missing required fields" }, 400);
-    if (!tokens.cryptobotToken) return jsonRes({ error: "Payment system not configured. Contact shop owner." }, 500);
+    if (!tokens.cryptobotToken) return jsonRes({ error: "Платежи не настроены. Владельцу магазина необходимо подключить CryptoBot токен." }, 500);
 
     // Rate limiting
     await supabase.from("rate_limits").delete().lt("created_at", new Date(Date.now() - 3600000).toISOString());
