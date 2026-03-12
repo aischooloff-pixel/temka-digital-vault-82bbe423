@@ -244,7 +244,7 @@ async function handleOrderPayment(supabase: any, invoice: any, orderData: any) {
 // ─── Shop order payment (tenant-scoped balance) ──
 async function handleShopOrderPayment(supabase: any, invoice: any, orderData: any, shopId: string) {
   const { data: order } = await supabase.from("shop_orders")
-    .select("id, status, payment_status, balance_used, buyer_telegram_id, order_number, shop_id, promo_code")
+    .select("id, status, payment_status, balance_used, buyer_telegram_id, order_number, shop_id, promo_code, discount_amount")
     .eq("id", orderData.orderId).single();
   if (!order || order.payment_status === "paid") return;
 
@@ -263,10 +263,13 @@ async function handleShopOrderPayment(supabase: any, invoice: any, orderData: an
     const { data: nb, error: be } = await supabase.rpc("shop_deduct_balance", {
       p_shop_id: shopId, p_telegram_id: order.buyer_telegram_id, p_amount: balanceUsed,
     });
-    if (!be) await supabase.from("shop_balance_history").insert({
-      shop_id: shopId, telegram_id: order.buyer_telegram_id, amount: -balanceUsed, balance_after: nb,
-      type: "purchase", comment: `Заказ ${order.order_number}`, admin_telegram_id: order.buyer_telegram_id,
-    });
+    if (!be) {
+      const promoInfo = order.promo_code ? ` (промо ${order.promo_code}, скидка $${Number(order.discount_amount || 0).toFixed(2)})` : "";
+      await supabase.from("shop_balance_history").insert({
+        shop_id: shopId, telegram_id: order.buyer_telegram_id, amount: -balanceUsed, balance_after: nb,
+        type: "purchase", comment: `Заказ ${order.order_number}${promoInfo}`, admin_telegram_id: order.buyer_telegram_id,
+      });
+    }
   }
 
   const botToken = await decryptShopToken(supabase, shopId, "bot_token_encrypted");
