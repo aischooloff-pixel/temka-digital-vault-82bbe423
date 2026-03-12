@@ -378,8 +378,8 @@ async function shopView(tg: ReturnType<typeof TG>, chatId: number, msgId: number
 
   return tg.edit(chatId, msgId, text, ikb([
     [btn("📋 Скопировать ссылку", `p:copylink:${shopId}`)],
-    [btn("⚙️ Настройки", `p:settings:${shopId}`), btn("📊 Статистика", `p:stats:${shopId}`)],
-    [btn("💳 Подписка", "p:sub"), btn("🗑 Удалить", `p:delshop:${shopId}`)],
+    [btn("⚙️ Настройки", `p:settings:${shopId}`)],
+    [btn("🗑 Удалить", `p:delshop:${shopId}`)],
     [btn("◀️ К магазинам", "p:myshops:0")],
   ]));
 }
