@@ -1123,8 +1123,11 @@ export type Database = {
           hero_description: string
           hero_title: string
           id: string
+          is_subscription_required: boolean
           name: string
           owner_id: string
+          required_channel_id: string | null
+          required_channel_link: string | null
           slug: string
           status: string
           support_link: string
@@ -1143,8 +1146,11 @@ export type Database = {
           hero_description?: string
           hero_title?: string
           id?: string
+          is_subscription_required?: boolean
           name: string
           owner_id: string
+          required_channel_id?: string | null
+          required_channel_link?: string | null
           slug: string
           status?: string
           support_link?: string
@@ -1163,8 +1169,11 @@ export type Database = {
           hero_description?: string
           hero_title?: string
           id?: string
+          is_subscription_required?: boolean
           name?: string
           owner_id?: string
+          required_channel_id?: string | null
+          required_channel_link?: string | null
           slug?: string
           status?: string
           support_link?: string
