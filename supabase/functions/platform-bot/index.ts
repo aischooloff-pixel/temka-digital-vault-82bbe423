@@ -715,6 +715,9 @@ async function deleteShopExecute(tg: ReturnType<typeof TG>, chatId: number, msgI
     await db().from("shop_inventory").delete().in("product_id", prodIds);
     await db().from("shop_order_items").delete().in("product_id", prodIds);
   }
+  await db().from("shop_reviews").delete().eq("shop_id", shopId);
+  await db().from("shop_promocodes").delete().eq("shop_id", shopId);
+  await db().from("shop_admin_logs").delete().eq("shop_id", shopId);
   await db().from("shop_products").delete().eq("shop_id", shopId);
   await db().from("shop_orders").delete().eq("shop_id", shopId);
   await db().from("shop_categories").delete().eq("shop_id", shopId);
