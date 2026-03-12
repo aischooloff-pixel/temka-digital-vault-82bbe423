@@ -19,7 +19,16 @@ const TG = (token: string) => {
         return r;
       }),
     answer: (cbId: string, text?: string) =>
-      call("answerCallbackQuery", { callback_query_id: cbId, ...(text ? { text, show_alert: true } : {}) }),
+      call("answerCallbackQuery", { callback_query_id: cbId, ...(text ? { text, show_alert: text ? true : false } : {}) }),
+    sendPhoto: (chatId: number, photo: string, caption: string, markup?: unknown) =>
+      call("sendPhoto", { chat_id: chatId, photo, caption, parse_mode: "HTML", ...(markup ? { reply_markup: markup } : {}) }),
+    getFile: (fileId: string) =>
+      fetch(`https://api.telegram.org/bot${token}/getFile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file_id: fileId }),
+      }).then(r => r.json()),
+    fileUrl: (path: string) => `https://api.telegram.org/file/bot${token}/${path}`,
     deleteMessage: (chatId: number, msgId: number) =>
       call("deleteMessage", { chat_id: chatId, message_id: msgId }).catch(() => {}),
   };
@@ -27,19 +36,19 @@ const TG = (token: string) => {
 
 type Btn = { text: string; callback_data?: string; url?: string; web_app?: { url: string } };
 
-const UUID_LIKE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// ─── Callback data shortening ──────────────
+// shopId (UUID = 36 chars) is stripped from callback_data to stay within Telegram's 64-byte limit.
+// The shopId is injected back from the webhook URL query param when processing callbacks.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function normalizeCallbackData(callbackData: string): string {
-  if (!callbackData.startsWith("s:") || callbackData.length <= 64) return callbackData;
-
-  const parts = callbackData.split(":");
-  // Legacy format: s:<cmd>:<shopId>:<arg1>[:arg2...]
-  if (parts.length >= 4 && UUID_LIKE_RE.test(parts[2])) {
+function normalizeCallbackData(cb: string): string {
+  if (!cb.startsWith("s:") || cb.length <= 64) return cb;
+  const parts = cb.split(":");
+  if (parts.length >= 4 && UUID_RE.test(parts[2])) {
     const shortened = `s:${parts[1]}:${parts.slice(3).join(":")}`;
     if (shortened.length <= 64) return shortened;
   }
-
-  console.error("seller-bot-webhook: callback_data too long", { original: callbackData, length: callbackData.length });
+  console.error("seller-bot-webhook: callback_data too long", { original: cb, length: cb.length });
   return "s:noop";
 }
 
@@ -48,15 +57,24 @@ const ikb = (rows: Btn[][]) => ({ inline_keyboard: rows });
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const WEBAPP_DOMAIN = Deno.env.get("WEBAPP_URL") || "https://temka-digital-vault.lovable.app";
 
+function paginate<T>(items: T[], page: number, perPage = 6) {
+  const total = Math.max(1, Math.ceil(items.length / perPage));
+  const p = Math.min(Math.max(0, page), total - 1);
+  return { items: items.slice(p * perPage, (p + 1) * perPage), total, page: p };
+}
+function pgRow(prefix: string, page: number, total: number, shopId: string): Btn[] {
+  const r: Btn[] = [];
+  if (page > 0) r.push(btn("◀️", `${prefix}:${shopId}:${page - 1}`));
+  r.push(btn(`${page + 1}/${total}`, "s:noop"));
+  if (page < total - 1) r.push(btn("▶️", `${prefix}:${shopId}:${page + 1}`));
+  return r;
+}
+
 // ─── Admin log helper ──────────────────────
 async function logAction(shopId: string, adminTgId: number, action: string, entityType?: string, entityId?: string, details?: Record<string, unknown>) {
   await supabase().from("shop_admin_logs").insert({
-    shop_id: shopId,
-    admin_telegram_id: adminTgId,
-    action,
-    entity_type: entityType || null,
-    entity_id: entityId || null,
-    details: details || {},
+    shop_id: shopId, admin_telegram_id: adminTgId, action,
+    entity_type: entityType || null, entity_id: entityId || null, details: details || {},
   });
 }
 
@@ -88,15 +106,17 @@ async function isShopOwner(shopId: string, telegramId: number): Promise<boolean>
 }
 
 // ═══════════════════════════════════════════════
-// ADMIN HOME
+// ADMIN HOME — identical to template
 // ═══════════════════════════════════════════════
 async function adminHome(tg: ReturnType<typeof TG>, chatId: number, shopId: string, msgId?: number) {
   const { data: shop } = await supabase().from("shops").select("*").eq("id", shopId).single();
   if (!shop) return;
 
-  const { count: productCount } = await supabase().from("shop_products").select("id", { count: "exact", head: true }).eq("shop_id", shopId);
-  const { count: orderCount } = await supabase().from("shop_orders").select("id", { count: "exact", head: true }).eq("shop_id", shopId);
-  const { count: categoryCount } = await supabase().from("shop_categories").select("id", { count: "exact", head: true }).eq("shop_id", shopId);
+  const [{ count: productCount }, { count: orderCount }, { count: categoryCount }] = await Promise.all([
+    supabase().from("shop_products").select("id", { count: "exact", head: true }).eq("shop_id", shopId),
+    supabase().from("shop_orders").select("id", { count: "exact", head: true }).eq("shop_id", shopId),
+    supabase().from("shop_categories").select("id", { count: "exact", head: true }).eq("shop_id", shopId),
+  ]);
 
   const text =
     `🔧 <b>Админ-панель: ${esc(shop.name)}</b>\n\n` +
@@ -106,12 +126,12 @@ async function adminHome(tg: ReturnType<typeof TG>, chatId: number, shopId: stri
     `🛍 Заказов: ${orderCount || 0}\n\nВыберите раздел:`;
 
   const kb = ikb([
-    [btn("📦 Товары", `s:products:${shopId}:0`), btn("📂 Категории", `s:cats:${shopId}:0`)],
-    [btn("🛍 Заказы", `s:orders:${shopId}:0`), btn("👥 Пользователи", `s:users:${shopId}:0`)],
-    [btn("📊 Статистика", `s:stats:${shopId}`), btn("🏷 Промокоды", `s:promos:${shopId}:0`)],
-    [btn("🗃 Склад", `s:inv:${shopId}:0`), btn("📋 Логи", `s:logs:${shopId}:0`)],
-    [btn("⚙️ Настройки", `s:settings:${shopId}`), btn("📢 Рассылка", `s:broadcast:${shopId}`)],
-    [btn("⭐ Отзывы", `s:reviews:${shopId}:0`)],
+    [btn("📦 Товары", `s:pl:${shopId}:0`), btn("📁 Категории", `s:cl:${shopId}:0`)],
+    [btn("🛒 Заказы", `s:ol:${shopId}:0`), btn("👥 Пользователи", `s:ul:${shopId}:0`)],
+    [btn("📊 Статистика", `s:st:${shopId}`), btn("🎟 Промокоды", `s:prl:${shopId}:0`)],
+    [btn("🗃 Склад", `s:sk:${shopId}:0`), btn("📋 Логи", `s:lg:${shopId}:0`)],
+    [btn("⚙️ Настройки", `s:se:${shopId}`), btn("📢 Рассылка", `s:bc:${shopId}`)],
+    [btn("⭐ Отзывы", `s:rvl:${shopId}:0`)],
   ]);
 
   if (msgId) return tg.edit(chatId, msgId, text, kb);
@@ -119,11 +139,304 @@ async function adminHome(tg: ReturnType<typeof TG>, chatId: number, shopId: stri
 }
 
 // ═══════════════════════════════════════════════
-// SETTINGS
+// PRODUCTS — matching template exactly
 // ═══════════════════════════════════════════════
-async function shopSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string) {
+async function productsList(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, page: number) {
+  const { data: products } = await supabase().from("shop_products").select("id, name, price, stock, is_active").eq("shop_id", shopId).order("sort_order").order("created_at", { ascending: false });
+  if (!products?.length) {
+    return tg.edit(cid, mid, "📦 <b>Товары</b>\n\nТоваров нет.", ikb([[btn("➕ Добавить", `s:pa:${shopId}`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
+  }
+  const pg = paginate(products, page, 8);
+  let t = `📦 <b>Товары</b> (${products.length})\n\n`;
+  pg.items.forEach(p => {
+    const s = p.is_active ? "✅" : "❌";
+    t += `${s} <b>${esc(p.name)}</b>\n💰 $${Number(p.price).toFixed(2)} | 📦 ${p.stock}\n\n`;
+  });
+  const rows: Btn[][] = pg.items.map(p => [btn(`${p.is_active ? "✅" : "❌"} ${p.name.slice(0, 28)}`, `s:pv:${shopId}:${p.id}`)]);
+  if (pg.total > 1) rows.push(pgRow("s:pl", pg.page, pg.total, shopId));
+  rows.push([btn("➕ Добавить", `s:pa:${shopId}`), btn("◀️ Меню", `s:m:${shopId}`)]);
+  return tg.edit(cid, mid, t, ikb(rows));
+}
+
+async function productView(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, pid: string) {
+  const { data: p } = await supabase().from("shop_products").select("*").eq("id", pid).single();
+  if (!p) return tg.edit(cid, mid, "❌ Товар не найден", ikb([[btn("◀️ Назад", `s:pl:${shopId}:0`)]]));
+  const { count: invCount } = await supabase().from("shop_inventory").select("id", { count: "exact", head: true }).eq("product_id", pid).eq("status", "available");
+  let t = `📦 <b>${esc(p.name)}</b>\n\n`;
+  t += `📝 ${esc(p.subtitle || "—")}\n`;
+  t += `💰 <b>$${Number(p.price).toFixed(2)}</b>`;
+  if (p.old_price) t += ` <s>$${Number(p.old_price).toFixed(2)}</s>`;
+  t += `\n📦 Остаток: <b>${p.stock}</b> | Единиц: <b>${invCount || 0}</b>\n`;
+  t += `📝 Описание: ${p.description ? esc(p.description.slice(0, 100)) : "—"}\n`;
+  t += `🔧 Тип: ${p.type}\n`;
+  t += `${p.is_active ? "✅ Активен" : "❌ Скрыт"}\n`;
+  if (p.image) t += `🖼 Фото: есть\n`;
+  if (p.features?.length) t += `🏷 Особенности: ${p.features.join(", ")}\n`;
+  return tg.edit(cid, mid, t, ikb([
+    [btn("✏️ Название", `s:pe:${shopId}:${pid}:n`), btn("✏️ Цена", `s:pe:${shopId}:${pid}:p`)],
+    [btn("✏️ Остаток", `s:pe:${shopId}:${pid}:s`), btn("✏️ Описание", `s:pe:${shopId}:${pid}:d`)],
+    [btn("✏️ Стар.цена", `s:pe:${shopId}:${pid}:o`), btn("✏️ Подзаголовок", `s:pe:${shopId}:${pid}:sub`)],
+    [btn("🖼 Фото", `s:pe:${shopId}:${pid}:img`), btn("🏷 Особенности", `s:pe:${shopId}:${pid}:f`)],
+    [btn(p.is_active ? "❌ Скрыть" : "✅ Показать", `s:pt:${shopId}:${pid}`)],
+    [btn("🗃 Склад", `s:iv:${shopId}:${pid}:0`), btn("🗑 Удалить", `s:pd:${shopId}:${pid}`)],
+    [btn("◀️ К товарам", `s:pl:${shopId}:0`)],
+  ]));
+}
+
+// ═══════════════════════════════════════════════
+// CATEGORIES — matching template exactly
+// ═══════════════════════════════════════════════
+async function categoriesList(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, _page: number) {
+  const { data: cats } = await supabase().from("shop_categories").select("*").eq("shop_id", shopId).order("sort_order");
+  const { data: products } = await supabase().from("shop_products").select("id").eq("shop_id", shopId).eq("is_active", true);
+  // shop_products don't have category_id, so we just show count of products
+  if (!cats?.length) return tg.edit(cid, mid, "📁 <b>Категории</b>\n\nНет.", ikb([[btn("➕ Добавить", `s:ca:${shopId}`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
+  let t = `📁 <b>Категории</b> (${cats.length})\n\n`;
+  cats.forEach(c => { t += `${c.icon} <b>${esc(c.name)}</b> ${c.is_active ? "" : "❌"}\n`; });
+  const rows: Btn[][] = cats.map(c => [btn(`${c.icon} ${c.name}`, `s:cv:${shopId}:${c.id}`)]);
+  rows.push([btn("➕ Добавить", `s:ca:${shopId}`), btn("◀️ Меню", `s:m:${shopId}`)]);
+  return tg.edit(cid, mid, t, ikb(rows));
+}
+
+async function categoryView(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, catId: string) {
+  const { data: c } = await supabase().from("shop_categories").select("*").eq("id", catId).single();
+  if (!c) return tg.edit(cid, mid, "Не найдена", ikb([[btn("◀️ Назад", `s:cl:${shopId}:0`)]]));
+  let t = `📁 <b>${c.icon} ${esc(c.name)}</b>\n\n📊 Сортировка: ${c.sort_order}\n${c.is_active ? "✅ Активна" : "❌ Скрыта"}\n`;
+  return tg.edit(cid, mid, t, ikb([
+    [btn("✏️ Название", `s:ce:${shopId}:${catId}:n`), btn("✏️ Иконка", `s:ce:${shopId}:${catId}:i`)],
+    [btn("✏️ Сортировка", `s:ce:${shopId}:${catId}:s`)],
+    [btn(c.is_active ? "❌ Скрыть" : "✅ Показать", `s:ct:${shopId}:${catId}`)],
+    [btn("🗑 Удалить", `s:cd:${shopId}:${catId}`)],
+    [btn("◀️ К категориям", `s:cl:${shopId}:0`)],
+  ]));
+}
+
+// ═══════════════════════════════════════════════
+// ORDERS — matching template exactly
+// ═══════════════════════════════════════════════
+async function ordersList(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, page: number) {
+  const { data: orders } = await supabase().from("shop_orders").select("*").eq("shop_id", shopId).order("created_at", { ascending: false }).limit(100);
+  if (!orders?.length) return tg.edit(cid, mid, "🛒 <b>Заказы</b>\n\nНет.", ikb([[btn("◀️ Меню", `s:m:${shopId}`)]]));
+  const se: Record<string, string> = { pending: "⏳", awaiting_payment: "💳", paid: "✅", processing: "⚙️", delivered: "📬", completed: "✅", cancelled: "❌", error: "⚠️" };
+  const pg = paginate(orders, page, 6);
+  let t = `🛒 <b>Заказы</b> (${orders.length})\n\n`;
+  pg.items.forEach(o => {
+    t += `${se[o.status] || "❓"} <b>${esc(o.order_number)}</b> — $${Number(o.total_amount).toFixed(2)}\n👤 ${o.buyer_telegram_id} | 📅 ${new Date(o.created_at).toLocaleDateString("ru-RU")}\n\n`;
+  });
+  const rows: Btn[][] = pg.items.map(o => [btn(`${se[o.status] || "❓"} ${o.order_number}`, `s:ov:${shopId}:${o.id}`)]);
+  if (pg.total > 1) rows.push(pgRow("s:ol", pg.page, pg.total, shopId));
+  rows.push([btn("◀️ Меню", `s:m:${shopId}`)]);
+  return tg.edit(cid, mid, t, ikb(rows));
+}
+
+async function orderView(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, oid: string) {
+  const { data: o } = await supabase().from("shop_orders").select("*").eq("id", oid).single();
+  if (!o) return tg.edit(cid, mid, "Не найден", ikb([[btn("◀️ Назад", `s:ol:${shopId}:0`)]]));
+  const { data: items } = await supabase().from("shop_order_items").select("*").eq("order_id", oid);
+  const { data: user } = await supabase().from("user_profiles").select("*").eq("telegram_id", o.buyer_telegram_id).maybeSingle();
+  let t = `🛒 <b>Заказ ${esc(o.order_number)}</b>\n\n`;
+  t += `👤 ${user ? esc(user.first_name + (user.last_name ? " " + user.last_name : "")) : o.buyer_telegram_id}`;
+  if (user?.username) t += ` @${esc(user.username)}`;
+  t += `\n🆔 TG: ${o.buyer_telegram_id}\n\n📦 <b>Состав:</b>\n`;
+  items?.forEach(i => { t += `  • ${esc(i.product_name)} ×${i.quantity} — $${Number(i.product_price * i.quantity).toFixed(2)}\n`; });
+  t += `\n💰 <b>$${Number(o.total_amount).toFixed(2)}</b> ${o.currency}\n📋 Статус: <b>${o.status}</b>\n💳 Оплата: <b>${o.payment_status}</b>\n`;
+  if (o.invoice_id) t += `🧾 Invoice: ${o.invoice_id}\n`;
+  if (Number(o.balance_used) > 0) t += `💎 Баланс: $${Number(o.balance_used).toFixed(2)}\n`;
+  t += `📅 ${new Date(o.created_at).toLocaleString("ru-RU")}\n`;
+  const statuses = ["paid", "processing", "delivered", "completed", "cancelled"].filter(s => s !== o.status);
+  const sBtns: Btn[][] = [];
+  for (let i = 0; i < statuses.length; i += 3) sBtns.push(statuses.slice(i, i + 3).map(s => btn(s, `s:os:${shopId}:${oid}:${s}`)));
+  sBtns.push([btn("👤 Пользователь", `s:uvt:${shopId}:${o.buyer_telegram_id}`)]);
+  return tg.edit(cid, mid, t, ikb([...sBtns, [btn("◀️ К заказам", `s:ol:${shopId}:0`)]]));
+}
+
+async function orderSetStatus(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, oid: string, status: string, adminId: number) {
+  const pm: Record<string, string> = { paid: "paid", processing: "paid", delivered: "paid", completed: "paid", cancelled: "failed" };
+  await supabase().from("shop_orders").update({ status, payment_status: pm[status] || "unpaid", updated_at: new Date().toISOString() }).eq("id", oid);
+  await logAction(shopId, adminId, `order_${status}`, "order", oid);
+  return orderView(tg, cid, mid, shopId, oid);
+}
+
+// ═══════════════════════════════════════════════
+// USERS — matching template exactly
+// ═══════════════════════════════════════════════
+async function usersList(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, page: number, filter?: string) {
+  // Get unique buyers for this shop
+  const { data: ordersRaw } = await supabase().from("shop_orders").select("buyer_telegram_id").eq("shop_id", shopId);
+  const buyerIds = [...new Set(ordersRaw?.map(o => o.buyer_telegram_id) || [])];
+  if (!buyerIds.length) return tg.edit(cid, mid, "👥 <b>Пользователи</b>\n\nНет.", ikb([[btn("◀️ Меню", `s:m:${shopId}`)]]));
+
+  let query = supabase().from("user_profiles").select("*").in("telegram_id", buyerIds).order("created_at", { ascending: false });
+  if (filter === "vip") query = query.eq("role", "vip");
+  else if (filter === "blocked") query = query.eq("is_blocked", true);
+  const { data: users } = await query;
+
+  if (!users?.length) return tg.edit(cid, mid, `👥 <b>Пользователи</b>${filter ? ` [${filter}]` : ""}\n\nНет.`, ikb([[btn("◀️ Меню", `s:m:${shopId}`)]]));
+  const pg = paginate(users, page, 8);
+  let t = `👥 <b>Пользователи</b> (${users.length})${filter ? ` [${filter}]` : ""}\n\n`;
+  pg.items.forEach(u => {
+    const flags = [u.is_premium ? "⭐" : "", u.role === "vip" ? "👑" : "", u.is_blocked ? "🚫" : ""].filter(Boolean).join("");
+    t += `👤 <b>${esc(u.first_name)}${u.last_name ? " " + esc(u.last_name) : ""}</b> ${flags}`;
+    if (u.username) t += ` @${esc(u.username)}`;
+    t += ` | ${u.telegram_id}\n`;
+  });
+  const pfx = filter ? `s:ulf:${filter}` : "s:ul";
+  const rows: Btn[][] = pg.items.map(u => [btn(`${u.is_blocked ? "🚫 " : ""}${u.first_name} ${u.last_name || ""}`.trim().slice(0, 28), `s:uv:${shopId}:${u.id}`)]);
+  if (pg.total > 1) rows.push(pgRow(pfx, pg.page, pg.total, shopId));
+  rows.push([btn("🔍 Поиск", `s:usq:${shopId}`), btn("📊 Фильтр", `s:usf:${shopId}`)]);
+  rows.push([btn("◀️ Меню", `s:m:${shopId}`)]);
+  return tg.edit(cid, mid, t, ikb(rows));
+}
+
+async function userView(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, uid: string) {
+  const { data: u } = await supabase().from("user_profiles").select("*").eq("id", uid).single();
+  if (!u) return tg.edit(cid, mid, "Не найден", ikb([[btn("◀️ Назад", `s:ul:${shopId}:0`)]]));
+  const { data: orders } = await supabase().from("shop_orders").select("id, total_amount, status, payment_status").eq("shop_id", shopId).eq("buyer_telegram_id", u.telegram_id);
+  const paid = orders?.filter(o => ["paid", "completed", "delivered", "processing"].includes(o.status)) || [];
+  const spent = paid.reduce((s, o) => s + Number(o.total_amount), 0);
+  let t = `👤 <b>${esc(u.first_name)}${u.last_name ? " " + esc(u.last_name) : ""}</b>\n\n`;
+  if (u.username) t += `📱 @${esc(u.username)}\n`;
+  t += `🆔 TG: ${u.telegram_id}\n`;
+  t += `🏷 Роль: <b>${u.role || "user"}</b>\n`;
+  t += `${u.is_blocked ? "🚫 Заблокирован\n" : ""}`;
+  t += `${u.is_premium ? "⭐ Premium\n" : ""}`;
+  t += `💰 Баланс: <b>$${Number(u.balance || 0).toFixed(2)}</b>\n`;
+  t += `📅 ${new Date(u.created_at).toLocaleDateString("ru-RU")}\n\n`;
+  t += `🛒 Заказов: ${orders?.length || 0}\n💵 Потрачено: $${spent.toFixed(2)}\n`;
+  if (u.internal_note) t += `\n📝 <i>${esc(u.internal_note)}</i>\n`;
+  return tg.edit(cid, mid, t, ikb([
+    [btn("📢 Написать", `s:um:${shopId}:${u.telegram_id}`), btn("🛒 Заказы", `s:uo:${shopId}:${u.telegram_id}:0`)],
+    [btn("💰 Баланс", `s:ub:${shopId}:${u.telegram_id}`), btn("🏷 Роль", `s:ur:${shopId}:${u.telegram_id}`)],
+    [btn(u.is_blocked ? "✅ Разблокировать" : "🚫 Заблокировать", `s:ux:${shopId}:${u.telegram_id}`)],
+    [btn("📝 Заметка", `s:un:${shopId}:${u.telegram_id}`), btn("📋 Логи", `s:ula:${shopId}:${u.telegram_id}:0`)],
+    [btn("◀️ К пользователям", `s:ul:${shopId}:0`)],
+  ]));
+}
+
+async function userViewByTg(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, tgId: number) {
+  const { data: u } = await supabase().from("user_profiles").select("id").eq("telegram_id", tgId).maybeSingle();
+  if (!u) return tg.edit(cid, mid, "Пользователь не найден", ikb([[btn("◀️ Назад", `s:ul:${shopId}:0`)]]));
+  return userView(tg, cid, mid, shopId, u.id);
+}
+
+// User orders
+async function userOrdersList(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, tgId: number, page: number) {
+  const { data: orders } = await supabase().from("shop_orders").select("*").eq("shop_id", shopId).eq("buyer_telegram_id", tgId).order("created_at", { ascending: false });
+  if (!orders?.length) return tg.edit(cid, mid, `🛒 <b>Заказы пользователя ${tgId}</b>\n\nНет.`, ikb([[btn("◀️ Назад", `s:uvt:${shopId}:${tgId}`)]]));
+  const se: Record<string, string> = { pending: "⏳", paid: "✅", processing: "⚙️", delivered: "📬", completed: "✅", cancelled: "❌" };
+  const pg = paginate(orders, page, 6);
+  let t = `🛒 <b>Заказы</b> (${orders.length}) — TG ${tgId}\n\n`;
+  pg.items.forEach(o => { t += `${se[o.status] || "❓"} ${esc(o.order_number)} — $${Number(o.total_amount).toFixed(2)}\n`; });
+  const rows: Btn[][] = pg.items.map(o => [btn(`${se[o.status] || "❓"} ${o.order_number}`, `s:ov:${shopId}:${o.id}`)]);
+  if (pg.total > 1) rows.push(pgRow(`s:uo:${tgId}`, pg.page, pg.total, shopId));
+  rows.push([btn("◀️ К пользователю", `s:uvt:${shopId}:${tgId}`)]);
+  return tg.edit(cid, mid, t, ikb(rows));
+}
+
+// Balance menu
+async function balanceMenu(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, tgId: number) {
+  const { data: u } = await supabase().from("user_profiles").select("balance").eq("telegram_id", tgId).maybeSingle();
+  const { data: history } = await supabase().from("balance_history").select("*").eq("telegram_id", tgId).order("created_at", { ascending: false }).limit(5);
+  let t = `💰 <b>Баланс</b> — TG ${tgId}\n\nТекущий: <b>$${Number(u?.balance || 0).toFixed(2)}</b>\n`;
+  if (history?.length) {
+    t += `\n📜 <b>Последние операции:</b>\n`;
+    history.forEach(h => {
+      const sign = Number(h.amount) >= 0 ? "+" : "";
+      t += `${sign}$${Number(h.amount).toFixed(2)} → $${Number(h.balance_after).toFixed(2)} | ${h.type}\n`;
+      if (h.comment) t += `  <i>${esc(h.comment)}</i>\n`;
+    });
+  }
+  return tg.edit(cid, mid, t, ikb([
+    [btn("➕ Начислить", `s:ubc:${shopId}:${tgId}`), btn("➖ Списать", `s:ubd:${shopId}:${tgId}`)],
+    [btn("🎯 Установить", `s:ubs:${shopId}:${tgId}`)],
+    [btn("◀️ К пользователю", `s:uvt:${shopId}:${tgId}`)],
+  ]));
+}
+
+// User logs
+async function userLogsList(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, tgId: number, page: number) {
+  const { data: logs } = await supabase().from("shop_admin_logs").select("*").eq("shop_id", shopId).eq("entity_id", String(tgId)).order("created_at", { ascending: false }).limit(30);
+  if (!logs?.length) return tg.edit(cid, mid, `📋 <b>Логи</b> — TG ${tgId}\n\nПусто.`, ikb([[btn("◀️ Назад", `s:uvt:${shopId}:${tgId}`)]]));
+  const pg = paginate(logs, page, 6);
+  let t = `📋 <b>Логи</b> — TG ${tgId}\n\n`;
+  pg.items.forEach(l => { t += `${new Date(l.created_at).toLocaleString("ru-RU")} | <b>${esc(l.action)}</b>\n`; });
+  const rows: Btn[][] = [];
+  if (pg.total > 1) rows.push(pgRow(`s:ula:${tgId}`, pg.page, pg.total, shopId));
+  rows.push([btn("◀️ К пользователю", `s:uvt:${shopId}:${tgId}`)]);
+  return tg.edit(cid, mid, t, ikb(rows));
+}
+
+// ═══════════════════════════════════════════════
+// PROMOCODES — matching template exactly
+// ═══════════════════════════════════════════════
+async function promosList(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, page: number) {
+  const { data: promos } = await supabase().from("shop_promocodes").select("*").eq("shop_id", shopId).order("created_at", { ascending: false });
+  if (!promos?.length) return tg.edit(cid, mid, "🎟 <b>Промокоды</b>\n\nНет.", ikb([[btn("➕ Создать", `s:pra:${shopId}`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
+  const pg = paginate(promos, page, 6);
+  let t = `🎟 <b>Промокоды</b> (${promos.length})\n\n`;
+  pg.items.forEach(p => {
+    const st = p.is_active ? "✅" : "❌";
+    const disc = p.discount_type === "percent" ? `${p.discount_value}%` : `$${Number(p.discount_value).toFixed(2)}`;
+    t += `${st} <code>${esc(p.code)}</code> — ${disc} | ${p.used_count}/${p.max_uses ?? "∞"}\n`;
+  });
+  const rows: Btn[][] = pg.items.map(p => [btn(`${p.is_active ? "✅" : "❌"} ${p.code}`, `s:prv:${shopId}:${p.id}`)]);
+  if (pg.total > 1) rows.push(pgRow("s:prl", pg.page, pg.total, shopId));
+  rows.push([btn("➕ Создать", `s:pra:${shopId}`), btn("◀️ Меню", `s:m:${shopId}`)]);
+  return tg.edit(cid, mid, t, ikb(rows));
+}
+
+async function promoView(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, prId: string) {
+  const { data: p } = await supabase().from("shop_promocodes").select("*").eq("id", prId).single();
+  if (!p) return tg.edit(cid, mid, "Не найден", ikb([[btn("◀️ Назад", `s:prl:${shopId}:0`)]]));
+  const disc = p.discount_type === "percent" ? `${p.discount_value}%` : `$${Number(p.discount_value).toFixed(2)}`;
+  let t = `🎟 <b>${esc(p.code)}</b>\n\n`;
+  t += `💰 Скидка: <b>${disc}</b> (${p.discount_type})\n`;
+  t += `📊 Использовано: ${p.used_count}/${p.max_uses ?? "∞"}\n`;
+  t += `👤 Макс на юзера: ${p.max_uses_per_user || "безлимит"}\n`;
+  t += `${p.is_active ? "✅ Активен" : "❌ Неактивен"}\n`;
+  if (p.valid_from) t += `📅 С: ${new Date(p.valid_from).toLocaleDateString("ru-RU")}\n`;
+  if (p.valid_until) t += `📅 До: ${new Date(p.valid_until).toLocaleDateString("ru-RU")}\n`;
+  return tg.edit(cid, mid, t, ikb([
+    [btn(p.is_active ? "❌ Деактивировать" : "✅ Активировать", `s:prt:${shopId}:${prId}`)],
+    [btn("🗑 Удалить", `s:prd:${shopId}:${prId}`)],
+    [btn("◀️ К промокодам", `s:prl:${shopId}:0`)],
+  ]));
+}
+
+// ═══════════════════════════════════════════════
+// STATS — matching template exactly
+// ═══════════════════════════════════════════════
+async function statsView(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string) {
+  const { data: shop } = await supabase().from("shops").select("name").eq("id", shopId).single();
+  const d = supabase();
+  const [{ count: pc }, { count: ap }, { data: orders }] = await Promise.all([
+    d.from("shop_products").select("id", { count: "exact", head: true }).eq("shop_id", shopId),
+    d.from("shop_products").select("id", { count: "exact", head: true }).eq("shop_id", shopId).eq("is_active", true),
+    d.from("shop_orders").select("id, total_amount, status, buyer_telegram_id, payment_status").eq("shop_id", shopId),
+  ]);
+  const prodIds = (await d.from("shop_products").select("id").eq("shop_id", shopId)).data?.map(p => p.id) || [];
+  let invCount = 0;
+  if (prodIds.length) {
+    const { count } = await d.from("shop_inventory").select("id", { count: "exact", head: true }).eq("status", "available").in("product_id", prodIds);
+    invCount = count || 0;
+  }
+  const paid = orders?.filter(o => ["paid", "completed", "delivered", "processing"].includes(o.status)) || [];
+  const rev = paid.reduce((s, o) => s + Number(o.total_amount), 0);
+  const avg = paid.length ? rev / paid.length : 0;
+  const problems = orders?.filter(o => ["error", "cancelled"].includes(o.status)).length || 0;
+  const uniqueBuyers = new Set(orders?.map(o => o.buyer_telegram_id) || []).size;
+  let t = `📊 <b>Статистика: ${esc(shop?.name || "")}</b>\n\n👥 Покупателей: <b>${uniqueBuyers}</b>\n📦 Товаров: <b>${ap || 0}</b>/${pc || 0}\n🗃 На складе: <b>${invCount}</b>\n\n`;
+  t += `🛒 Заказов: <b>${orders?.length || 0}</b>\n✅ Оплаченных: <b>${paid.length}</b>\n⚠️ Проблемных: <b>${problems}</b>\n\n`;
+  t += `💰 Выручка: <b>$${rev.toFixed(2)}</b>\n📈 Средний чек: <b>$${avg.toFixed(2)}</b>\n`;
+  return tg.edit(cid, mid, t, ikb([[btn("🔄 Обновить", `s:st:${shopId}`), btn("◀️ Меню", `s:m:${shopId}`)]]));
+}
+
+// ═══════════════════════════════════════════════
+// SETTINGS — matching template exactly
+// ═══════════════════════════════════════════════
+async function settingsView(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string) {
   const { data: shop } = await supabase().from("shops").select("*").eq("id", shopId).single();
-  if (!shop) return;
+  if (!shop) return tg.edit(cid, mid, "❌ Не найден", ikb([[btn("◀️ Меню", `s:m:${shopId}`)]]));
 
   let botStatus = "❌ не подключён";
   if (shop.bot_token_encrypted) {
@@ -147,785 +460,407 @@ async function shopSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     `🤖 Бот: ${botStatus}\n` +
     `💰 CryptoBot: ${shop.cryptobot_token_encrypted ? "✅ подключён" : "❌ не подключён"}`;
 
-  return tg.edit(chatId, msgId, text, ikb([
+  return tg.edit(cid, mid, text, ikb([
     [btn("✏️ Название", `s:edit:${shopId}:name`), btn("🎨 Цвет", `s:edit:${shopId}:color`)],
     [btn("📌 Заголовок витрины", `s:edit:${shopId}:hero_title`)],
     [btn("📝 Описание витрины", `s:edit:${shopId}:hero_desc`)],
     [btn("👋 Приветствие", `s:edit:${shopId}:welcome`), btn("🔗 Поддержка", `s:edit:${shopId}:support`)],
     [btn("💰 CryptoBot", `s:setcb:${shopId}`)],
-    [btn("◀️ Админ-панель", `s:home:${shopId}`)],
+    [btn("◀️ Меню", `s:m:${shopId}`)],
   ]));
 }
 
 // ═══════════════════════════════════════════════
-// STATISTICS
+// LOGS — matching template exactly
 // ═══════════════════════════════════════════════
-async function shopStats(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string) {
-  const { data: shop } = await supabase().from("shops").select("name").eq("id", shopId).single();
-  const { count: totalOrders } = await supabase().from("shop_orders").select("id", { count: "exact", head: true }).eq("shop_id", shopId);
-  const { count: paidOrders } = await supabase().from("shop_orders").select("id", { count: "exact", head: true }).eq("shop_id", shopId).eq("payment_status", "paid");
-  const { data: revenue } = await supabase().from("shop_orders").select("total_amount").eq("shop_id", shopId).eq("payment_status", "paid");
-  const totalRevenue = revenue?.reduce((sum: number, o: any) => sum + Number(o.total_amount), 0) || 0;
-  const { count: productCount } = await supabase().from("shop_products").select("id", { count: "exact", head: true }).eq("shop_id", shopId);
-
-  const prodIds = (await supabase().from("shop_products").select("id").eq("shop_id", shopId)).data?.map((p: any) => p.id) || [];
-  let invCount = 0;
-  if (prodIds.length) {
-    const { count } = await supabase().from("shop_inventory").select("id", { count: "exact", head: true }).eq("status", "available").in("product_id", prodIds);
-    invCount = count || 0;
-  }
-
-  // Unique buyers
-  const { data: buyerData } = await supabase().from("shop_orders").select("buyer_telegram_id").eq("shop_id", shopId);
-  const uniqueBuyers = new Set(buyerData?.map((o: any) => o.buyer_telegram_id) || []).size;
-
-  const text =
-    `📊 <b>Статистика: ${esc(shop?.name || "")}</b>\n\n` +
-    `🛍 Всего заказов: ${totalOrders || 0}\n` +
-    `✅ Оплаченных: ${paidOrders || 0}\n` +
-    `💰 Выручка: <b>$${totalRevenue.toFixed(2)}</b>\n` +
-    `👥 Покупателей: ${uniqueBuyers}\n\n` +
-    `📦 Товаров: ${productCount || 0}\n` +
-    `🗃 На складе: ${invCount} единиц`;
-
-  return tg.edit(chatId, msgId, text, ikb([[btn("◀️ Админ-панель", `s:home:${shopId}`)]]));
-}
-
-// ═══════════════════════════════════════════════
-// PRODUCTS
-// ═══════════════════════════════════════════════
-async function showProducts(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string, page = 0) {
-  const { data: products } = await supabase().from("shop_products").select("*").eq("shop_id", shopId).order("sort_order").order("created_at");
-  if (!products?.length) {
-    return tg.edit(chatId, msgId, "📦 <b>Товары</b>\n\nТоваров пока нет.", ikb([
-      [btn("➕ Добавить товар", `s:addprod:${shopId}`)],
-      [btn("◀️ Админ-панель", `s:home:${shopId}`)],
-    ]));
-  }
-
-  const perPage = 8;
-  const totalP = Math.ceil(products.length / perPage);
-  const p = Math.min(Math.max(0, page), totalP - 1);
-  const slice = products.slice(p * perPage, (p + 1) * perPage);
-
-  let text = `📦 <b>Товары</b> (${products.length})\n\n`;
-  slice.forEach(pr => {
-    const dot = pr.is_active ? "🟢" : "🔴";
-    text += `${dot} <b>${esc(pr.name)}</b> — $${Number(pr.price).toFixed(2)} (${pr.stock} шт)\n`;
+async function logsList(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, page: number) {
+  const { data: logs } = await supabase().from("shop_admin_logs").select("*").eq("shop_id", shopId).order("created_at", { ascending: false }).limit(50);
+  if (!logs?.length) return tg.edit(cid, mid, "📋 <b>Логи</b>\n\nПусто.", ikb([[btn("◀️ Меню", `s:m:${shopId}`)]]));
+  const pg = paginate(logs, page, 8);
+  let t = `📋 <b>Логи</b> (${logs.length})\n\n`;
+  pg.items.forEach(l => {
+    t += `${new Date(l.created_at).toLocaleString("ru-RU")}\n👤 ${l.admin_telegram_id} | <b>${esc(l.action)}</b>${l.entity_type ? ` | ${l.entity_type}` : ""}\n\n`;
   });
-
-  const rows: Btn[][] = slice.map(pr => [btn(`${pr.is_active ? "🟢" : "🔴"} ${pr.name}`, `s:prod:${shopId}:${pr.id}`)]);
-
-  if (totalP > 1) {
-    const nav: Btn[] = [];
-    if (p > 0) nav.push(btn("◀️", `s:products:${shopId}:${p - 1}`));
-    nav.push(btn(`${p + 1}/${totalP}`, "s:noop"));
-    if (p < totalP - 1) nav.push(btn("▶️", `s:products:${shopId}:${p + 1}`));
-    rows.push(nav);
-  }
-  rows.push([btn("➕ Добавить товар", `s:addprod:${shopId}`)]);
-  rows.push([btn("◀️ Админ-панель", `s:home:${shopId}`)]);
-
-  return tg.edit(chatId, msgId, text, ikb(rows));
-}
-
-async function showProduct(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string, productId: string) {
-  const { data: pr } = await supabase().from("shop_products").select("*").eq("id", productId).single();
-  if (!pr) return tg.edit(chatId, msgId, "❌ Товар не найден", ikb([[btn("◀️ Товары", `s:products:${shopId}:0`)]]));
-
-  const { count: invCount } = await supabase().from("shop_inventory").select("id", { count: "exact", head: true }).eq("product_id", productId).eq("status", "available");
-
-  const text =
-    `📦 <b>${esc(pr.name)}</b>\n\n` +
-    `💰 Цена: <b>$${Number(pr.price).toFixed(2)}</b>${pr.old_price ? ` <s>$${Number(pr.old_price).toFixed(2)}</s>` : ""}\n` +
-    `📝 Описание: ${pr.description ? esc(pr.description.slice(0, 100)) : "—"}\n` +
-    `📌 Подзаголовок: ${pr.subtitle || "—"}\n` +
-    `📊 Статус: ${pr.is_active ? "🟢 Активен" : "🔴 Скрыт"}\n` +
-    `📦 Stock: ${pr.stock}\n` +
-    `🗃 Инвентарь: ${invCount || 0} единиц\n` +
-    `🔧 Тип: ${pr.type}`;
-
-  return tg.edit(chatId, msgId, text, ikb([
-    [btn("✏️ Название", `s:editprod:${shopId}:${productId}:name`), btn("💰 Цена", `s:editprod:${shopId}:${productId}:price`)],
-    [btn("📝 Описание", `s:editprod:${shopId}:${productId}:desc`), btn("📌 Подзаголовок", `s:editprod:${shopId}:${productId}:subtitle`)],
-    [btn("🏷 Старая цена", `s:editprod:${shopId}:${productId}:old_price`)],
-    [btn("📦 Загрузить инвентарь", `s:loadinv:${shopId}:${productId}`)],
-    [btn(pr.is_active ? "🔴 Скрыть" : "🟢 Показать", `s:toggleprod:${shopId}:${productId}`)],
-    [btn("🗑 Удалить товар", `s:delprod:${shopId}:${productId}`)],
-    [btn("◀️ Товары", `s:products:${shopId}:0`)],
-  ]));
+  const rows: Btn[][] = [];
+  if (pg.total > 1) rows.push(pgRow("s:lg", pg.page, pg.total, shopId));
+  rows.push([btn("◀️ Меню", `s:m:${shopId}`)]);
+  return tg.edit(cid, mid, t, ikb(rows));
 }
 
 // ═══════════════════════════════════════════════
-// CATEGORIES
+// STOCK OVERVIEW — matching template exactly
 // ═══════════════════════════════════════════════
-async function showCategories(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string) {
-  const { data: cats } = await supabase().from("shop_categories").select("*").eq("shop_id", shopId).order("sort_order");
-
-  if (!cats?.length) {
-    return tg.edit(chatId, msgId, "📂 <b>Категории</b>\n\nКатегорий пока нет.", ikb([
-      [btn("➕ Добавить категорию", `s:addcat:${shopId}`)],
-      [btn("◀️ Админ-панель", `s:home:${shopId}`)],
-    ]));
-  }
-
-  let text = `📂 <b>Категории</b> (${cats.length})\n\n`;
-  const rows: Btn[][] = cats.map(c => {
-    text += `${c.icon} ${esc(c.name)} ${c.is_active ? "🟢" : "🔴"}\n`;
-    return [btn(`${c.icon} ${c.name}`, `s:cat:${shopId}:${c.id}`)];
+async function stockOverview(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, page: number) {
+  const { data: products } = await supabase().from("shop_products").select("id, name, stock, is_active").eq("shop_id", shopId).order("stock", { ascending: true });
+  if (!products?.length) return tg.edit(cid, mid, "🗃 <b>Склад</b>\n\nНет товаров.", ikb([[btn("◀️ Меню", `s:m:${shopId}`)]]));
+  const oos = products.filter(p => p.stock <= 0).length;
+  const low = products.filter(p => p.stock > 0 && p.stock <= 5).length;
+  const pg = paginate(products, page, 8);
+  let t = `🗃 <b>Склад</b>\n\n❌ Нет в наличии: <b>${oos}</b>\n⚠️ Мало: <b>${low}</b>\n\n`;
+  pg.items.forEach(p => {
+    const ic = p.stock <= 0 ? "❌" : p.stock <= 5 ? "⚠️" : "✅";
+    t += `${ic} ${esc(p.name)} — <b>${p.stock}</b>\n`;
   });
-  rows.push([btn("➕ Добавить категорию", `s:addcat:${shopId}`)]);
-  rows.push([btn("◀️ Админ-панель", `s:home:${shopId}`)]);
-
-  return tg.edit(chatId, msgId, text, ikb(rows));
-}
-
-async function showCategory(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string, catId: string) {
-  const { data: cat } = await supabase().from("shop_categories").select("*").eq("id", catId).single();
-  if (!cat) return;
-
-  const text =
-    `📂 <b>${cat.icon} ${esc(cat.name)}</b>\n\n` +
-    `Статус: ${cat.is_active ? "🟢 Активна" : "🔴 Скрыта"}\n` +
-    `Порядок: ${cat.sort_order}`;
-
-  return tg.edit(chatId, msgId, text, ikb([
-    [btn("✏️ Название", `s:editcat:${shopId}:${catId}:name`), btn("🎨 Иконка", `s:editcat:${shopId}:${catId}:icon`)],
-    [btn(cat.is_active ? "🔴 Скрыть" : "🟢 Показать", `s:togglecat:${shopId}:${catId}`)],
-    [btn("🗑 Удалить", `s:delcat:${shopId}:${catId}`)],
-    [btn("◀️ Категории", `s:cats:${shopId}:0`)],
-  ]));
+  const rows: Btn[][] = pg.items.map(p => [btn(`${p.stock <= 0 ? "❌" : p.stock <= 5 ? "⚠️" : "✅"} ${p.name.slice(0, 25)}`, `s:iv:${shopId}:${p.id}:0`)]);
+  if (pg.total > 1) rows.push(pgRow("s:sk", pg.page, pg.total, shopId));
+  rows.push([btn("◀️ Меню", `s:m:${shopId}`)]);
+  return tg.edit(cid, mid, t, ikb(rows));
 }
 
 // ═══════════════════════════════════════════════
-// ORDERS
+// INVENTORY — matching template exactly
 // ═══════════════════════════════════════════════
-async function showOrders(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string, page = 0) {
-  const { data: orders } = await supabase()
-    .from("shop_orders")
-    .select("*")
-    .eq("shop_id", shopId)
-    .order("created_at", { ascending: false });
-
-  if (!orders?.length) {
-    return tg.edit(chatId, msgId, "🛍 <b>Заказы</b>\n\nЗаказов пока нет.", ikb([[btn("◀️ Админ-панель", `s:home:${shopId}`)]]));
-  }
-
-  const perPage = 8;
-  const totalP = Math.ceil(orders.length / perPage);
-  const p = Math.min(Math.max(0, page), totalP - 1);
-  const slice = orders.slice(p * perPage, (p + 1) * perPage);
-
-  const statusEmoji: Record<string, string> = {
-    paid: "✅", delivered: "📬", completed: "✅", pending: "⏳", awaiting_payment: "⏳",
-    processing: "🔄", cancelled: "❌", error: "⚠️",
-  };
-
-  let text = `🛍 <b>Заказы</b> (${orders.length})\n\n`;
-  slice.forEach(o => {
-    const emoji = statusEmoji[o.payment_status] || statusEmoji[o.status] || "❓";
-    const date = new Date(o.created_at).toLocaleDateString("ru-RU");
-    text += `${emoji} <code>${o.order_number}</code> — $${Number(o.total_amount).toFixed(2)} (${date})\n`;
-  });
-
-  const rows: Btn[][] = slice.map(o => [btn(`${statusEmoji[o.payment_status] || "❓"} ${o.order_number}`, `s:order:${shopId}:${o.id}`)]);
-
-  if (totalP > 1) {
-    const nav: Btn[] = [];
-    if (p > 0) nav.push(btn("◀️", `s:orders:${shopId}:${p - 1}`));
-    nav.push(btn(`${p + 1}/${totalP}`, "s:noop"));
-    if (p < totalP - 1) nav.push(btn("▶️", `s:orders:${shopId}:${p + 1}`));
-    rows.push(nav);
-  }
-  rows.push([btn("◀️ Админ-панель", `s:home:${shopId}`)]);
-
-  return tg.edit(chatId, msgId, text, ikb(rows));
-}
-
-async function showOrder(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string, orderId: string) {
-  const { data: order } = await supabase().from("shop_orders").select("*").eq("id", orderId).single();
-  if (!order) return tg.edit(chatId, msgId, "❌ Заказ не найден", ikb([[btn("◀️ Заказы", `s:orders:${shopId}:0`)]]));
-
-  const { data: items } = await supabase().from("shop_order_items").select("*").eq("order_id", orderId);
-
-  const statusLabels: Record<string, string> = {
-    paid: "✅ Оплачен", delivered: "📬 Доставлен", completed: "✅ Завершён",
-    pending: "⏳ Ожидание", awaiting_payment: "⏳ Ожидает оплаты",
-    processing: "🔄 Обработка", cancelled: "❌ Отменён", error: "⚠️ Ошибка",
-  };
-
-  let text =
-    `🛍 <b>Заказ ${esc(order.order_number)}</b>\n\n` +
-    `📅 Дата: ${new Date(order.created_at).toLocaleString("ru-RU")}\n` +
-    `💰 Сумма: <b>$${Number(order.total_amount).toFixed(2)}</b>\n` +
-    `💳 Оплата: ${statusLabels[order.payment_status] || order.payment_status}\n` +
-    `📦 Статус: ${statusLabels[order.status] || order.status}\n` +
-    `👤 Покупатель: <code>${order.buyer_telegram_id}</code>\n`;
-
-  if (Number(order.balance_used) > 0) {
-    text += `💎 Баланс использован: $${Number(order.balance_used).toFixed(2)}\n`;
-  }
-
+async function inventoryView(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, pid: string, page: number) {
+  const { data: p } = await supabase().from("shop_products").select("name, stock").eq("id", pid).single();
+  const { data: items } = await supabase().from("shop_inventory").select("*").eq("product_id", pid).order("created_at", { ascending: false });
+  const avail = items?.filter(i => i.status === "available").length || 0;
+  const sold = items?.filter(i => i.status === "sold").length || 0;
+  let t = `🗃 <b>${esc(p?.name || "?")}</b>\n\n📦 Остаток: ${p?.stock || 0}\n✅ Доступно: ${avail}\n📤 Продано: ${sold}\n\n`;
   if (items?.length) {
-    text += `\n<b>Товары:</b>\n`;
-    items.forEach((it: any) => {
-      text += `  • ${esc(it.product_name)} ×${it.quantity} — $${Number(it.product_price * it.quantity).toFixed(2)}\n`;
+    const pg = paginate(items, page, 5);
+    pg.items.forEach(i => {
+      const st = i.status === "available" ? "✅" : i.status === "sold" ? "📤" : "❓";
+      t += `${st} <code>${esc(i.content.slice(0, 30))}${i.content.length > 30 ? "…" : ""}</code>\n`;
     });
+    const rows: Btn[][] = [];
+    if (pg.total > 1) rows.push(pgRow(`s:iv:${pid}`, pg.page, pg.total, shopId));
+    rows.push([btn("➕ Добавить", `s:ia:${shopId}:${pid}`), btn("🔄 Синхр.", `s:is:${shopId}:${pid}`)]);
+    rows.push([btn("◀️ К товару", `s:pv:${shopId}:${pid}`)]);
+    return tg.edit(cid, mid, t, ikb(rows));
   }
+  return tg.edit(cid, mid, t, ikb([[btn("➕ Добавить", `s:ia:${shopId}:${pid}`)], [btn("◀️ К товару", `s:pv:${shopId}:${pid}`)]]));
+}
 
-  const rows: Btn[][] = [];
-  // Allow marking as delivered/completed if paid
-  if (order.payment_status === "paid" && order.status !== "delivered" && order.status !== "completed") {
-    rows.push([btn("📬 Отметить доставлен", `s:orderstatus:${shopId}:${orderId}:delivered`)]);
-  }
-  if (order.status === "delivered") {
-    rows.push([btn("✅ Завершить", `s:orderstatus:${shopId}:${orderId}:completed`)]);
-  }
-  rows.push([btn("◀️ Заказы", `s:orders:${shopId}:0`)]);
-
-  return tg.edit(chatId, msgId, text, ikb(rows));
+async function inventorySync(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, pid: string, adminId: number) {
+  const { count } = await supabase().from("shop_inventory").select("id", { count: "exact", head: true }).eq("product_id", pid).eq("status", "available");
+  await supabase().from("shop_products").update({ stock: count || 0, updated_at: new Date().toISOString() }).eq("id", pid);
+  await logAction(shopId, adminId, "sync_inventory", "product", pid, { stock: count });
+  return inventoryView(tg, cid, mid, shopId, pid, 0);
 }
 
 // ═══════════════════════════════════════════════
-// USERS / BUYERS
+// BROADCAST — matching template exactly (with photo)
 // ═══════════════════════════════════════════════
-async function showUsers(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string, page = 0) {
-  // Get unique buyers with order stats
-  const { data: ordersRaw } = await supabase()
-    .from("shop_orders")
-    .select("buyer_telegram_id, total_amount, payment_status")
-    .eq("shop_id", shopId);
-
-  if (!ordersRaw?.length) {
-    return tg.edit(chatId, msgId, "👥 <b>Пользователи</b>\n\nПокупателей пока нет.", ikb([[btn("◀️ Админ-панель", `s:home:${shopId}`)]]));
-  }
-
-  // Aggregate by buyer
-  const buyerMap = new Map<number, { orders: number; paid: number; spent: number }>();
-  ordersRaw.forEach((o: any) => {
-    const id = o.buyer_telegram_id;
-    const existing = buyerMap.get(id) || { orders: 0, paid: 0, spent: 0 };
-    existing.orders++;
-    if (o.payment_status === "paid") {
-      existing.paid++;
-      existing.spent += Number(o.total_amount);
-    }
-    buyerMap.set(id, existing);
-  });
-
-  const buyers = Array.from(buyerMap.entries())
-    .map(([id, stats]) => ({ id, ...stats }))
-    .sort((a, b) => b.spent - a.spent);
-
-  const perPage = 8;
-  const totalP = Math.ceil(buyers.length / perPage);
-  const p = Math.min(Math.max(0, page), totalP - 1);
-  const slice = buyers.slice(p * perPage, (p + 1) * perPage);
-
-  // Fetch user profiles for these telegram IDs
-  const tgIds = slice.map(b => b.id);
-  const { data: profiles } = await supabase().from("user_profiles").select("telegram_id, first_name, username").in("telegram_id", tgIds);
-  const profileMap = new Map((profiles || []).map((p: any) => [p.telegram_id, p]));
-
-  let text = `👥 <b>Пользователи</b> (${buyers.length})\n\n`;
-  slice.forEach(b => {
-    const prof = profileMap.get(b.id);
-    const name = prof ? (prof.username ? `@${prof.username}` : esc(prof.first_name)) : `ID:${b.id}`;
-    text += `👤 ${name} — ${b.paid} заказ(ов), $${b.spent.toFixed(2)}\n`;
-  });
-
-  const rows: Btn[][] = slice.map(b => {
-    const prof = profileMap.get(b.id);
-    const label = prof ? (prof.username ? `@${prof.username}` : prof.first_name) : `${b.id}`;
-    return [btn(`👤 ${label}`, `s:user:${shopId}:${b.id}`)];
-  });
-
-  if (totalP > 1) {
-    const nav: Btn[] = [];
-    if (p > 0) nav.push(btn("◀️", `s:users:${shopId}:${p - 1}`));
-    nav.push(btn(`${p + 1}/${totalP}`, "s:noop"));
-    if (p < totalP - 1) nav.push(btn("▶️", `s:users:${shopId}:${p + 1}`));
-    rows.push(nav);
-  }
-  rows.push([btn("◀️ Админ-панель", `s:home:${shopId}`)]);
-
-  return tg.edit(chatId, msgId, text, ikb(rows));
+async function broadcastMenu(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string) {
+  const { data: ordersRaw } = await supabase().from("shop_orders").select("buyer_telegram_id").eq("shop_id", shopId);
+  const uniqueIds = [...new Set(ordersRaw?.map(o => o.buyer_telegram_id) || [])];
+  return tg.edit(cid, mid, `📢 <b>Рассылка</b>\n\n👥 Получателей: <b>${uniqueIds.length}</b>\n\nОтправьте текст (HTML) или фото с подписью.\nПеред отправкой будет показан предпросмотр.`,
+    ikb([[btn("✍️ Написать", `s:bs:${shopId}`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
 }
 
-async function showUser(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string, tgId: string) {
-  const telegramId = Number(tgId);
-  const { data: profile } = await supabase().from("user_profiles").select("*").eq("telegram_id", telegramId).maybeSingle();
-
-  // Get orders for this buyer in this shop
-  const { data: orders } = await supabase()
-    .from("shop_orders")
-    .select("*")
-    .eq("shop_id", shopId)
-    .eq("buyer_telegram_id", telegramId)
-    .order("created_at", { ascending: false })
-    .limit(10);
-
-  const totalOrders = orders?.length || 0;
-  const paidOrders = orders?.filter((o: any) => o.payment_status === "paid") || [];
-  const totalSpent = paidOrders.reduce((sum: number, o: any) => sum + Number(o.total_amount), 0);
-
-  const name = profile ? `${profile.first_name}${profile.last_name ? ` ${profile.last_name}` : ""}` : `ID: ${telegramId}`;
-  const username = profile?.username ? `@${profile.username}` : "—";
-
-  let text =
-    `👤 <b>${esc(name)}</b>\n\n` +
-    `🆔 Telegram ID: <code>${telegramId}</code>\n` +
-    `📛 Username: ${username}\n` +
-    `💎 Premium: ${profile?.is_premium ? "✅" : "❌"}\n` +
-    `🚫 Заблокирован: ${profile?.is_blocked ? "✅" : "❌"}\n` +
-    `💰 Баланс: $${Number(profile?.balance || 0).toFixed(2)}\n\n` +
-    `<b>В этом магазине:</b>\n` +
-    `🛍 Заказов: ${totalOrders}\n` +
-    `✅ Оплачено: ${paidOrders.length}\n` +
-    `💵 Потрачено: $${totalSpent.toFixed(2)}`;
-
-  if (orders?.length) {
-    text += `\n\n<b>Последние заказы:</b>\n`;
-    orders.slice(0, 5).forEach((o: any) => {
-      const date = new Date(o.created_at).toLocaleDateString("ru-RU");
-      text += `  ${o.payment_status === "paid" ? "✅" : "⏳"} ${o.order_number} — $${Number(o.total_amount).toFixed(2)} (${date})\n`;
-    });
-  }
-
-  return tg.edit(chatId, msgId, text, ikb([
-    [btn("◀️ Пользователи", `s:users:${shopId}:0`)],
+// ═══════════════════════════════════════════════
+// REVIEWS — matching template exactly (with filters)
+// ═══════════════════════════════════════════════
+async function reviewsList(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, page: number, filter?: string) {
+  let query = supabase().from("shop_reviews").select("*").eq("shop_id", shopId).order("created_at", { ascending: false });
+  if (filter === "approved") query = query.eq("moderation_status", "approved");
+  else if (filter === "rejected") query = query.eq("moderation_status", "rejected");
+  else if (!filter || filter === "pending") query = query.eq("moderation_status", "pending");
+  // else "all" — no filter
+  const { data: reviews } = await query;
+  const statusLabel = filter === "approved" ? "одобренные" : filter === "rejected" ? "отклонённые" : filter === "all" ? "все" : "на модерации";
+  if (!reviews?.length) return tg.edit(cid, mid, `⭐ <b>Отзывы (${statusLabel})</b>\n\nНет отзывов.`, ikb([
+    [btn("⏳ Ожидающие", `s:rvl:${shopId}:0`), btn("✅ Одобренные", `s:rvf:approved:${shopId}:0`)],
+    [btn("❌ Отклонённые", `s:rvf:rejected:${shopId}:0`), btn("📋 Все", `s:rvf:all:${shopId}:0`)],
+    [btn("◀️ Меню", `s:m:${shopId}`)],
   ]));
-}
-
-// ═══════════════════════════════════════════════
-// PROMOCODES
-// ═══════════════════════════════════════════════
-async function showPromos(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string, page = 0) {
-  const { data: promos } = await supabase()
-    .from("shop_promocodes")
-    .select("*")
-    .eq("shop_id", shopId)
-    .order("created_at", { ascending: false });
-
-  if (!promos?.length) {
-    return tg.edit(chatId, msgId, "🏷 <b>Промокоды</b>\n\nПромокодов пока нет.", ikb([
-      [btn("➕ Создать промокод", `s:addpromo:${shopId}`)],
-      [btn("◀️ Админ-панель", `s:home:${shopId}`)],
-    ]));
-  }
-
-  const perPage = 8;
-  const totalP = Math.ceil(promos.length / perPage);
-  const p = Math.min(Math.max(0, page), totalP - 1);
-  const slice = promos.slice(p * perPage, (p + 1) * perPage);
-
-  let text = `🏷 <b>Промокоды</b> (${promos.length})\n\n`;
-  slice.forEach((pr: any) => {
-    const dot = pr.is_active ? "🟢" : "🔴";
-    const discountStr = pr.discount_type === "percent" ? `${pr.discount_value}%` : `$${Number(pr.discount_value).toFixed(2)}`;
-    text += `${dot} <code>${esc(pr.code)}</code> — ${discountStr} (исп: ${pr.used_count}${pr.max_uses ? `/${pr.max_uses}` : ""})\n`;
+  const pg = paginate(reviews, page, 5);
+  const se: Record<string, string> = { pending: "⏳", approved: "✅", rejected: "❌" };
+  let t = `⭐ <b>Отзывы (${statusLabel})</b> — ${reviews.length}\n\n`;
+  pg.items.forEach(r => {
+    t += `${se[r.moderation_status] || "❓"} <b>${esc(r.author)}</b> | ${"⭐".repeat(r.rating)}\n${esc(r.text.slice(0, 80))}\n\n`;
   });
-
-  const rows: Btn[][] = slice.map((pr: any) => [btn(`${pr.is_active ? "🟢" : "🔴"} ${pr.code}`, `s:promo:${shopId}:${pr.id}`)]);
-
-  if (totalP > 1) {
-    const nav: Btn[] = [];
-    if (p > 0) nav.push(btn("◀️", `s:promos:${shopId}:${p - 1}`));
-    nav.push(btn(`${p + 1}/${totalP}`, "s:noop"));
-    if (p < totalP - 1) nav.push(btn("▶️", `s:promos:${shopId}:${p + 1}`));
-    rows.push(nav);
-  }
-  rows.push([btn("➕ Создать промокод", `s:addpromo:${shopId}`)]);
-  rows.push([btn("◀️ Админ-панель", `s:home:${shopId}`)]);
-
-  return tg.edit(chatId, msgId, text, ikb(rows));
-}
-
-async function showPromo(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string, promoId: string) {
-  const { data: pr } = await supabase().from("shop_promocodes").select("*").eq("id", promoId).single();
-  if (!pr) return tg.edit(chatId, msgId, "❌ Промокод не найден", ikb([[btn("◀️ Промокоды", `s:promos:${shopId}:0`)]]));
-
-  const discountStr = pr.discount_type === "percent" ? `${pr.discount_value}%` : `$${Number(pr.discount_value).toFixed(2)}`;
-
-  const text =
-    `🏷 <b>Промокод: ${esc(pr.code)}</b>\n\n` +
-    `💰 Скидка: <b>${discountStr}</b> (${pr.discount_type === "percent" ? "процент" : "фикс. сумма"})\n` +
-    `📊 Статус: ${pr.is_active ? "🟢 Активен" : "🔴 Неактивен"}\n` +
-    `🔢 Использований: ${pr.used_count}${pr.max_uses ? ` / ${pr.max_uses}` : " (безлимит)"}\n` +
-    `👤 Макс на юзера: ${pr.max_uses_per_user || "безлимит"}\n` +
-    `📅 Действует: ${pr.valid_from ? new Date(pr.valid_from).toLocaleDateString("ru-RU") : "—"} — ${pr.valid_until ? new Date(pr.valid_until).toLocaleDateString("ru-RU") : "∞"}`;
-
-  return tg.edit(chatId, msgId, text, ikb([
-    [btn(pr.is_active ? "🔴 Деактивировать" : "🟢 Активировать", `s:togglepromo:${shopId}:${promoId}`)],
-    [btn("🗑 Удалить", `s:delpromo:${shopId}:${promoId}`)],
-    [btn("◀️ Промокоды", `s:promos:${shopId}:0`)],
-  ]));
+  const rows: Btn[][] = pg.items.map(r => [
+    ...(r.moderation_status === "pending" ? [btn("✅", `s:rva:${shopId}:${r.id}`), btn("❌", `s:rvr:${shopId}:${r.id}`)] : []),
+    btn(`${se[r.moderation_status] || ""} ${r.author.slice(0, 18)}`, `s:rvv:${shopId}:${r.id}`)
+  ]);
+  const pfx = filter && filter !== "pending" ? `s:rvf:${filter}` : "s:rvl";
+  if (pg.total > 1) rows.push(pgRow(pfx, pg.page, pg.total, shopId));
+  rows.push([btn("⏳ Ожидающие", `s:rvl:${shopId}:0`), btn("✅ Одобренные", `s:rvf:approved:${shopId}:0`)]);
+  rows.push([btn("❌ Отклонённые", `s:rvf:rejected:${shopId}:0`), btn("📋 Все", `s:rvf:all:${shopId}:0`)]);
+  rows.push([btn("◀️ Меню", `s:m:${shopId}`)]);
+  return tg.edit(cid, mid, t, ikb(rows));
 }
 
 // ═══════════════════════════════════════════════
-// LOGS
+// TEXT FSM HANDLER — matching template exactly
 // ═══════════════════════════════════════════════
-async function showLogs(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string, page = 0) {
-  const { data: logs, count: totalCount } = await supabase()
-    .from("shop_admin_logs")
-    .select("*", { count: "exact" })
-    .eq("shop_id", shopId)
-    .order("created_at", { ascending: false })
-    .range(page * 10, (page + 1) * 10 - 1);
-
-  if (!logs?.length && page === 0) {
-    return tg.edit(chatId, msgId, "📋 <b>Логи</b>\n\nДействий пока нет.", ikb([[btn("◀️ Админ-панель", `s:home:${shopId}`)]]));
-  }
-
-  const total = totalCount || 0;
-  const totalP = Math.ceil(total / 10);
-
-  let text = `📋 <b>Логи</b> (${total})\n\n`;
-  (logs || []).forEach((l: any) => {
-    const date = new Date(l.created_at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-    text += `${date} — ${esc(l.action)}`;
-    if (l.entity_type) text += ` [${l.entity_type}]`;
-    text += `\n`;
-  });
-
-  const rows: Btn[][] = [];
-  if (totalP > 1) {
-    const nav: Btn[] = [];
-    if (page > 0) nav.push(btn("◀️", `s:logs:${shopId}:${page - 1}`));
-    nav.push(btn(`${page + 1}/${totalP}`, "s:noop"));
-    if (page < totalP - 1) nav.push(btn("▶️", `s:logs:${shopId}:${page + 1}`));
-    rows.push(nav);
-  }
-  rows.push([btn("◀️ Админ-панель", `s:home:${shopId}`)]);
-
-  return tg.edit(chatId, msgId, text, ikb(rows));
-}
-
-// ═══════════════════════════════════════════════
-// REVIEWS MODERATION
-// ═══════════════════════════════════════════════
-async function showReviews(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string) {
-  const { data: reviews } = await supabase().from("shop_reviews").select("*").eq("shop_id", shopId).order("created_at", { ascending: false });
-
-  if (!reviews?.length) {
-    return tg.edit(chatId, msgId, "⭐ <b>Отзывы</b>\n\nОтзывов пока нет.", ikb([[btn("◀️ Админ-панель", `s:home:${shopId}`)]]));
-  }
-
-  const pending = reviews.filter(r => r.moderation_status === "pending");
-  const approved = reviews.filter(r => r.moderation_status === "approved");
-
-  let text = `⭐ <b>Отзывы</b>\n\n`;
-  text += `📋 Всего: ${reviews.length}\n`;
-  text += `⏳ На модерации: ${pending.length}\n`;
-  text += `✅ Одобренных: ${approved.length}\n\n`;
-
-  if (pending.length > 0) {
-    text += `<b>Ожидают модерации:</b>\n`;
-    pending.slice(0, 5).forEach(r => {
-      text += `\n⭐${r.rating} от <b>${esc(r.author)}</b>: ${r.text ? esc(r.text.slice(0, 60)) : "—"}`;
-    });
-  }
-
-  const rows: Btn[][] = [];
-  pending.slice(0, 5).forEach(r => {
-    rows.push([
-      btn(`✅ ${r.author}`, `s:approvereview:${shopId}:${r.id}`),
-      btn(`❌ ${r.author}`, `s:rejectreview:${shopId}:${r.id}`),
-    ]);
-  });
-  rows.push([btn("◀️ Админ-панель", `s:home:${shopId}`)]);
-
-  return tg.edit(chatId, msgId, text, ikb(rows));
-}
-
-// ═══════════════════════════════════════════════
-// INVENTORY
-// ═══════════════════════════════════════════════
-async function showInventory(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string) {
-  const { data: products } = await supabase().from("shop_products").select("id, name, stock").eq("shop_id", shopId).order("name");
-  if (!products?.length) {
-    return tg.edit(chatId, msgId, "🗃 <b>Склад</b>\n\nСначала добавьте товары.", ikb([
-      [btn("📦 Товары", `s:products:${shopId}:0`)],
-      [btn("◀️ Админ-панель", `s:home:${shopId}`)],
-    ]));
-  }
-
-  let text = "🗃 <b>Склад</b>\n\nВыберите товар для загрузки инвентаря:\n\n";
-  const rows: Btn[][] = [];
-  for (const pr of products) {
-    const { count } = await supabase().from("shop_inventory").select("id", { count: "exact", head: true }).eq("product_id", pr.id).eq("status", "available");
-    text += `📦 <b>${esc(pr.name)}</b> — ${count || 0} шт\n`;
-    rows.push([btn(`📦 ${pr.name} (${count || 0})`, `s:loadinv:${shopId}:${pr.id}`)]);
-  }
-
-  rows.push([btn("◀️ Админ-панель", `s:home:${shopId}`)]);
-  return tg.edit(chatId, msgId, text, ikb(rows));
-}
-
-// ═══════════════════════════════════════════════
-// BROADCAST
-// ═══════════════════════════════════════════════
-async function showBroadcast(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string) {
-  const text =
-    `📢 <b>Рассылка</b>\n\n` +
-    `Отправьте сообщение всем покупателям вашего магазина.\n\n` +
-    `Поддерживается HTML-разметка.\n` +
-    `Перед отправкой будет предпросмотр.`;
-
-  return tg.edit(chatId, msgId, text, ikb([
-    [btn("✏️ Написать рассылку", `s:writebcast:${shopId}`)],
-    [btn("◀️ Админ-панель", `s:home:${shopId}`)],
-  ]));
-}
-
-// ═══════════════════════════════════════════════
-// TEXT FSM HANDLER
-// ═══════════════════════════════════════════════
-async function handleText(tg: ReturnType<typeof TG>, chatId: number, text: string, shopId: string) {
-  const session = await getSession(chatId, shopId);
+async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, photo: any[] | null, shopId: string, adminId: number) {
+  const session = await getSession(cid, shopId);
   if (!session) return false;
 
-  const state = session.state;
-  const sData = { ...(session.data || {}) } as Record<string, unknown>;
+  const { state, data: sData } = session;
   const val = text.trim();
+
+  // ─── Edit product field ───────────────────
+  if (state.startsWith("ep:")) {
+    const parts = state.split(":");
+    const field = parts[1];
+    const pid = parts.slice(2).join(":");
+
+    // Photo upload
+    if (field === "img") {
+      if (!photo?.length) { await tg.send(cid, "❌ Отправьте фото."); return true; }
+      const fileId = photo[photo.length - 1].file_id;
+      const fileData = await tg.getFile(fileId);
+      if (!fileData.ok) { await tg.send(cid, "❌ Не удалось получить файл."); await clearSession(cid); return true; }
+      const filePath = fileData.result.file_path;
+      const fileUrl = tg.fileUrl(filePath);
+      const fileResp = await fetch(fileUrl);
+      const fileBlob = await fileResp.blob();
+      const ext = filePath.split(".").pop() || "jpg";
+      const storagePath = `shop/${shopId}/${pid}.${ext}`;
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const { error: uploadErr } = await supabase().storage.from("product-images").upload(storagePath, fileBlob, { upsert: true, contentType: `image/${ext}` });
+      if (uploadErr) { await tg.send(cid, `❌ Ошибка загрузки: ${uploadErr.message}`); await clearSession(cid); return true; }
+      const imageUrl = `${supabaseUrl}/storage/v1/object/public/product-images/${storagePath}`;
+      await supabase().from("shop_products").update({ image: imageUrl, updated_at: new Date().toISOString() }).eq("id", pid);
+      await logAction(shopId, adminId, "upload_image", "product", pid);
+      await clearSession(cid);
+      await tg.send(cid, `✅ Фото загружено!`, ikb([[btn("📦 Открыть товар", `s:pv:${shopId}:${pid}`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
+      return true;
+    }
+
+    const fm: Record<string, string> = { n: "name", p: "price", s: "stock", d: "description", o: "old_price", sub: "subtitle", f: "features" };
+    const dbF = fm[field];
+    if (!dbF || !pid) { await clearSession(cid); return true; }
+    let v: unknown = val;
+    if (["price", "old_price"].includes(dbF)) { v = parseFloat(val); if (isNaN(v as number)) { await tg.send(cid, "❌ Введите число."); return true; } }
+    if (dbF === "stock") { v = parseInt(val); if (isNaN(v as number)) { await tg.send(cid, "❌ Введите целое число."); return true; } }
+    if (dbF === "features") { v = val.split(",").map(s => s.trim()).filter(Boolean); }
+    await supabase().from("shop_products").update({ [dbF]: v, updated_at: new Date().toISOString() }).eq("id", pid);
+    await logAction(shopId, adminId, `edit_${dbF}`, "product", pid, { [dbF]: v });
+    await clearSession(cid);
+    await tg.send(cid, `✅ <b>${dbF}</b> обновлено!`, ikb([[btn("📦 Открыть товар", `s:pv:${shopId}:${pid}`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
+    return true;
+  }
+
+  // ─── Add product ──────────────────────────
+  if (state === "ap:t") {
+    await setSession(cid, "ap:p", shopId, { ...sData, title: val });
+    await tg.send(cid, `📦 <b>${esc(val)}</b>\n\nВведите цену (USD):`);
+    return true;
+  }
+  if (state === "ap:p") {
+    const price = parseFloat(val);
+    if (isNaN(price) || price <= 0) { await tg.send(cid, "❌ Введите корректную цену."); return true; }
+    const title = sData.title as string;
+    const { data: product, error } = await supabase().from("shop_products").insert({ name: title, price, stock: 0, is_active: false, shop_id: shopId }).select().single();
+    if (error) { await tg.send(cid, `❌ ${error.message}`); await clearSession(cid); return true; }
+    await logAction(shopId, adminId, "create_product", "product", product.id, { title, price });
+    await clearSession(cid);
+    await tg.send(cid, `✅ <b>${esc(title)}</b> создан ($${price.toFixed(2)}).\nТовар скрыт — активируйте через админку.`,
+      ikb([[btn("📦 Открыть", `s:pv:${shopId}:${product.id}`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
+    return true;
+  }
+
+  // ─── Add category ─────────────────────────
+  if (state === "ac:n") {
+    await setSession(cid, "ac:i", shopId, { ...sData, name: val });
+    await tg.send(cid, `📁 <b>${esc(val)}</b>\n\nОтправьте иконку (emoji):`);
+    return true;
+  }
+  if (state === "ac:i") {
+    const name = sData.name as string;
+    const { error } = await supabase().from("shop_categories").insert({ name, icon: val.trim(), sort_order: 0, shop_id: shopId });
+    await clearSession(cid);
+    if (error) { await tg.send(cid, `❌ ${error.message}`); return true; }
+    await logAction(shopId, adminId, "create_category", "category", undefined, { name });
+    await tg.send(cid, `✅ ${val.trim()} <b>${esc(name)}</b> создана!`, ikb([[btn("📁 К категориям", `s:cl:${shopId}:0`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
+    return true;
+  }
+
+  // ─── Edit category ────────────────────────
+  if (state.startsWith("ec:")) {
+    const [, field, ...rest] = state.split(":");
+    const catId = rest.join(":");
+    const fm: Record<string, string> = { n: "name", i: "icon", s: "sort_order" };
+    const dbF = fm[field];
+    if (!dbF || !catId) { await clearSession(cid); return true; }
+    let v: unknown = val;
+    if (dbF === "sort_order") v = parseInt(val) || 0;
+    await supabase().from("shop_categories").update({ [dbF]: v }).eq("id", catId);
+    await logAction(shopId, adminId, `edit_cat_${dbF}`, "category", catId, { [dbF]: v });
+    await clearSession(cid);
+    await tg.send(cid, `✅ Обновлено!`, ikb([[btn("📁 Открыть", `s:cv:${shopId}:${catId}`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
+    return true;
+  }
 
   // ─── Edit shop field ──────────────────────
   if (state === "s_edit_field") {
     const field = sData.field as string;
     const fieldMap: Record<string, string> = {
-      name: "name", color: "color", welcome: "welcome_message",
-      support: "support_link", hero_title: "hero_title", hero_desc: "hero_description",
+      name: "name", color: "color", hero_title: "hero_title", hero_desc: "hero_description",
+      welcome: "welcome_message", support: "support_link",
     };
     const dbField = fieldMap[field];
-    if (!dbField) { await clearSession(chatId); return true; }
-
+    if (!dbField) { await clearSession(cid); return true; }
     if (field === "color" && !/^#?[0-9A-Fa-f]{6}$/.test(val)) {
-      await tg.send(chatId, "❌ Введи HEX цвет, например: #FF5500");
+      await tg.send(cid, "❌ Введи HEX цвет, например: #FF5500");
       return true;
     }
-
     const updateVal = field === "color" ? (val.startsWith("#") ? val : `#${val}`) : val;
     await supabase().from("shops").update({ [dbField]: updateVal, updated_at: new Date().toISOString() }).eq("id", shopId);
-    await logAction(shopId, chatId, `Изменено: ${field} → ${updateVal.slice(0, 50)}`, "shop", shopId);
-    await clearSession(chatId);
-    const resp = await tg.send(chatId, "✅ Обновлено!");
+    await clearSession(cid);
+    const resp = await tg.send(cid, "✅ Обновлено!");
     const mid = resp?.result?.message_id;
-    if (mid) await shopSettings(tg, chatId, mid, shopId);
+    if (mid) return settingsView(tg, cid, mid, shopId), true;
     return true;
   }
 
   // ─── Set CryptoBot token ──────────────────
   if (state === "s_set_cryptobot") {
-    if (val.length < 10) { await tg.send(chatId, "❌ Неверный формат."); return true; }
+    if (val.length < 10) { await tg.send(cid, "❌ Неверный формат:"); return true; }
     const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
-    if (!encKey) { await tg.send(chatId, "❌ Ошибка конфигурации."); return true; }
+    if (!encKey) { await tg.send(cid, "❌ Ошибка конфигурации."); return true; }
     const { data: enc } = await supabase().rpc("encrypt_token", { p_token: val, p_key: encKey });
     await supabase().from("shops").update({ cryptobot_token_encrypted: enc, updated_at: new Date().toISOString() }).eq("id", shopId);
-    await logAction(shopId, chatId, "CryptoBot токен обновлён", "shop", shopId);
-    await clearSession(chatId);
-    await tg.send(chatId, "✅ CryptoBot-токен сохранён!", ikb([[btn("◀️ Настройки", `s:settings:${shopId}`)]]));
+    await clearSession(cid);
+    await tg.send(cid, "✅ CryptoBot-токен сохранён!", ikb([[btn("◀️ К настройкам", `s:se:${shopId}`)]]));
     return true;
   }
 
-  // ─── Add product step 1: name ─────────────
-  if (state === "s_addprod_name") {
-    if (val.length < 2 || val.length > 100) { await tg.send(chatId, "❌ Название: от 2 до 100 символов."); return true; }
-    sData.prod_name = val;
-    await setSession(chatId, "s_addprod_price", shopId, sData);
-    await tg.send(chatId, "💰 Введи цену в USD (например: 5.99):");
+  // ─── Add inventory ────────────────────────
+  if (state.startsWith("ai:")) {
+    const pid = state.slice(3);
+    const lines = val.split("\n").map(s => s.trim()).filter(Boolean);
+    if (!lines.length) { await tg.send(cid, "❌ Отправьте хотя бы одну строку."); return true; }
+    const { error } = await supabase().from("shop_inventory").insert(lines.map(content => ({ product_id: pid, content, status: "available" })));
+    if (error) { await tg.send(cid, `❌ ${error.message}`); await clearSession(cid); return true; }
+    const { count } = await supabase().from("shop_inventory").select("id", { count: "exact", head: true }).eq("product_id", pid).eq("status", "available");
+    await supabase().from("shop_products").update({ stock: count || 0, updated_at: new Date().toISOString() }).eq("id", pid);
+    await logAction(shopId, adminId, "add_inventory", "product", pid, { added: lines.length });
+    await clearSession(cid);
+    await tg.send(cid, `✅ Добавлено <b>${lines.length}</b> единиц. Остаток: <b>${count}</b>.`,
+      ikb([[btn("🗃 Склад товара", `s:iv:${shopId}:${pid}:0`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
     return true;
   }
-  if (state === "s_addprod_price") {
-    const price = Number(val);
-    if (!price || price <= 0 || price > 100000) { await tg.send(chatId, "❌ Цена: от 0.01 до 100000."); return true; }
-    sData.prod_price = price;
-    await setSession(chatId, "s_addprod_desc", shopId, sData);
-    await tg.send(chatId, "📝 Введи описание товара (или отправь <code>-</code> чтобы пропустить):");
+
+  // ─── Broadcast text ───────────────────────
+  if (state === "bc:t") {
+    await setSession(cid, "bc:preview", shopId, { text: val || "", photoId: photo?.length ? photo[photo.length - 1].file_id : null });
+    const previewText = val || "(без текста)";
+    if (photo?.length) {
+      await tg.sendPhoto(cid, photo[photo.length - 1].file_id, `📢 <b>Предпросмотр:</b>\n\n${previewText}`,
+        ikb([[btn("✅ Отправить", `s:bcsend:${shopId}`), btn("✏️ Редактировать", `s:bcedit:${shopId}`), btn("❌ Отмена", `s:bccancel:${shopId}`)]]));
+    } else {
+      await tg.send(cid, `📢 <b>Предпросмотр:</b>\n\n${val}`,
+        ikb([[btn("✅ Отправить", `s:bcsend:${shopId}`), btn("✏️ Редактировать", `s:bcedit:${shopId}`), btn("❌ Отмена", `s:bccancel:${shopId}`)]]));
+    }
     return true;
   }
-  if (state === "s_addprod_desc") {
-    const desc = val === "-" ? "" : val;
-    const { data: newProd, error } = await supabase().from("shop_products").insert({
-      shop_id: shopId,
-      name: sData.prod_name as string,
-      price: sData.prod_price as number,
-      description: desc,
-      is_active: true,
-    }).select("id, name").single();
 
-    await clearSession(chatId);
+  // ─── Message to user ──────────────────────
+  if (state.startsWith("um:")) {
+    const uid = parseInt(state.slice(3));
+    try {
+      await tg.send(uid, val);
+      await tg.send(cid, "✅ Отправлено.");
+    } catch { await tg.send(cid, "❌ Ошибка отправки."); }
+    await clearSession(cid);
+    return true;
+  }
 
-    if (error || !newProd) {
-      await tg.send(chatId, `❌ Ошибка: ${error?.message || "unknown"}`, ikb([[btn("◀️ Товары", `s:products:${shopId}:0`)]]));
+  // ─── User search ──────────────────────────
+  if (state === "us:q") {
+    // Get shop buyers first
+    const { data: ordersRaw } = await supabase().from("shop_orders").select("buyer_telegram_id").eq("shop_id", shopId);
+    const buyerIds = [...new Set(ordersRaw?.map(o => o.buyer_telegram_id) || [])];
+    if (!buyerIds.length) { await clearSession(cid); await tg.send(cid, "❌ Нет покупателей.", ikb([[btn("◀️ К пользователям", `s:ul:${shopId}:0`)]])); return true; }
+
+    const isNum = /^\d+$/.test(val);
+    let query = supabase().from("user_profiles").select("*").in("telegram_id", buyerIds);
+    if (isNum) {
+      query = query.eq("telegram_id", parseInt(val));
+    } else {
+      query = query.or(`username.ilike.%${val}%,first_name.ilike.%${val}%,last_name.ilike.%${val}%`);
+    }
+    const { data: users } = await query.limit(10);
+    await clearSession(cid);
+    if (!users?.length) { await tg.send(cid, "❌ Ничего не найдено.", ikb([[btn("◀️ К пользователям", `s:ul:${shopId}:0`)]])); return true; }
+    let t = `🔍 <b>Результаты</b> (${users.length})\n\n`;
+    users.forEach(u => { t += `👤 <b>${esc(u.first_name)}</b> ${u.username ? `@${esc(u.username)}` : ""} | ${u.telegram_id}\n`; });
+    const rows: Btn[][] = users.map(u => [btn(`${u.first_name} ${u.last_name || ""}`.trim().slice(0, 28), `s:uv:${shopId}:${u.id}`)]);
+    rows.push([btn("◀️ К пользователям", `s:ul:${shopId}:0`)]);
+    await tg.send(cid, t, ikb(rows));
+    return true;
+  }
+
+  // ─── User note ────────────────────────────
+  if (state.startsWith("un:")) {
+    const tgId = parseInt(state.slice(3));
+    await supabase().from("user_profiles").update({ internal_note: val, updated_at: new Date().toISOString() }).eq("telegram_id", tgId);
+    await logAction(shopId, adminId, "set_note", "user", String(tgId), { note: val });
+    await clearSession(cid);
+    await tg.send(cid, "✅ Заметка сохранена.", ikb([[btn("◀️ К пользователю", `s:uvt:${shopId}:${tgId}`)]]));
+    return true;
+  }
+
+  // ─── Balance operations ───────────────────
+  if (state.startsWith("bal:")) {
+    const parts = state.split(":");
+    const op = parts[1]; // c=credit, d=debit, s=set
+    const tgId = parseInt(parts[2]);
+
+    if (!sData.amount) {
+      const amount = parseFloat(val);
+      if (isNaN(amount) || amount < 0) { await tg.send(cid, "❌ Введите положительное число."); return true; }
+      await setSession(cid, state, shopId, { ...sData, amount });
+      await tg.send(cid, "📝 Введите комментарий:");
       return true;
     }
 
-    await logAction(shopId, chatId, `Товар создан: ${newProd.name}`, "product", newProd.id);
-    await tg.send(chatId,
-      `✅ Товар <b>${esc(newProd.name)}</b> создан!\n\n💡 Теперь загрузите инвентарь для этого товара.`,
-      ikb([
-        [btn("📦 Загрузить инвентарь", `s:loadinv:${shopId}:${newProd.id}`)],
-        [btn("◀️ Товары", `s:products:${shopId}:0`)],
-      ]),
-    );
+    const amount = sData.amount as number;
+    const comment = val;
+    const { data: u } = await supabase().from("user_profiles").select("balance").eq("telegram_id", tgId).single();
+    const current = Number(u?.balance || 0);
+    let newBalance: number;
+    let histAmount: number;
+    let histType: string;
+
+    if (op === "c") { newBalance = current + amount; histAmount = amount; histType = "credit"; }
+    else if (op === "d") { newBalance = Math.max(0, current - amount); histAmount = -(Math.min(amount, current)); histType = "debit"; }
+    else { newBalance = amount; histAmount = amount - current; histType = "set"; }
+
+    await supabase().from("user_profiles").update({ balance: newBalance, updated_at: new Date().toISOString() }).eq("telegram_id", tgId);
+    await supabase().from("balance_history").insert({ telegram_id: tgId, amount: histAmount, balance_after: newBalance, type: histType, comment, admin_telegram_id: adminId });
+    await logAction(shopId, adminId, `balance_${histType}`, "user", String(tgId), { amount: histAmount, balance_after: newBalance, comment });
+    await clearSession(cid);
+    await tg.send(cid, `✅ Баланс: <b>$${newBalance.toFixed(2)}</b>`, ikb([[btn("💰 Баланс", `s:ub:${shopId}:${tgId}`)], [btn("◀️ К пользователю", `s:uvt:${shopId}:${tgId}`)]]));
     return true;
   }
 
-  // ─── Edit product field ───────────────────
-  if (state === "s_editprod_field") {
-    const productId = sData.product_id as string;
-    const field = sData.field as string;
-    const fieldMap: Record<string, string> = {
-      name: "name", price: "price", desc: "description",
-      subtitle: "subtitle", old_price: "old_price",
-    };
-    const dbField = fieldMap[field];
-    if (!dbField) { await clearSession(chatId); return true; }
-
-    let updateVal: unknown = val;
-    if (field === "price" || field === "old_price") {
-      const num = Number(val);
-      if (isNaN(num) || num < 0) { await tg.send(chatId, "❌ Введи число."); return true; }
-      updateVal = num;
-    }
-
-    await supabase().from("shop_products").update({ [dbField]: updateVal, updated_at: new Date().toISOString() }).eq("id", productId);
-    await logAction(shopId, chatId, `Товар изменён: ${field}`, "product", productId);
-    await clearSession(chatId);
-    const resp = await tg.send(chatId, "✅ Обновлено!");
-    const mid = resp?.result?.message_id;
-    if (mid) await showProduct(tg, chatId, mid, shopId, productId);
+  // ─── Promo creation ───────────────────────
+  if (state === "pr:c") {
+    await setSession(cid, "pr:t", shopId, { ...sData, code: val.trim().toUpperCase() });
+    await tg.send(cid, `Код: <b>${esc(val.trim().toUpperCase())}</b>\n\nВведите тип (<b>percent</b> или <b>fixed</b>):`);
     return true;
   }
-
-  // ─── Load inventory ───────────────────────
-  if (state === "s_loadinv") {
-    const productId = sData.product_id as string;
-    const lines = val.split("\n").map(l => l.trim()).filter(Boolean);
-    if (!lines.length) { await tg.send(chatId, "❌ Отправь хотя бы одну строку."); return true; }
-
-    const items = lines.map(content => ({
-      product_id: productId,
-      content,
-      status: "available",
-    }));
-
-    const { error } = await supabase().from("shop_inventory").insert(items);
-    if (error) {
-      await tg.send(chatId, `❌ Ошибка: ${error.message}`);
-      return true;
-    }
-
-    // Update stock count
-    const { count } = await supabase().from("shop_inventory").select("id", { count: "exact", head: true }).eq("product_id", productId).eq("status", "available");
-    await supabase().from("shop_products").update({ stock: count || 0, updated_at: new Date().toISOString() }).eq("id", productId);
-
-    await logAction(shopId, chatId, `Инвентарь загружен: ${lines.length} шт`, "product", productId);
-    await clearSession(chatId);
-    await tg.send(chatId,
-      `✅ Загружено <b>${lines.length}</b> единиц!\n📦 Всего на складе: ${count || 0}`,
-      ikb([
-        [btn("📦 Ещё загрузить", `s:loadinv:${shopId}:${productId}`)],
-        [btn("◀️ Товар", `s:prod:${shopId}:${productId}`)],
-      ]),
-    );
+  if (state === "pr:t") {
+    const type = val.toLowerCase();
+    if (!["percent", "fixed"].includes(type)) { await tg.send(cid, "❌ Введите <b>percent</b> или <b>fixed</b>."); return true; }
+    await setSession(cid, "pr:v", shopId, { ...sData, discount_type: type });
+    await tg.send(cid, `Введите значение скидки${type === "percent" ? " (%)" : " ($)"}:`);
     return true;
   }
-
-  // ─── Add category ─────────────────────────
-  if (state === "s_addcat_name") {
-    if (val.length < 1 || val.length > 50) { await tg.send(chatId, "❌ От 1 до 50 символов."); return true; }
-    sData.cat_name = val;
-    await setSession(chatId, "s_addcat_icon", shopId, sData);
-    await tg.send(chatId, "🎨 Отправь иконку (эмодзи) для категории (например: ⚡, 🎮, 💻):");
-    return true;
-  }
-  if (state === "s_addcat_icon") {
-    const icon = val.slice(0, 4) || "⚡";
-    const { error } = await supabase().from("shop_categories").insert({
-      shop_id: shopId,
-      name: sData.cat_name as string,
-      icon,
+  if (state === "pr:v") {
+    const v = parseFloat(val);
+    if (isNaN(v) || v <= 0) { await tg.send(cid, "❌ Введите число > 0."); return true; }
+    const { error } = await supabase().from("shop_promocodes").insert({
+      code: sData.code as string, discount_type: sData.discount_type as string,
+      discount_value: v, is_active: true, shop_id: shopId,
     });
-    await clearSession(chatId);
-    if (error) {
-      await tg.send(chatId, `❌ Ошибка: ${error.message}`, ikb([[btn("◀️ Категории", `s:cats:${shopId}:0`)]]));
-    } else {
-      await logAction(shopId, chatId, `Категория создана: ${sData.cat_name}`, "category");
-      await tg.send(chatId, `✅ Категория <b>${icon} ${esc(sData.cat_name as string)}</b> создана!`, ikb([[btn("◀️ Категории", `s:cats:${shopId}:0`)]]));
-    }
+    await clearSession(cid);
+    if (error) { await tg.send(cid, `❌ ${error.message}`); return true; }
+    await logAction(shopId, adminId, "create_promo", "promocode", sData.code as string, { discount_type: sData.discount_type, discount_value: v });
+    await tg.send(cid, `✅ Промокод <b>${esc(sData.code as string)}</b> создан!`, ikb([[btn("🎟 К промокодам", `s:prl:${shopId}:0`)], [btn("◀️ Меню", `s:m:${shopId}`)]]));
     return true;
   }
 
-  // ─── Edit category field ──────────────────
-  if (state === "s_editcat_field") {
-    const catId = sData.cat_id as string;
-    const field = sData.field as string;
-    const dbField = field === "name" ? "name" : "icon";
-    const updateVal = field === "icon" ? val.slice(0, 4) : val;
-    await supabase().from("shop_categories").update({ [dbField]: updateVal }).eq("id", catId);
-    await logAction(shopId, chatId, `Категория изменена: ${field}`, "category", catId);
-    await clearSession(chatId);
-    const resp = await tg.send(chatId, "✅ Обновлено!");
-    const mid = resp?.result?.message_id;
-    if (mid) await showCategory(tg, chatId, mid, shopId, catId);
-    return true;
-  }
-
-  // ─── Broadcast message ────────────────────
-  if (state === "s_bcast_text") {
-    sData.bcast_text = val;
-    await setSession(chatId, "s_bcast_confirm", shopId, sData);
-    await tg.send(chatId, `📢 <b>Предпросмотр рассылки:</b>\n\n${val}\n\n⚠️ Подтвердите отправку:`, ikb([
-      [btn("✅ Отправить", `s:confirmbcast:${shopId}`)],
-      [btn("✏️ Изменить", `s:writebcast:${shopId}`)],
-      [btn("❌ Отмена", `s:home:${shopId}`)],
-    ]));
-    return true;
-  }
-
-  // ─── Add promocode: code ──────────────────
-  if (state === "s_addpromo_code") {
-    if (val.length < 2 || val.length > 30) { await tg.send(chatId, "❌ Код: от 2 до 30 символов."); return true; }
-    sData.promo_code = val.toUpperCase();
-    await setSession(chatId, "s_addpromo_type", shopId, sData);
-    await tg.send(chatId, "Выбери тип скидки:", ikb([
-      [btn("📊 Процент (%)", `s:promotype:${shopId}:percent`)],
-      [btn("💰 Фиксированная ($)", `s:promotype:${shopId}:fixed`)],
-    ]));
-    return true;
-  }
-  if (state === "s_addpromo_value") {
-    const num = Number(val);
-    if (isNaN(num) || num <= 0) { await tg.send(chatId, "❌ Введи положительное число."); return true; }
-    if (sData.promo_type === "percent" && num > 100) { await tg.send(chatId, "❌ Процент не может быть больше 100."); return true; }
-    sData.promo_value = num;
-    await setSession(chatId, "s_addpromo_maxuses", shopId, sData);
-    await tg.send(chatId, "🔢 Макс. кол-во использований (введи число или <code>-</code> для безлимита):");
-    return true;
-  }
-  if (state === "s_addpromo_maxuses") {
-    const maxUses = val === "-" ? null : Number(val);
-    if (val !== "-" && (isNaN(maxUses as number) || (maxUses as number) < 1)) { await tg.send(chatId, "❌ Введи число или <code>-</code>."); return true; }
-
-    const { data: newPromo, error } = await supabase().from("shop_promocodes").insert({
-      shop_id: shopId,
-      code: sData.promo_code as string,
-      discount_type: sData.promo_type as string,
-      discount_value: sData.promo_value as number,
-      max_uses: maxUses,
-      is_active: true,
-    }).select("id, code").single();
-
-    await clearSession(chatId);
-
-    if (error) {
-      const msg = error.message.includes("unique") ? "Такой код уже существует." : error.message;
-      await tg.send(chatId, `❌ Ошибка: ${msg}`, ikb([[btn("◀️ Промокоды", `s:promos:${shopId}:0`)]]));
-    } else {
-      await logAction(shopId, chatId, `Промокод создан: ${newPromo?.code}`, "promocode", newPromo?.id);
-      await tg.send(chatId, `✅ Промокод <code>${esc(newPromo?.code || "")}</code> создан!`, ikb([[btn("◀️ Промокоды", `s:promos:${shopId}:0`)]]));
-    }
+  // ─── /cancel ──────────────────────────────
+  if (val === "/cancel") {
+    await clearSession(cid);
+    await tg.send(cid, "❌ Отменено.", ikb([[btn("◀️ Меню", `s:m:${shopId}`)]]));
     return true;
   }
 
@@ -933,278 +868,314 @@ async function handleText(tg: ReturnType<typeof TG>, chatId: number, text: strin
 }
 
 // ═══════════════════════════════════════════════
-// CALLBACK HANDLER
+// CALLBACK HANDLER — matching template exactly
 // ═══════════════════════════════════════════════
-async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: number, data: string, cbId: string, shopId: string) {
-  await tg.answer(cbId);
+async function handleCallback(tg: ReturnType<typeof TG>, cid: number, mid: number, data: string, cbId: string, shopId: string, adminId: number) {
   const parts = data.split(":");
 
-  // Backward/forward compatibility:
-  // - legacy callbacks: s:<cmd>:<shopId>:...
-  // - shortened callbacks: s:<cmd>:...
-  if (parts[2] !== shopId) {
+  // Backward/forward compat: if parts[2] is not shopId, inject it
+  if (parts.length >= 3 && parts[2] !== shopId && !UUID_RE.test(parts[2])) {
+    // Shortened format: s:<cmd>:<arg...>, inject shopId at [2]
     parts.splice(2, 0, shopId);
+  } else if (parts.length >= 3 && UUID_RE.test(parts[2]) && parts[2] !== shopId) {
+    // Wrong shopId somehow — replace
+    parts[2] = shopId;
   }
 
   const cmd = parts[1];
 
-  if (cmd === "noop") return;
-
-  if (cmd === "home") return adminHome(tg, chatId, shopId, msgId);
-  if (cmd === "settings") return shopSettings(tg, chatId, msgId, parts[2]);
-  if (cmd === "stats") return shopStats(tg, chatId, msgId, parts[2]);
-  if (cmd === "products") return showProducts(tg, chatId, msgId, parts[2], parseInt(parts[3]) || 0);
-  if (cmd === "prod") return showProduct(tg, chatId, msgId, parts[2], parts[3]);
-  if (cmd === "cats") return showCategories(tg, chatId, msgId, parts[2]);
-  if (cmd === "cat") return showCategory(tg, chatId, msgId, parts[2], parts[3]);
-  if (cmd === "reviews") return showReviews(tg, chatId, msgId, parts[2]);
-  if (cmd === "inv") return showInventory(tg, chatId, msgId, parts[2]);
-  if (cmd === "broadcast") return showBroadcast(tg, chatId, msgId, parts[2]);
-
-  // ─── Orders ───────────────────────────────
-  if (cmd === "orders") return showOrders(tg, chatId, msgId, parts[2], parseInt(parts[3]) || 0);
-  if (cmd === "order") return showOrder(tg, chatId, msgId, parts[2], parts[3]);
-  if (cmd === "orderstatus") {
-    const sid = parts[2];
-    const orderId = parts[3];
-    const newStatus = parts[4];
-    await supabase().from("shop_orders").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", orderId);
-    await logAction(sid, chatId, `Заказ ${newStatus}`, "order", orderId);
-    return showOrder(tg, chatId, msgId, sid, orderId);
+  // Don't clear session for broadcast actions
+  if (!["bcsend", "bcedit", "bccancel"].includes(cmd)) {
+    await clearSession(cid);
   }
 
-  // ─── Users ────────────────────────────────
-  if (cmd === "users") return showUsers(tg, chatId, msgId, parts[2], parseInt(parts[3]) || 0);
-  if (cmd === "user") return showUser(tg, chatId, msgId, parts[2], parts[3]);
+  try {
+    await tg.answer(cbId);
 
-  // ─── Promocodes ───────────────────────────
-  if (cmd === "promos") return showPromos(tg, chatId, msgId, parts[2], parseInt(parts[3]) || 0);
-  if (cmd === "promo") return showPromo(tg, chatId, msgId, parts[2], parts[3]);
-  if (cmd === "addpromo") {
-    const sid = parts[2];
-    await setSession(chatId, "s_addpromo_code", sid, {});
-    return tg.edit(chatId, msgId, "🏷 <b>Новый промокод</b>\n\nВведи код промокода (напр: SALE20):", ikb([[btn("❌ Отмена", `s:promos:${sid}:0`)]]));
-  }
-  if (cmd === "promotype") {
-    const sid = parts[2];
-    const type = parts[3]; // percent or fixed
-    const session = await getSession(chatId, sid);
-    if (!session) return;
-    const sData = { ...(session.data || {}), promo_type: type };
-    await setSession(chatId, "s_addpromo_value", sid, sData);
-    const label = type === "percent" ? "процент скидки (1-100)" : "сумму скидки в USD";
-    return tg.edit(chatId, msgId, `💰 Введи ${label}:`, ikb([[btn("❌ Отмена", `s:promos:${sid}:0`)]]));
-  }
-  if (cmd === "togglepromo") {
-    const sid = parts[2];
-    const promoId = parts[3];
-    const { data: pr } = await supabase().from("shop_promocodes").select("is_active, code").eq("id", promoId).single();
-    if (pr) {
-      await supabase().from("shop_promocodes").update({ is_active: !pr.is_active }).eq("id", promoId);
-      await logAction(sid, chatId, `Промокод ${pr.is_active ? "деактивирован" : "активирован"}: ${pr.code}`, "promocode", promoId);
-    }
-    return showPromo(tg, chatId, msgId, sid, promoId);
-  }
-  if (cmd === "delpromo") {
-    const sid = parts[2];
-    const promoId = parts[3];
-    return tg.edit(chatId, msgId, "🗑 Удалить этот промокод?\n\n⚠️ Это действие необратимо.", ikb([
-      [btn("🗑 Да, удалить", `s:confirmdelpromo:${sid}:${promoId}`), btn("❌ Нет", `s:promo:${sid}:${promoId}`)],
-    ]));
-  }
-  if (cmd === "confirmdelpromo") {
-    const sid = parts[2];
-    const promoId = parts[3];
-    const { data: pr } = await supabase().from("shop_promocodes").select("code").eq("id", promoId).single();
-    await supabase().from("shop_promocodes").delete().eq("id", promoId);
-    await logAction(sid, chatId, `Промокод удалён: ${pr?.code || promoId}`, "promocode", promoId);
-    return tg.edit(chatId, msgId, "✅ Промокод удалён.", ikb([[btn("◀️ Промокоды", `s:promos:${sid}:0`)]]));
-  }
+    if (cmd === "noop") return;
+    if (cmd === "m") return adminHome(tg, cid, shopId, mid);
 
-  // ─── Logs ─────────────────────────────────
-  if (cmd === "logs") return showLogs(tg, chatId, msgId, parts[2], parseInt(parts[3]) || 0);
-
-  // ─── Edit shop field ──────────────────────
-  if (cmd === "edit") {
-    const sid = parts[2];
-    const field = parts[3];
-    const labels: Record<string, string> = {
-      name: "📛 название магазина", color: "🎨 HEX цвет (например #FF5500)",
-      hero_title: "📌 заголовок витрины", hero_desc: "📝 описание витрины",
-      welcome: "👋 приветственное сообщение", support: "🔗 ссылку на поддержку",
-    };
-    await setSession(chatId, "s_edit_field", sid, { field });
-    return tg.edit(chatId, msgId, `✏️ Введи новое ${labels[field] || field}:`, ikb([[btn("❌ Отмена", `s:settings:${sid}`)]]));
-  }
-
-  // ─── Set CryptoBot ────────────────────────
-  if (cmd === "setcb") {
-    const sid = parts[2];
-    await setSession(chatId, "s_set_cryptobot", sid, {});
-    return tg.edit(chatId, msgId,
-      "💰 <b>Подключение CryptoBot</b>\n\nОтправь API-токен от @CryptoBot:\n\n⚠️ Токен будет зашифрован.",
-      ikb([[btn("❌ Отмена", `s:settings:${sid}`)]]),
-    );
-  }
-
-  // ─── Add product ──────────────────────────
-  if (cmd === "addprod") {
-    const sid = parts[2];
-    await setSession(chatId, "s_addprod_name", sid, {});
-    return tg.edit(chatId, msgId, "📦 <b>Новый товар</b>\n\nВведи название товара:", ikb([[btn("❌ Отмена", `s:products:${sid}:0`)]]));
-  }
-
-  // ─── Edit product field ───────────────────
-  if (cmd === "editprod") {
-    const sid = parts[2];
-    const productId = parts[3];
-    const field = parts[4];
-    const labels: Record<string, string> = {
-      name: "название", price: "цену (число)", desc: "описание",
-      subtitle: "подзаголовок", old_price: "старую цену (число или 0)",
-    };
-    await setSession(chatId, "s_editprod_field", sid, { product_id: productId, field });
-    return tg.edit(chatId, msgId, `✏️ Введи новое ${labels[field] || field}:`, ikb([[btn("❌ Отмена", `s:prod:${sid}:${productId}`)]]));
-  }
-
-  // ─── Toggle product ───────────────────────
-  if (cmd === "toggleprod") {
-    const sid = parts[2];
-    const productId = parts[3];
-    const { data: pr } = await supabase().from("shop_products").select("is_active, name").eq("id", productId).single();
-    if (pr) {
-      await supabase().from("shop_products").update({ is_active: !pr.is_active, updated_at: new Date().toISOString() }).eq("id", productId);
-      await logAction(sid, chatId, `Товар ${pr.is_active ? "скрыт" : "показан"}: ${pr.name}`, "product", productId);
-    }
-    return showProduct(tg, chatId, msgId, sid, productId);
-  }
-
-  // ─── Delete product ───────────────────────
-  if (cmd === "delprod") {
-    const sid = parts[2];
-    const productId = parts[3];
-    return tg.edit(chatId, msgId, "🗑 Удалить этот товар и весь его инвентарь?\n\n⚠️ Это действие необратимо.", ikb([
-      [btn("🗑 Да, удалить", `s:confirmdelprod:${sid}:${productId}`), btn("❌ Нет", `s:prod:${sid}:${productId}`)],
-    ]));
-  }
-  if (cmd === "confirmdelprod") {
-    const sid = parts[2];
-    const productId = parts[3];
-    const { data: pr } = await supabase().from("shop_products").select("name").eq("id", productId).single();
-    await supabase().from("shop_inventory").delete().eq("product_id", productId);
-    await supabase().from("shop_products").delete().eq("id", productId);
-    await logAction(sid, chatId, `Товар удалён: ${pr?.name || productId}`, "product", productId);
-    return tg.edit(chatId, msgId, "✅ Товар удалён.", ikb([[btn("◀️ Товары", `s:products:${sid}:0`)]]));
-  }
-
-  // ─── Load inventory ───────────────────────
-  if (cmd === "loadinv") {
-    const sid = parts[2];
-    const productId = parts[3];
-    const { data: pr } = await supabase().from("shop_products").select("name").eq("id", productId).single();
-    await setSession(chatId, "s_loadinv", sid, { product_id: productId });
-    return tg.edit(chatId, msgId,
-      `📦 <b>Загрузка инвентаря: ${esc(pr?.name || "")}</b>\n\n` +
-      `Отправьте данные — каждая строка = 1 единица товара.\n\n` +
-      `Примеры:\n<code>login:password</code>\n<code>XXXX-XXXX-XXXX-XXXX</code>\n<code>https://drive.google.com/file/...</code>`,
-      ikb([[btn("❌ Отмена", `s:prod:${sid}:${productId}`)]]),
-    );
-  }
-
-  // ─── Add category ─────────────────────────
-  if (cmd === "addcat") {
-    const sid = parts[2];
-    await setSession(chatId, "s_addcat_name", sid, {});
-    return tg.edit(chatId, msgId, "📂 <b>Новая категория</b>\n\nВведи название категории:", ikb([[btn("❌ Отмена", `s:cats:${sid}:0`)]]));
-  }
-
-  // ─── Edit category field ──────────────────
-  if (cmd === "editcat") {
-    const sid = parts[2];
-    const catId = parts[3];
-    const field = parts[4];
-    const labels: Record<string, string> = { name: "название", icon: "иконку (эмодзи)" };
-    await setSession(chatId, "s_editcat_field", sid, { cat_id: catId, field });
-    return tg.edit(chatId, msgId, `✏️ Введи ${labels[field] || field}:`, ikb([[btn("❌ Отмена", `s:cat:${sid}:${catId}`)]]));
-  }
-
-  // ─── Toggle category ──────────────────────
-  if (cmd === "togglecat") {
-    const sid = parts[2];
-    const catId = parts[3];
-    const { data: cat } = await supabase().from("shop_categories").select("is_active, name").eq("id", catId).single();
-    if (cat) {
-      await supabase().from("shop_categories").update({ is_active: !cat.is_active }).eq("id", catId);
-      await logAction(sid, chatId, `Категория ${cat.is_active ? "скрыта" : "показана"}: ${cat.name}`, "category", catId);
-    }
-    return showCategory(tg, chatId, msgId, sid, catId);
-  }
-
-  // ─── Delete category ──────────────────────
-  if (cmd === "delcat") {
-    const sid = parts[2];
-    const catId = parts[3];
-    const { data: cat } = await supabase().from("shop_categories").select("name").eq("id", catId).single();
-    await supabase().from("shop_categories").delete().eq("id", catId);
-    await logAction(sid, chatId, `Категория удалена: ${cat?.name || catId}`, "category", catId);
-    return tg.edit(chatId, msgId, "✅ Категория удалена.", ikb([[btn("◀️ Категории", `s:cats:${sid}:0`)]]));
-  }
-
-  // ─── Approve/reject review ────────────────
-  if (cmd === "approvereview") {
-    const sid = parts[2];
-    const reviewId = parts[3];
-    await supabase().from("shop_reviews").update({ moderation_status: "approved", verified: true }).eq("id", reviewId);
-    await logAction(sid, chatId, "Отзыв одобрен", "review", reviewId);
-    return showReviews(tg, chatId, msgId, sid);
-  }
-  if (cmd === "rejectreview") {
-    const sid = parts[2];
-    const reviewId = parts[3];
-    await supabase().from("shop_reviews").update({ moderation_status: "rejected" }).eq("id", reviewId);
-    await logAction(sid, chatId, "Отзыв отклонён", "review", reviewId);
-    return showReviews(tg, chatId, msgId, sid);
-  }
-
-  // ─── Broadcast ────────────────────────────
-  if (cmd === "writebcast") {
-    const sid = parts[2];
-    await setSession(chatId, "s_bcast_text", sid, {});
-    return tg.edit(chatId, msgId, "✏️ Введи текст рассылки (поддерживается HTML):", ikb([[btn("❌ Отмена", `s:home:${sid}`)]]));
-  }
-  if (cmd === "confirmbcast") {
-    const sid = parts[2];
-    const session = await getSession(chatId, sid);
-    if (!session) return;
-    const bcastText = session.data?.bcast_text as string;
-    if (!bcastText) return;
-
-    const { data: orders } = await supabase().from("shop_orders").select("buyer_telegram_id").eq("shop_id", sid);
-    const uniqueIds = [...new Set(orders?.map((o: any) => o.buyer_telegram_id) || [])];
-
-    await clearSession(chatId);
-
-    if (!uniqueIds.length) {
-      return tg.edit(chatId, msgId, "❌ Нет покупателей для рассылки.", ikb([[btn("◀️ Админ-панель", `s:home:${sid}`)]]));
-    }
-
-    let sent = 0;
-    let failed = 0;
-    for (const tgId of uniqueIds) {
-      try {
-        await tg.send(tgId as number, bcastText);
-        sent++;
-      } catch {
-        failed++;
+    // Products
+    if (cmd === "pl") return productsList(tg, cid, mid, shopId, parseInt(parts[3]) || 0);
+    if (cmd === "pv") return productView(tg, cid, mid, shopId, parts[3]);
+    if (cmd === "pt") {
+      const pid = parts[3];
+      const { data: p } = await supabase().from("shop_products").select("is_active, name").eq("id", pid).single();
+      if (p) {
+        await supabase().from("shop_products").update({ is_active: !p.is_active, updated_at: new Date().toISOString() }).eq("id", pid);
+        await logAction(shopId, adminId, `toggle_active`, "product", pid, { is_active: !p.is_active });
       }
+      return productView(tg, cid, mid, shopId, pid);
+    }
+    if (cmd === "pd") {
+      const pid = parts[3];
+      const { data: p } = await supabase().from("shop_products").select("name").eq("id", pid).single();
+      return tg.edit(cid, mid, `⚠️ <b>Удалить?</b>\n\n${esc(p?.name || "?")}\n\nЭто необратимо!`,
+        ikb([[btn("✅ Да, удалить", `s:py:${shopId}:${pid}`), btn("❌ Отмена", `s:pv:${shopId}:${pid}`)]]));
+    }
+    if (cmd === "py") {
+      const pid = parts[3];
+      const { data: p } = await supabase().from("shop_products").select("name").eq("id", pid).single();
+      await supabase().from("shop_inventory").delete().eq("product_id", pid);
+      await supabase().from("shop_products").delete().eq("id", pid);
+      await logAction(shopId, adminId, "delete_product", "product", pid, { name: p?.name });
+      return tg.edit(cid, mid, `✅ Товар <b>${esc(p?.name || "")}</b> удалён.`, ikb([[btn("◀️ К товарам", `s:pl:${shopId}:0`)]]));
+    }
+    if (cmd === "pa") {
+      await setSession(cid, "ap:t", shopId);
+      return tg.send(cid, "📦 <b>Новый товар</b>\n\nВведите название:");
+    }
+    if (cmd === "pe") {
+      const pid = parts[3]; const f = parts[4];
+      if (f === "img") {
+        await setSession(cid, `ep:img:${pid}`, shopId);
+        return tg.send(cid, "🖼 Отправьте фото товара:\n\n/cancel — отмена");
+      }
+      const labels: Record<string, string> = { n: "название", p: "цену (USD)", s: "остаток (число)", d: "описание", o: "старую цену (USD)", sub: "подзаголовок", f: "особенности (через запятую)" };
+      await setSession(cid, `ep:${f}:${pid}`, shopId);
+      return tg.send(cid, `✏️ Введите <b>${labels[f] || f}</b>:\n\n/cancel — отмена`);
     }
 
-    await logAction(sid, chatId, `Рассылка: ${sent} отправлено, ${failed} ошибок`, "broadcast");
+    // Categories
+    if (cmd === "cl") return categoriesList(tg, cid, mid, shopId, parseInt(parts[3]) || 0);
+    if (cmd === "cv") return categoryView(tg, cid, mid, shopId, parts[3]);
+    if (cmd === "ct") {
+      const catId = parts[3];
+      const { data: c } = await supabase().from("shop_categories").select("is_active").eq("id", catId).single();
+      if (c) { await supabase().from("shop_categories").update({ is_active: !c.is_active }).eq("id", catId); await logAction(shopId, adminId, "toggle_cat", "category", catId); }
+      return categoryView(tg, cid, mid, shopId, catId);
+    }
+    if (cmd === "ca") { await setSession(cid, "ac:n", shopId); return tg.send(cid, "📁 <b>Новая категория</b>\n\nВведите название:"); }
+    if (cmd === "ce") {
+      const catId = parts[3]; const f = parts[4];
+      const labels: Record<string, string> = { n: "название", i: "иконку (emoji)", s: "порядок сортировки" };
+      await setSession(cid, `ec:${f}:${catId}`, shopId);
+      return tg.send(cid, `✏️ Введите <b>${labels[f] || f}</b>:\n\n/cancel — отмена`);
+    }
+    if (cmd === "cd") {
+      const catId = parts[3];
+      const { data: c } = await supabase().from("shop_categories").select("name").eq("id", catId).single();
+      return tg.edit(cid, mid, `⚠️ <b>Удалить категорию?</b>\n\n${esc(c?.name || "?")}`,
+        ikb([[btn("✅ Удалить", `s:cdy:${shopId}:${catId}`), btn("❌ Отмена", `s:cv:${shopId}:${catId}`)]]));
+    }
+    if (cmd === "cdy") {
+      const catId = parts[3];
+      await supabase().from("shop_categories").delete().eq("id", catId);
+      await logAction(shopId, adminId, "delete_category", "category", catId);
+      return tg.edit(cid, mid, "✅ Категория удалена.", ikb([[btn("◀️ К категориям", `s:cl:${shopId}:0`)]]));
+    }
 
-    return tg.edit(chatId, msgId,
-      `📢 <b>Рассылка завершена!</b>\n\n✅ Отправлено: ${sent}\n❌ Ошибок: ${failed}`,
-      ikb([[btn("◀️ Админ-панель", `s:home:${sid}`)]]),
-    );
+    // Orders
+    if (cmd === "ol") return ordersList(tg, cid, mid, shopId, parseInt(parts[3]) || 0);
+    if (cmd === "ov") return orderView(tg, cid, mid, shopId, parts[3]);
+    if (cmd === "os") return orderSetStatus(tg, cid, mid, shopId, parts[3], parts[4], adminId);
+
+    // Users
+    if (cmd === "ul") return usersList(tg, cid, mid, shopId, parseInt(parts[3]) || 0);
+    if (cmd === "ulf") {
+      const filter = parts[2] === shopId ? parts[3] : parts[2];
+      const page = parseInt(parts[parts.length - 1]) || 0;
+      return usersList(tg, cid, mid, shopId, page, filter);
+    }
+    if (cmd === "usf") {
+      return tg.edit(cid, mid, "📊 <b>Фильтр пользователей</b>", ikb([
+        [btn("Все", `s:ul:${shopId}:0`), btn("👑 VIP", `s:ulf:vip:${shopId}:0`), btn("🚫 Заблокированные", `s:ulf:blocked:${shopId}:0`)],
+        [btn("◀️ Назад", `s:ul:${shopId}:0`)],
+      ]));
+    }
+    if (cmd === "usq") { await setSession(cid, "us:q", shopId); return tg.send(cid, "🔍 Введите TG ID, username или имя:\n\n/cancel — отмена"); }
+    if (cmd === "uv") return userView(tg, cid, mid, shopId, parts[3]);
+    if (cmd === "uvt") return userViewByTg(tg, cid, mid, shopId, parseInt(parts[3]));
+    if (cmd === "um") {
+      const uid = parts[3];
+      await setSession(cid, `um:${uid}`, shopId);
+      return tg.send(cid, "✍️ Введите сообщение:\n\n/cancel — отмена");
+    }
+
+    // User orders
+    if (cmd === "uo") {
+      const tgId = parseInt(parts[3]); const page = parseInt(parts[4] || "0");
+      return userOrdersList(tg, cid, mid, shopId, tgId, page);
+    }
+
+    // User balance
+    if (cmd === "ub") return balanceMenu(tg, cid, mid, shopId, parseInt(parts[3]));
+    if (cmd === "ubc") { const tgId = parts[3]; await setSession(cid, `bal:c:${tgId}`, shopId); return tg.send(cid, "➕ Введите сумму для начисления:\n\n/cancel — отмена"); }
+    if (cmd === "ubd") { const tgId = parts[3]; await setSession(cid, `bal:d:${tgId}`, shopId); return tg.send(cid, "➖ Введите сумму для списания:\n\n/cancel — отмена"); }
+    if (cmd === "ubs") { const tgId = parts[3]; await setSession(cid, `bal:s:${tgId}`, shopId); return tg.send(cid, "🎯 Введите новое значение баланса:\n\n/cancel — отмена"); }
+
+    // User role
+    if (cmd === "ur") {
+      const tgId = parseInt(parts[3]);
+      return tg.edit(cid, mid, `🏷 <b>Изменить роль</b> — TG ${tgId}`, ikb([
+        [btn("👤 user", `s:urs:${shopId}:${tgId}:user`), btn("👑 vip", `s:urs:${shopId}:${tgId}:vip`), btn("🚫 blocked", `s:urs:${shopId}:${tgId}:blocked`)],
+        [btn("◀️ Назад", `s:uvt:${shopId}:${tgId}`)],
+      ]));
+    }
+    if (cmd === "urs") {
+      const tgId = parseInt(parts[3]); const role = parts[4];
+      await supabase().from("user_profiles").update({ role, updated_at: new Date().toISOString() }).eq("telegram_id", tgId);
+      await logAction(shopId, adminId, "set_role", "user", String(tgId), { role });
+      return userViewByTg(tg, cid, mid, shopId, tgId);
+    }
+
+    // User block/unblock
+    if (cmd === "ux") {
+      const tgId = parseInt(parts[3]);
+      const { data: u } = await supabase().from("user_profiles").select("is_blocked").eq("telegram_id", tgId).single();
+      if (u) {
+        const newVal = !u.is_blocked;
+        await supabase().from("user_profiles").update({ is_blocked: newVal, updated_at: new Date().toISOString() }).eq("telegram_id", tgId);
+        await logAction(shopId, adminId, newVal ? "block_user" : "unblock_user", "user", String(tgId));
+      }
+      return userViewByTg(tg, cid, mid, shopId, tgId);
+    }
+
+    // User note
+    if (cmd === "un") {
+      const tgId = parts[3];
+      await setSession(cid, `un:${tgId}`, shopId);
+      return tg.send(cid, "📝 Введите заметку:\n\n/cancel — отмена");
+    }
+
+    // User logs
+    if (cmd === "ula") {
+      const tgId = parseInt(parts[3]); const page = parseInt(parts[4] || "0");
+      return userLogsList(tg, cid, mid, shopId, tgId, page);
+    }
+
+    // Promocodes
+    if (cmd === "prl") return promosList(tg, cid, mid, shopId, parseInt(parts[3]) || 0);
+    if (cmd === "prv") return promoView(tg, cid, mid, shopId, parts[3]);
+    if (cmd === "pra") { await setSession(cid, "pr:c", shopId); return tg.send(cid, "🎟 <b>Новый промокод</b>\n\nВведите код:"); }
+    if (cmd === "prt") {
+      const prId = parts[3];
+      const { data: p } = await supabase().from("shop_promocodes").select("is_active").eq("id", prId).single();
+      if (p) { await supabase().from("shop_promocodes").update({ is_active: !p.is_active }).eq("id", prId); await logAction(shopId, adminId, "toggle_promo", "promocode", prId); }
+      return promoView(tg, cid, mid, shopId, prId);
+    }
+    if (cmd === "prd") {
+      const prId = parts[3];
+      const { data: p } = await supabase().from("shop_promocodes").select("code").eq("id", prId).single();
+      return tg.edit(cid, mid, `⚠️ <b>Удалить промокод?</b>\n\n<code>${esc(p?.code || "?")}</code>`,
+        ikb([[btn("✅ Удалить", `s:prdy:${shopId}:${prId}`), btn("❌ Отмена", `s:prv:${shopId}:${prId}`)]]));
+    }
+    if (cmd === "prdy") {
+      const prId = parts[3];
+      await supabase().from("shop_promocodes").delete().eq("id", prId);
+      await logAction(shopId, adminId, "delete_promo", "promocode", prId);
+      return tg.edit(cid, mid, "✅ Промокод удалён.", ikb([[btn("◀️ К промокодам", `s:prl:${shopId}:0`)]]));
+    }
+
+    // Stats, Settings, Logs, Stock
+    if (cmd === "st") return statsView(tg, cid, mid, shopId);
+    if (cmd === "se") return settingsView(tg, cid, mid, shopId);
+    if (cmd === "lg") return logsList(tg, cid, mid, shopId, parseInt(parts[3]) || 0);
+    if (cmd === "sk") return stockOverview(tg, cid, mid, shopId, parseInt(parts[3]) || 0);
+
+    // Edit shop field
+    if (cmd === "edit") {
+      const field = parts[3];
+      const labels: Record<string, string> = {
+        name: "📛 название магазина", color: "🎨 HEX цвет (например #FF5500)",
+        hero_title: "📌 заголовок витрины", hero_desc: "📝 описание витрины",
+        welcome: "👋 приветственное сообщение", support: "🔗 ссылку на поддержку",
+      };
+      await setSession(cid, "s_edit_field", shopId, { field });
+      return tg.edit(cid, mid, `✏️ Введи новое ${labels[field] || field}:`, ikb([[btn("❌ Отмена", `s:se:${shopId}`)]]));
+    }
+
+    // Set CryptoBot token
+    if (cmd === "setcb") {
+      await setSession(cid, "s_set_cryptobot", shopId, {});
+      return tg.edit(cid, mid,
+        "💰 <b>Подключение CryptoBot</b>\n\nОтправь API-токен от @CryptoBot:\n\n⚠️ Токен будет зашифрован.",
+        ikb([[btn("❌ Отмена", `s:se:${shopId}`)]]),
+      );
+    }
+
+    // Inventory
+    if (cmd === "iv") {
+      const pid = parts[3]; const page = parseInt(parts[4] || "0");
+      return inventoryView(tg, cid, mid, shopId, pid, page);
+    }
+    if (cmd === "ia") {
+      const pid = parts[3];
+      await setSession(cid, `ai:${pid}`, shopId);
+      return tg.send(cid, "🗃 <b>Добавление единиц</b>\n\nОтправьте ключи/аккаунты, каждый с новой строки.\n\n💡 Для загрузки файлов используйте ссылку на Яндекс Диск / Google Drive / другое внешнее хранилище.\n\n/cancel — отмена");
+    }
+    if (cmd === "is") return inventorySync(tg, cid, mid, shopId, parts[3], adminId);
+
+    // Broadcast
+    if (cmd === "bc") return broadcastMenu(tg, cid, mid, shopId);
+    if (cmd === "bs") { await setSession(cid, "bc:t", shopId); return tg.send(cid, "📢 Введите текст рассылки (поддерживается HTML: &lt;b&gt;, &lt;i&gt;, &lt;u&gt;, &lt;a&gt;) или отправьте фото с подписью:\n\n/cancel — отмена"); }
+    if (cmd === "bcsend") {
+      const session = await getSession(cid, shopId);
+      if (!session || session.state !== "bc:preview") {
+        return;
+      }
+      const sd = session.data;
+      const { data: ordersRaw } = await supabase().from("shop_orders").select("buyer_telegram_id").eq("shop_id", shopId);
+      const uniqueIds = [...new Set(ordersRaw?.map(o => o.buyer_telegram_id) || [])];
+      if (!uniqueIds.length) { await clearSession(cid); return tg.send(cid, "❌ Нет покупателей."); }
+      let ok = 0, fail = 0;
+      for (const uid of uniqueIds) {
+        try {
+          let r;
+          if (sd.photoId) {
+            r = await tg.sendPhoto(uid as number, sd.photoId as string, (sd.text as string) || "");
+          } else {
+            r = await tg.send(uid as number, sd.text as string);
+          }
+          if (r.ok) ok++; else fail++;
+        } catch { fail++; }
+      }
+      await logAction(shopId, adminId, "broadcast", "broadcast", undefined, { ok, fail, total: uniqueIds.length });
+      await clearSession(cid);
+      return tg.send(cid, `📢 <b>Рассылка завершена!</b>\n\n✅ ${ok}\n❌ ${fail}\n📊 ${uniqueIds.length}`, ikb([[btn("◀️ Меню", `s:m:${shopId}`)]]));
+    }
+    if (cmd === "bcedit") { await setSession(cid, "bc:t", shopId); return tg.send(cid, "✏️ Введите новый текст рассылки:\n\n/cancel — отмена"); }
+    if (cmd === "bccancel") { await clearSession(cid); return tg.send(cid, "❌ Рассылка отменена.", ikb([[btn("◀️ Меню", `s:m:${shopId}`)]])); }
+
+    // Reviews
+    if (cmd === "rvl") return reviewsList(tg, cid, mid, shopId, parseInt(parts[3]) || 0);
+    if (cmd === "rvf") {
+      const filter = parts[2] === shopId ? parts[3] : parts[2];
+      const page = parseInt(parts[parts.length - 1]) || 0;
+      return reviewsList(tg, cid, mid, shopId, page, filter);
+    }
+    if (cmd === "rva") {
+      const rid = parts[3];
+      await supabase().from("shop_reviews").update({ verified: true, moderation_status: "approved" }).eq("id", rid);
+      await logAction(shopId, adminId, "approve_review", "review", rid);
+      return reviewsList(tg, cid, mid, shopId, 0);
+    }
+    if (cmd === "rvr") {
+      const rid = parts[3];
+      await supabase().from("shop_reviews").update({ moderation_status: "rejected" }).eq("id", rid);
+      await logAction(shopId, adminId, "reject_review", "review", rid);
+      return reviewsList(tg, cid, mid, shopId, 0);
+    }
+    if (cmd === "rvv") {
+      const rid = parts[3];
+      const { data: r } = await supabase().from("shop_reviews").select("*").eq("id", rid).single();
+      if (!r) return;
+      const t = `⭐ <b>Отзыв</b>\n\n👤 ${esc(r.author)}\n${"⭐".repeat(r.rating)}\n\n${esc(r.text)}\n\n📅 ${new Date(r.created_at).toLocaleDateString("ru-RU")}`;
+      return tg.edit(cid, mid, t, ikb([
+        [btn("✅ Одобрить", `s:rva:${shopId}:${rid}`), btn("❌ Отклонить", `s:rvr:${shopId}:${rid}`)],
+        [btn("🗑 Удалить", `s:rvd:${shopId}:${rid}`)],
+        [btn("◀️ К отзывам", `s:rvl:${shopId}:0`)],
+      ]));
+    }
+    if (cmd === "rvd") {
+      const rid = parts[3];
+      await supabase().from("shop_reviews").delete().eq("id", rid);
+      await logAction(shopId, adminId, "delete_review", "review", rid);
+      return reviewsList(tg, cid, mid, shopId, 0);
+    }
+
+  } catch (e) {
+    console.error("Callback error:", e);
   }
 }
 
@@ -1270,13 +1241,13 @@ serve(async (req) => {
       const msgId = cb.message?.message_id;
       const data = cb.data;
       if (chatId && msgId && data && data.startsWith("s:")) {
-        const isOwner = await isShopOwner(shopId, chatId);
-        if (!isOwner) {
+        const owner = await isShopOwner(shopId, chatId);
+        if (!owner) {
           await tg.answer(cb.id, "⛔ Нет доступа");
           return new Response("ok");
         }
         try {
-          await handleCallback(tg, chatId, msgId, data, cb.id, shopId);
+          await handleCallback(tg, chatId, msgId, data, cb.id, shopId, chatId);
         } catch (cbErr) {
           console.error("seller-bot-webhook: callback error:", cbErr, "data:", data);
           try { await tg.answer(cb.id, "❌ Ошибка обработки"); } catch {}
@@ -1288,13 +1259,14 @@ serve(async (req) => {
     if (!msg) return new Response("ok");
 
     const chatId = msg.chat.id;
-    const text = (msg.text || "").trim();
+    const text = (msg.text || msg.caption || "").trim();
+    const photo = msg.photo || null;
     const firstName = msg.from?.first_name || "друг";
 
     // ─── /admin command ─────────────────────
     if (text === "/admin") {
-      const isOwner = await isShopOwner(shopId, chatId);
-      if (!isOwner) {
+      const owner = await isShopOwner(shopId, chatId);
+      if (!owner) {
         await tg.send(chatId, "⛔ У вас нет доступа к админ-панели этого магазина.");
         return new Response("ok");
       }
@@ -1304,9 +1276,9 @@ serve(async (req) => {
     }
 
     // ─── FSM text handler (admin) ───────────
-    const isOwner = await isShopOwner(shopId, chatId);
-    if (isOwner) {
-      const handled = await handleText(tg, chatId, text, shopId);
+    const owner = await isShopOwner(shopId, chatId);
+    if (owner) {
+      const handled = await handleFSM(tg, chatId, text, photo, shopId, chatId);
       if (handled) return new Response("ok");
     }
 
@@ -1349,6 +1321,15 @@ serve(async (req) => {
           ],
         },
       );
+      return new Response("ok");
+    }
+
+    // ─── /cancel ────────────────────────────
+    if (text === "/cancel") {
+      await clearSession(chatId);
+      if (owner) {
+        await tg.send(chatId, "❌ Отменено.", ikb([[btn("◀️ Меню", `s:m:${shopId}`)]]));
+      }
       return new Response("ok");
     }
 
