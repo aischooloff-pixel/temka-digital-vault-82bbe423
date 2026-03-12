@@ -33,24 +33,11 @@ function verifyAndExtractUser(initData: string, botToken: string): { id: number 
 
 async function resolveShopByHint(supabase: any, shopHint?: string) {
   if (!shopHint) return null;
-
   const normalized = String(shopHint).trim();
   if (!normalized) return null;
-
-  const { data: byId } = await supabase
-    .from("shops")
-    .select("id, bot_token_encrypted, cryptobot_token_encrypted")
-    .eq("id", normalized)
-    .maybeSingle();
-
+  const { data: byId } = await supabase.from("shops").select("id, bot_token_encrypted, cryptobot_token_encrypted").eq("id", normalized).maybeSingle();
   if (byId) return byId;
-
-  const { data: bySlug } = await supabase
-    .from("shops")
-    .select("id, bot_token_encrypted, cryptobot_token_encrypted")
-    .eq("slug", normalized)
-    .maybeSingle();
-
+  const { data: bySlug } = await supabase.from("shops").select("id, bot_token_encrypted, cryptobot_token_encrypted").eq("slug", normalized).maybeSingle();
   return bySlug || null;
 }
 
@@ -62,120 +49,68 @@ async function resolveTokens(supabase: any, shopHint?: string) {
       resolvedShopId: undefined as string | undefined,
     };
   }
-
   const ek = Deno.env.get("TOKEN_ENCRYPTION_KEY");
   if (!ek) throw new Error("Server config error");
-
   const shop = await resolveShopByHint(supabase, shopHint);
   if (!shop) throw new Error("Shop not found");
-
   const decrypt = async (enc: string | null) => {
     if (!enc) return null;
     const { data } = await supabase.rpc("decrypt_token", { p_encrypted: enc, p_key: ek });
     return data || null;
   };
-
-  const shopCryptobot = await decrypt(shop.cryptobot_token_encrypted);
   return {
     botToken: await decrypt(shop.bot_token_encrypted),
-    cryptobotToken: shopCryptobot,
+    cryptobotToken: await decrypt(shop.cryptobot_token_encrypted),
     resolvedShopId: shop.id as string,
   };
 }
 
 async function notifyTopup(botToken: string | null, telegramId: number, amount: number, newBalance: number, invoiceId: string) {
-  if (!botToken) {
-    console.warn(`[check-payment] notification skipped: bot token missing invoice=${invoiceId}`);
-    return;
-  }
-
+  if (!botToken) return;
   try {
-    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        chat_id: telegramId,
-        parse_mode: "HTML",
+        chat_id: telegramId, parse_mode: "HTML",
         text: `✅ <b>Баланс пополнен!</b>\n\n💰 Сумма: $${amount.toFixed(2)}\n💳 Новый баланс: $${Number(newBalance).toFixed(2)}`,
       }),
     });
-
-    if (!response.ok) {
-      const text = await response.text();
-      console.error(`[check-payment] notification failed invoice=${invoiceId} status=${response.status} body=${text}`);
-      return;
-    }
-
-    console.log(`[check-payment] notification sent invoice=${invoiceId}`);
   } catch (e) {
     console.error(`[check-payment] notification exception invoice=${invoiceId}:`, e);
   }
 }
 
-async function hasTopupLedgerRecord(
-  supabase: any,
-  invoiceId: string,
-  telegramId: number,
-  amount: number,
-  processedAt?: string | null,
-) {
-  const { count: taggedCount } = await supabase
-    .from("balance_history")
-    .select("id", { count: "exact", head: true })
-    .eq("telegram_id", telegramId)
-    .eq("type", "credit")
-    .ilike("comment", `%invoice:${invoiceId}%`);
-
+async function hasTopupLedgerRecord(supabase: any, table: string, invoiceId: string, telegramId: number, amount: number, processedAt?: string | null, shopId?: string | null) {
+  let query = supabase.from(table).select("id", { count: "exact", head: true })
+    .eq("telegram_id", telegramId).eq("type", "credit").ilike("comment", `%invoice:${invoiceId}%`);
+  if (shopId && table === "shop_balance_history") query = query.eq("shop_id", shopId);
+  const { count: taggedCount } = await query;
   if ((taggedCount || 0) > 0) return true;
 
   if (!processedAt) return false;
-
   const center = new Date(processedAt).getTime();
   if (!Number.isFinite(center)) return false;
-
   const from = new Date(center - 15 * 60 * 1000).toISOString();
   const to = new Date(center + 15 * 60 * 1000).toISOString();
 
-  const { count: fallbackCount } = await supabase
-    .from("balance_history")
-    .select("id", { count: "exact", head: true })
-    .eq("telegram_id", telegramId)
-    .eq("type", "credit")
-    .eq("amount", amount)
-    .gte("created_at", from)
-    .lte("created_at", to);
-
+  let fbQuery = supabase.from(table).select("id", { count: "exact", head: true })
+    .eq("telegram_id", telegramId).eq("type", "credit").eq("amount", amount)
+    .gte("created_at", from).lte("created_at", to);
+  if (shopId && table === "shop_balance_history") fbQuery = fbQuery.eq("shop_id", shopId);
+  const { count: fallbackCount } = await fbQuery;
   return (fallbackCount || 0) > 0;
 }
 
 async function markTopupProcessed(supabase: any, invoiceId: string, telegramId: number, amount: number, hasExistingRow: boolean) {
   if (hasExistingRow) {
-    const { error } = await supabase
-      .from("processed_invoices")
-      .update({
-        type: "topup",
-        order_id: null,
-        telegram_id: telegramId,
-        amount,
-        processed_at: new Date().toISOString(),
-      })
-      .eq("invoice_id", invoiceId);
-
-    if (error) throw new Error(`processed_invoices update failed: ${error.message}`);
-    console.log(`[check-payment] dedup update ok invoice=${invoiceId}`);
+    await supabase.from("processed_invoices").update({
+      type: "topup", order_id: null, telegram_id: telegramId, amount, processed_at: new Date().toISOString(),
+    }).eq("invoice_id", invoiceId);
     return;
   }
-
-  const { error } = await supabase.from("processed_invoices").insert({
-    invoice_id: invoiceId,
-    type: "topup",
-    order_id: null,
-    telegram_id: telegramId,
-    amount,
+  await supabase.from("processed_invoices").insert({
+    invoice_id: invoiceId, type: "topup", order_id: null, telegram_id: telegramId, amount,
   });
-
-  if (error) throw new Error(`processed_invoices insert failed: ${error.message}`);
-  console.log(`[check-payment] dedup insert ok invoice=${invoiceId}`);
 }
 
 async function processPaidTopup(params: {
@@ -184,83 +119,56 @@ async function processPaidTopup(params: {
   invoice: any;
   payload: any;
   telegramId: number;
+  shopId?: string | null;
 }) {
-  const { supabase, tokens, invoice, payload, telegramId } = params;
+  const { supabase, tokens, invoice, payload, telegramId, shopId } = params;
   const invoiceId = String(invoice.invoice_id);
   const topupAmount = Number(payload.amount ?? invoice.amount ?? 0);
+  if (!topupAmount || topupAmount <= 0) throw new Error("Invalid invoice amount");
 
-  if (!topupAmount || topupAmount <= 0) {
-    throw new Error("Invalid invoice amount");
-  }
+  const { data: existingProcessed } = await supabase.from("processed_invoices")
+    .select("invoice_id, type, processed_at").eq("invoice_id", invoiceId).maybeSingle();
 
-  const { data: existingProcessed, error: existingError } = await supabase
-    .from("processed_invoices")
-    .select("invoice_id, type, processed_at")
-    .eq("invoice_id", invoiceId)
-    .maybeSingle();
+  const isShopTopup = !!shopId;
+  const historyTable = isShopTopup ? "shop_balance_history" : "balance_history";
 
-  if (existingError) {
-    throw new Error(`dedup read failed: ${existingError.message}`);
-  }
-
-  const alreadyCredited = await hasTopupLedgerRecord(
-    supabase,
-    invoiceId,
-    telegramId,
-    topupAmount,
-    existingProcessed?.processed_at || null,
-  );
+  const alreadyCredited = await hasTopupLedgerRecord(supabase, historyTable, invoiceId, telegramId, topupAmount, existingProcessed?.processed_at || null, shopId);
 
   if (alreadyCredited) {
-    console.log(`[check-payment] credit_balance skipped: already credited invoice=${invoiceId}`);
     if (!existingProcessed || existingProcessed.type !== "topup") {
       await markTopupProcessed(supabase, invoiceId, telegramId, topupAmount, Boolean(existingProcessed));
     }
     return { topupStatus: "paid", paymentStatus: "paid", amount: topupAmount };
   }
 
-  if (existingProcessed) {
-    console.warn(`[check-payment] stale dedup row detected, retrying invoice=${invoiceId}`);
+  // Credit balance — tenant-scoped
+  let newBalance: number;
+  if (isShopTopup) {
+    const { data: nb, error: balanceError } = await supabase.rpc("shop_credit_balance", {
+      p_shop_id: shopId, p_telegram_id: telegramId, p_amount: topupAmount,
+    });
+    if (balanceError) throw new Error(`shop_credit_balance failed: ${balanceError.message}`);
+    newBalance = nb;
+    await supabase.from("shop_balance_history").insert({
+      shop_id: shopId, telegram_id: telegramId, amount: topupAmount, balance_after: newBalance,
+      type: "credit", comment: topupComment(invoiceId), admin_telegram_id: telegramId,
+    });
+  } else {
+    const { data: nb, error: balanceError } = await supabase.rpc("credit_balance", {
+      p_telegram_id: telegramId, p_amount: topupAmount,
+    });
+    if (balanceError) throw new Error(`credit_balance failed: ${balanceError.message}`);
+    newBalance = nb;
+    await supabase.from("balance_history").insert({
+      telegram_id: telegramId, amount: topupAmount, balance_after: newBalance,
+      type: "credit", comment: topupComment(invoiceId), admin_telegram_id: telegramId,
+    });
   }
-
-  const { data: newBalance, error: balanceError } = await supabase.rpc("credit_balance", {
-    p_telegram_id: telegramId,
-    p_amount: topupAmount,
-  });
-
-  if (balanceError) {
-    console.error(`[check-payment] credit_balance fail invoice=${invoiceId}:`, balanceError);
-    throw new Error("Failed to credit balance");
-  }
-
-  console.log(`[check-payment] credit_balance success invoice=${invoiceId} balance=${newBalance}`);
-
-  const { error: historyError } = await supabase.from("balance_history").insert({
-    telegram_id: telegramId,
-    amount: topupAmount,
-    balance_after: newBalance,
-    type: "credit",
-    comment: topupComment(invoiceId),
-    admin_telegram_id: telegramId,
-  });
-
-  if (historyError) {
-    console.error(`[check-payment] balance_history insert fail invoice=${invoiceId}:`, historyError);
-    throw new Error("Failed to write balance history");
-  }
-
-  console.log(`[check-payment] balance_history insert success invoice=${invoiceId}`);
 
   await notifyTopup(tokens.botToken, telegramId, topupAmount, Number(newBalance) || 0, invoiceId);
-
   await markTopupProcessed(supabase, invoiceId, telegramId, topupAmount, Boolean(existingProcessed));
 
-  return {
-    topupStatus: "paid",
-    paymentStatus: "paid",
-    amount: topupAmount,
-    balance: newBalance,
-  };
+  return { topupStatus: "paid", paymentStatus: "paid", amount: topupAmount, balance: newBalance };
 }
 
 async function checkTopupPayment(params: {
@@ -271,10 +179,7 @@ async function checkTopupPayment(params: {
   shopId?: string;
 }) {
   const { supabase, tokens, invoiceId, telegramId, shopId } = params;
-
-  if (!tokens.cryptobotToken) {
-    return jsonRes({ topupStatus: "awaiting", paymentStatus: "awaiting" });
-  }
+  if (!tokens.cryptobotToken) return jsonRes({ topupStatus: "awaiting", paymentStatus: "awaiting" });
 
   const response = await fetch(`${CRYPTOBOT_API_URL}/getInvoices`, {
     method: "POST",
@@ -283,37 +188,19 @@ async function checkTopupPayment(params: {
   });
 
   const data = await response.json();
-  if (!data.ok || !data.result?.items?.length) {
-    return jsonRes({ topupStatus: "awaiting", paymentStatus: "awaiting" });
-  }
+  if (!data.ok || !data.result?.items?.length) return jsonRes({ topupStatus: "awaiting", paymentStatus: "awaiting" });
 
   const invoice = data.result.items[0];
   let payload: any = {};
   try { payload = JSON.parse(invoice.payload || "{}"); } catch {}
 
-  console.log(`[check-payment] invoice payload parsed invoice=${invoiceId} type=${payload?.type || "unknown"}`);
-
-  if (payload.type !== "topup") {
-    return jsonRes({ error: "Invalid invoice type" }, 400);
-  }
-
-  if (Number(payload.telegramUserId) !== telegramId) {
-    return jsonRes({ error: "Invoice owner mismatch" }, 403);
-  }
-
-  if (shopId && (payload.shopId || null) !== shopId) {
-    return jsonRes({ error: "Invoice shop mismatch" }, 403);
-  }
+  if (payload.type !== "topup") return jsonRes({ error: "Invalid invoice type" }, 400);
+  if (Number(payload.telegramUserId) !== telegramId) return jsonRes({ error: "Invoice owner mismatch" }, 403);
+  if (shopId && (payload.shopId || null) !== shopId) return jsonRes({ error: "Invoice shop mismatch" }, 403);
 
   if (invoice.status === "paid") {
     try {
-      const result = await processPaidTopup({
-        supabase,
-        tokens,
-        invoice,
-        payload,
-        telegramId,
-      });
+      const result = await processPaidTopup({ supabase, tokens, invoice, payload, telegramId, shopId });
       return jsonRes(result);
     } catch (error) {
       console.error(`[check-payment] topup processing error invoice=${invoiceId}:`, error);
@@ -321,10 +208,7 @@ async function checkTopupPayment(params: {
     }
   }
 
-  if (invoice.status === "expired") {
-    return jsonRes({ topupStatus: "expired", paymentStatus: "expired" });
-  }
-
+  if (invoice.status === "expired") return jsonRes({ topupStatus: "expired", paymentStatus: "expired" });
   return jsonRes({ topupStatus: invoice.status || "awaiting", paymentStatus: "awaiting" });
 }
 
@@ -351,11 +235,8 @@ serve(async (req) => {
 
     if (invoiceId) {
       return await checkTopupPayment({
-        supabase,
-        tokens,
-        invoiceId: String(invoiceId),
-        telegramId: tgUser.id,
-        shopId: tokens.resolvedShopId || shopId,
+        supabase, tokens, invoiceId: String(invoiceId),
+        telegramId: tgUser.id, shopId: tokens.resolvedShopId || shopId,
       });
     }
 
@@ -369,7 +250,6 @@ serve(async (req) => {
 
     if (order.payment_status === "paid") return jsonRes({ status: order.status, paymentStatus: "paid" });
     if (!order.invoice_id) return jsonRes({ status: order.status, paymentStatus: order.payment_status });
-
     if (!tokens.cryptobotToken) return jsonRes({ status: order.status, paymentStatus: order.payment_status });
 
     // Poll CryptoBot
@@ -384,6 +264,7 @@ serve(async (req) => {
 
     const invoice = data.result.items[0];
     const telegramId = isShop ? order.buyer_telegram_id : order.telegram_id;
+    const resolvedShopId = tokens.resolvedShopId || shopId;
 
     if (invoice.status === "paid" && order.payment_status !== "paid") {
       // Idempotency
@@ -398,21 +279,25 @@ serve(async (req) => {
         .eq("id", orderId).neq("payment_status", "paid").select("id");
       if (!updatedRows?.length) return jsonRes({ status: "paid", paymentStatus: "paid" });
 
-      // Promo (platform only)
-      if (!isShop && order.promo_code) {
-        await supabase.rpc("increment_promo_usage", { p_code: order.promo_code });
+      // Promo increment
+      if (order.promo_code) {
+        if (isShop) {
+          await supabase.rpc("increment_shop_promo_usage", { p_shop_id: resolvedShopId, p_code: order.promo_code });
+        } else {
+          await supabase.rpc("increment_promo_usage", { p_code: order.promo_code });
+        }
       }
 
-      // Balance deduction
+      // Balance deduction — tenant-scoped
       const balanceUsed = Number(order.balance_used || 0);
       if (balanceUsed > 0) {
         if (isShop) {
           const { data: nb, error: be } = await supabase.rpc("shop_deduct_balance", {
-            p_shop_id: shopId, p_telegram_id: telegramId, p_amount: balanceUsed,
+            p_shop_id: resolvedShopId, p_telegram_id: telegramId, p_amount: balanceUsed,
           });
           if (!be) {
             await supabase.from("shop_balance_history").insert({
-              shop_id: shopId, telegram_id: telegramId, amount: -balanceUsed, balance_after: nb,
+              shop_id: resolvedShopId, telegram_id: telegramId, amount: -balanceUsed, balance_after: nb,
               type: "purchase", comment: `Заказ ${order.order_number}`, admin_telegram_id: telegramId,
             });
           }

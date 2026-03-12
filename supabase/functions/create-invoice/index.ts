@@ -84,10 +84,19 @@ serve(async (req) => {
     if (recentRequests && recentRequests >= 15) return jsonRes({ error: "Too many requests" }, 429);
     await supabase.from("rate_limits").insert({ identifier: String(telegramUserId), action: "create_order" });
 
-    // Check blocked
-    const { data: userProfile } = await supabase
-      .from("user_profiles").select("is_blocked, balance").eq("telegram_id", telegramUserId).maybeSingle();
-    if (userProfile?.is_blocked) return jsonRes({ error: "Account blocked" }, 403);
+    // Check blocked & balance — tenant-scoped for shops
+    let serverBalance = 0;
+    if (isShop) {
+      const { data: customer } = await supabase.from("shop_customers")
+        .select("is_blocked, balance").eq("shop_id", shopId).eq("telegram_id", telegramUserId).maybeSingle();
+      if (customer?.is_blocked) return jsonRes({ error: "Account blocked" }, 403);
+      serverBalance = Number(customer?.balance || 0);
+    } else {
+      const { data: userProfile } = await supabase
+        .from("user_profiles").select("is_blocked, balance").eq("telegram_id", telegramUserId).maybeSingle();
+      if (userProfile?.is_blocked) return jsonRes({ error: "Account blocked" }, 403);
+      serverBalance = Number(userProfile?.balance || 0);
+    }
 
     // Validate products
     let serverTotal = 0;
@@ -120,30 +129,55 @@ serve(async (req) => {
       }
     }
 
-    // Promo (platform only)
+    // Promo — tenant-scoped for shops
     let discountAmount = 0;
     let validatedPromoCode: string | null = null;
-    if (!isShop && promoCode) {
+    if (promoCode) {
       const trimmedCode = String(promoCode).trim().toUpperCase();
-      const { data: promo } = await supabase
-        .from("promocodes").select("*").eq("code", trimmedCode).eq("is_active", true).maybeSingle();
-      if (promo) {
-        const now = new Date().toISOString();
-        const isValid = (!promo.valid_from || now >= promo.valid_from) &&
-          (!promo.valid_until || now <= promo.valid_until) &&
-          (promo.max_uses === null || promo.used_count < promo.max_uses);
-        if (isValid) {
-          let perUserOk = true;
-          if (promo.max_uses_per_user) {
-            const { count } = await supabase.from("orders").select("id", { count: "exact", head: true })
-              .eq("telegram_id", telegramUserId).eq("promo_code", trimmedCode).in("payment_status", ["paid", "awaiting"]);
-            if (count !== null && count >= promo.max_uses_per_user) perUserOk = false;
+      if (isShop) {
+        const { data: promo } = await supabase.from("shop_promocodes").select("*")
+          .eq("shop_id", shopId).ilike("code", trimmedCode).eq("is_active", true).maybeSingle();
+        if (promo) {
+          const now = new Date().toISOString();
+          const isValid = (!promo.valid_from || now >= promo.valid_from) && (!promo.valid_until || now <= promo.valid_until) &&
+            (promo.max_uses === null || promo.used_count < promo.max_uses);
+          if (isValid) {
+            let perUserOk = true;
+            if (promo.max_uses_per_user) {
+              const { count } = await supabase.from("shop_orders").select("id", { count: "exact", head: true })
+                .eq("buyer_telegram_id", telegramUserId).eq("shop_id", shopId)
+                .ilike("promo_code", trimmedCode).in("payment_status", ["paid", "awaiting"]);
+              if (count !== null && count >= promo.max_uses_per_user) perUserOk = false;
+            }
+            if (perUserOk) {
+              validatedPromoCode = trimmedCode;
+              discountAmount = promo.discount_type === "percent"
+                ? serverTotal * (Number(promo.discount_value) / 100)
+                : Math.min(Number(promo.discount_value), serverTotal);
+            }
           }
-          if (perUserOk) {
-            validatedPromoCode = trimmedCode;
-            discountAmount = promo.discount_type === "percent"
-              ? serverTotal * (Number(promo.discount_value) / 100)
-              : Math.min(Number(promo.discount_value), serverTotal);
+        }
+      } else {
+        const { data: promo } = await supabase
+          .from("promocodes").select("*").eq("code", trimmedCode).eq("is_active", true).maybeSingle();
+        if (promo) {
+          const now = new Date().toISOString();
+          const isValid = (!promo.valid_from || now >= promo.valid_from) &&
+            (!promo.valid_until || now <= promo.valid_until) &&
+            (promo.max_uses === null || promo.used_count < promo.max_uses);
+          if (isValid) {
+            let perUserOk = true;
+            if (promo.max_uses_per_user) {
+              const { count } = await supabase.from("orders").select("id", { count: "exact", head: true })
+                .eq("telegram_id", telegramUserId).eq("promo_code", trimmedCode).in("payment_status", ["paid", "awaiting"]);
+              if (count !== null && count >= promo.max_uses_per_user) perUserOk = false;
+            }
+            if (perUserOk) {
+              validatedPromoCode = trimmedCode;
+              discountAmount = promo.discount_type === "percent"
+                ? serverTotal * (Number(promo.discount_value) / 100)
+                : Math.min(Number(promo.discount_value), serverTotal);
+            }
           }
         }
       }
@@ -152,7 +186,6 @@ serve(async (req) => {
     const totalAfterDiscount = Math.max(0, serverTotal - discountAmount);
 
     // Balance
-    const serverBalance = Number(userProfile?.balance || 0);
     const balanceUsed = Math.min(Math.max(0, Number(clientBalanceUsed) || 0), serverBalance, totalAfterDiscount);
     const toPay = Math.max(0, totalAfterDiscount - balanceUsed);
 
@@ -165,6 +198,7 @@ serve(async (req) => {
         order_number: orderNumber, buyer_telegram_id: telegramUserId, shop_id: shopId,
         status: "pending", payment_status: "unpaid", total_amount: serverTotal,
         currency: currency || "USD", balance_used: balanceUsed,
+        discount_amount: discountAmount, promo_code: validatedPromoCode,
       }).select().single();
       if (error) { console.error("Shop order error:", error); return jsonRes({ error: "Failed to create order" }, 500); }
       order = data;

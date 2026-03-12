@@ -14,21 +14,15 @@ function topupComment(invoiceId: string) {
 }
 
 function safeJsonParse<T = any>(raw: string, fallback: T): T {
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
+  try { return JSON.parse(raw) as T; } catch { return fallback; }
 }
 
 async function resolveShopIdByHint(supabase: any, hint: string | null): Promise<string | null> {
   if (!hint) return null;
   const normalized = String(hint).trim();
   if (!normalized) return null;
-
   const { data: byId } = await supabase.from("shops").select("id").eq("id", normalized).maybeSingle();
   if (byId?.id) return byId.id;
-
   const { data: bySlug } = await supabase.from("shops").select("id").eq("slug", normalized).maybeSingle();
   return bySlug?.id ?? null;
 }
@@ -36,106 +30,58 @@ async function resolveShopIdByHint(supabase: any, hint: string | null): Promise<
 async function decryptShopToken(supabase: any, shopId: string, field: "cryptobot_token_encrypted" | "bot_token_encrypted") {
   const encryptionKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
   if (!encryptionKey) return null;
-
   const { data: shop } = await supabase.from("shops").select(field).eq("id", shopId).maybeSingle();
   const encrypted = shop?.[field];
   if (!encrypted) return null;
-
   const { data } = await supabase.rpc("decrypt_token", { p_encrypted: encrypted, p_key: encryptionKey });
   return data || null;
 }
 
-async function hasTopupLedgerRecord(
-  supabase: any,
-  invoiceId: string,
-  telegramUserId: number,
-  topupAmount: number,
-  processedAt?: string | null,
-) {
-  const { count: taggedCount } = await supabase
-    .from("balance_history")
-    .select("id", { count: "exact", head: true })
-    .eq("telegram_id", telegramUserId)
-    .eq("type", "credit")
-    .ilike("comment", `%invoice:${invoiceId}%`);
-
+async function hasTopupLedgerRecord(supabase: any, table: string, invoiceId: string, telegramUserId: number, topupAmount: number, processedAt?: string | null, shopId?: string | null) {
+  let query = supabase.from(table).select("id", { count: "exact", head: true })
+    .eq("telegram_id", telegramUserId).eq("type", "credit").ilike("comment", `%invoice:${invoiceId}%`);
+  if (shopId && table === "shop_balance_history") query = query.eq("shop_id", shopId);
+  const { count: taggedCount } = await query;
   if ((taggedCount || 0) > 0) return true;
 
   if (!processedAt) return false;
-
   const center = new Date(processedAt).getTime();
   if (!Number.isFinite(center)) return false;
-
   const from = new Date(center - 15 * 60 * 1000).toISOString();
   const to = new Date(center + 15 * 60 * 1000).toISOString();
 
-  const { count: fallbackCount } = await supabase
-    .from("balance_history")
-    .select("id", { count: "exact", head: true })
-    .eq("telegram_id", telegramUserId)
-    .eq("type", "credit")
-    .eq("amount", topupAmount)
-    .gte("created_at", from)
-    .lte("created_at", to);
-
+  let fbQuery = supabase.from(table).select("id", { count: "exact", head: true })
+    .eq("telegram_id", telegramUserId).eq("type", "credit").eq("amount", topupAmount)
+    .gte("created_at", from).lte("created_at", to);
+  if (shopId && table === "shop_balance_history") fbQuery = fbQuery.eq("shop_id", shopId);
+  const { count: fallbackCount } = await fbQuery;
   return (fallbackCount || 0) > 0;
 }
 
 async function markTopupProcessed(supabase: any, invoiceId: string, telegramUserId: number, topupAmount: number, hasExistingRow: boolean) {
   if (hasExistingRow) {
-    const { error } = await supabase
-      .from("processed_invoices")
-      .update({
-        type: "topup",
-        telegram_id: telegramUserId,
-        amount: topupAmount,
-        order_id: null,
-        processed_at: new Date().toISOString(),
-      })
-      .eq("invoice_id", invoiceId);
-    if (error) throw new Error(`processed_invoices update failed: ${error.message}`);
-    console.log(`[cryptobot-webhook] dedup update ok invoice=${invoiceId}`);
+    await supabase.from("processed_invoices").update({
+      type: "topup", telegram_id: telegramUserId, amount: topupAmount, order_id: null, processed_at: new Date().toISOString(),
+    }).eq("invoice_id", invoiceId);
     return;
   }
-
-  const { error } = await supabase.from("processed_invoices").insert({
-    invoice_id: invoiceId,
-    type: "topup",
-    order_id: null,
-    telegram_id: telegramUserId,
-    amount: topupAmount,
+  await supabase.from("processed_invoices").insert({
+    invoice_id: invoiceId, type: "topup", order_id: null, telegram_id: telegramUserId, amount: topupAmount,
   });
-
-  if (error) throw new Error(`processed_invoices insert failed: ${error.message}`);
-  console.log(`[cryptobot-webhook] dedup insert ok invoice=${invoiceId}`);
 }
 
 async function sendTopupNotification(botToken: string | null, telegramUserId: number, topupAmount: number, newBalance: number, invoiceId: string) {
-  if (!botToken) {
-    console.warn(`[cryptobot-webhook] notification skipped: bot token missing invoice=${invoiceId}`);
-    return;
-  }
-
+  if (!botToken) return;
   try {
-    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        chat_id: telegramUserId,
-        parse_mode: "HTML",
+        chat_id: telegramUserId, parse_mode: "HTML",
         text: `✅ <b>Баланс пополнен!</b>\n\n💰 Сумма: $${topupAmount.toFixed(2)}\n💳 Новый баланс: $${Number(newBalance).toFixed(2)}`,
       }),
     });
-
-    if (!response.ok) {
-      const text = await response.text();
-      console.error(`[cryptobot-webhook] notification failed invoice=${invoiceId} status=${response.status} body=${text}`);
-      return;
-    }
-
-    console.log(`[cryptobot-webhook] notification sent invoice=${invoiceId}`);
   } catch (error) {
-    console.error(`[cryptobot-webhook] notification send exception invoice=${invoiceId}:`, error);
+    console.error(`[cryptobot-webhook] notification exception invoice=${invoiceId}:`, error);
   }
 }
 
@@ -143,25 +89,20 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    console.log(`[cryptobot-webhook] webhook received method=${req.method}`);
-
     const body = await req.text();
     const signature = req.headers.get("crypto-pay-api-signature");
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     const parsedBody = safeJsonParse<any>(body, null);
     if (!parsedBody) {
-      console.error("[cryptobot-webhook] invoice payload parsed: fail (invalid json)");
       return new Response(JSON.stringify({ error: "Invalid payload" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     let orderData: any = {};
     if (parsedBody.update_type === "invoice_paid") {
       orderData = safeJsonParse(parsedBody?.payload?.payload || "{}", {});
-      console.log(`[cryptobot-webhook] invoice payload parsed: ok type=${orderData?.type || "unknown"}`);
     }
 
     const shopHint = orderData?.shopId || orderData?.shopSlug || null;
@@ -172,28 +113,20 @@ serve(async (req) => {
 
     if (platformToken && signature) {
       const secret = createHash("sha256").update(platformToken).digest();
-      if (createHmac("sha256", secret).update(body).digest("hex") === signature) {
-        verified = true;
-      }
+      if (createHmac("sha256", secret).update(body).digest("hex") === signature) verified = true;
     }
 
     if (!verified && shopId && signature) {
       const shopToken = await decryptShopToken(supabase, shopId, "cryptobot_token_encrypted");
       if (shopToken) {
         const secret = createHash("sha256").update(shopToken).digest();
-        if (createHmac("sha256", secret).update(body).digest("hex") === signature) {
-          verified = true;
-        }
+        if (createHmac("sha256", secret).update(body).digest("hex") === signature) verified = true;
       }
     }
 
-    console.log(`[cryptobot-webhook] signature ${verified ? "valid" : "invalid"}`);
-
     if (!verified) {
-      console.error("[cryptobot-webhook] invalid signature");
       return new Response(JSON.stringify({ error: "Invalid signature" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -205,21 +138,12 @@ serve(async (req) => {
         await handleTopup(supabase, orderData, invoiceId, shopId);
       } else {
         const { error: dedupError } = await supabase.from("processed_invoices").insert({
-          invoice_id: invoiceId,
-          type: orderData.type === "topup" ? "topup" : "payment",
-          order_id: orderData.orderId || null,
-          telegram_id: orderData.telegramUserId || null,
-          amount: Number(invoice.amount) || 0,
+          invoice_id: invoiceId, type: "payment", order_id: orderData.orderId || null,
+          telegram_id: orderData.telegramUserId || null, amount: Number(invoice.amount) || 0,
         });
-
         if (dedupError) {
-          console.log(`[cryptobot-webhook] dedup insert skipped/already processed invoice=${invoiceId} error=${dedupError.message}`);
-          return new Response(JSON.stringify({ ok: true }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+          return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
-
-        console.log(`[cryptobot-webhook] dedup insert ok invoice=${invoiceId}`);
 
         if (shopId && orderData.orderId) {
           await handleShopOrderPayment(supabase, invoice, orderData, shopId);
@@ -229,93 +153,65 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ ok: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error: any) {
     console.error("[cryptobot-webhook] webhook error:", error?.message || error);
     return new Response(JSON.stringify({ error: "Internal error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
 
-// ─── Topup handler (tenant-aware, retry-safe) ─────────────
+// ─── Topup handler (tenant-aware) ─────────────
 async function handleTopup(supabase: any, orderData: any, invoiceId: string, topupShopId: string | null) {
   const topupAmount = Number(orderData.amount);
   const telegramUserId = Number(orderData.telegramUserId);
+  if (!telegramUserId || !topupAmount || topupAmount <= 0) throw new Error(`[topup] invalid payload invoice=${invoiceId}`);
 
-  if (!telegramUserId || !topupAmount || topupAmount <= 0) {
-    throw new Error(`[topup] invalid payload invoice=${invoiceId}`);
-  }
+  const { data: existingProcessed } = await supabase.from("processed_invoices")
+    .select("invoice_id, type, processed_at").eq("invoice_id", invoiceId).maybeSingle();
 
-  const { data: existingProcessed, error: existingProcessedError } = await supabase
-    .from("processed_invoices")
-    .select("invoice_id, type, processed_at")
-    .eq("invoice_id", invoiceId)
-    .maybeSingle();
+  const isShopTopup = !!topupShopId;
+  const historyTable = isShopTopup ? "shop_balance_history" : "balance_history";
 
-  if (existingProcessedError) {
-    throw new Error(`[topup] failed to read dedup row invoice=${invoiceId}: ${existingProcessedError.message}`);
-  }
-
-  const alreadyCredited = await hasTopupLedgerRecord(
-    supabase,
-    invoiceId,
-    telegramUserId,
-    topupAmount,
-    existingProcessed?.processed_at || null,
-  );
+  const alreadyCredited = await hasTopupLedgerRecord(supabase, historyTable, invoiceId, telegramUserId, topupAmount, existingProcessed?.processed_at || null, topupShopId);
 
   if (alreadyCredited) {
-    console.log(`[cryptobot-webhook] credit_balance skipped: already credited invoice=${invoiceId}`);
     if (!existingProcessed || existingProcessed.type !== "topup") {
       await markTopupProcessed(supabase, invoiceId, telegramUserId, topupAmount, Boolean(existingProcessed));
     }
     return;
   }
 
-  if (existingProcessed) {
-    console.warn(`[cryptobot-webhook] stale dedup row detected, retrying invoice=${invoiceId}`);
+  // Credit balance — tenant-scoped
+  let newBalance: number;
+  if (isShopTopup) {
+    const { data: nb, error: creditError } = await supabase.rpc("shop_credit_balance", {
+      p_shop_id: topupShopId, p_telegram_id: telegramUserId, p_amount: topupAmount,
+    });
+    if (creditError) throw new Error(`shop_credit_balance failed: ${creditError.message}`);
+    newBalance = nb;
+    await supabase.from("shop_balance_history").insert({
+      shop_id: topupShopId, telegram_id: telegramUserId, amount: topupAmount, balance_after: newBalance,
+      type: "credit", comment: topupComment(invoiceId), admin_telegram_id: telegramUserId,
+    });
+  } else {
+    const { data: nb, error: creditError } = await supabase.rpc("credit_balance", {
+      p_telegram_id: telegramUserId, p_amount: topupAmount,
+    });
+    if (creditError) throw new Error(`credit_balance failed: ${creditError.message}`);
+    newBalance = nb;
+    await supabase.from("balance_history").insert({
+      telegram_id: telegramUserId, amount: topupAmount, balance_after: newBalance,
+      type: "credit", comment: topupComment(invoiceId), admin_telegram_id: telegramUserId,
+    });
   }
-
-  const { data: newBalance, error: creditError } = await supabase.rpc("credit_balance", {
-    p_telegram_id: telegramUserId,
-    p_amount: topupAmount,
-  });
-
-  if (creditError) {
-    console.error(`[cryptobot-webhook] credit_balance fail invoice=${invoiceId}: ${creditError.message}`);
-    throw new Error(`credit_balance failed: ${creditError.message}`);
-  }
-
-  console.log(`[cryptobot-webhook] credit_balance success invoice=${invoiceId} balance=${newBalance}`);
-
-  const { error: historyError } = await supabase.from("balance_history").insert({
-    telegram_id: telegramUserId,
-    amount: topupAmount,
-    balance_after: newBalance,
-    type: "credit",
-    comment: topupComment(invoiceId),
-    admin_telegram_id: telegramUserId,
-  });
-
-  if (historyError) {
-    console.error(`[cryptobot-webhook] balance_history insert fail invoice=${invoiceId}: ${historyError.message}`);
-    throw new Error(`balance_history insert failed: ${historyError.message}`);
-  }
-
-  console.log(`[cryptobot-webhook] balance_history insert success invoice=${invoiceId}`);
 
   let botToken: string | null = null;
-  if (topupShopId) {
-    botToken = await decryptShopToken(supabase, topupShopId, "bot_token_encrypted");
-  }
+  if (isShopTopup) botToken = await decryptShopToken(supabase, topupShopId, "bot_token_encrypted");
   if (!botToken) botToken = Deno.env.get("TELEGRAM_BOT_TOKEN") || null;
 
   await sendTopupNotification(botToken, telegramUserId, topupAmount, Number(newBalance), invoiceId);
-
   await markTopupProcessed(supabase, invoiceId, telegramUserId, topupAmount, Boolean(existingProcessed));
 }
 
@@ -345,10 +241,10 @@ async function handleOrderPayment(supabase: any, invoice: any, orderData: any) {
   await deliverInventory(supabase, orderData.orderId, "order_items", "product_title", "reserve_inventory", "inventory_items", "products", order.telegram_id, order.order_number, balanceUsed, invoice, Deno.env.get("TELEGRAM_BOT_TOKEN"), "orders");
 }
 
-// ─── Shop order payment ─────────────────────────
+// ─── Shop order payment (tenant-scoped balance) ──
 async function handleShopOrderPayment(supabase: any, invoice: any, orderData: any, shopId: string) {
   const { data: order } = await supabase.from("shop_orders")
-    .select("id, status, payment_status, balance_used, buyer_telegram_id, order_number, shop_id")
+    .select("id, status, payment_status, balance_used, buyer_telegram_id, order_number, shop_id, promo_code")
     .eq("id", orderData.orderId).single();
   if (!order || order.payment_status === "paid") return;
 
@@ -357,17 +253,23 @@ async function handleShopOrderPayment(supabase: any, invoice: any, orderData: an
     .eq("id", orderData.orderId).neq("payment_status", "paid").select("id");
   if (!updatedRows?.length) return;
 
+  // Shop promo increment
+  if (order.promo_code) {
+    await supabase.rpc("increment_shop_promo_usage", { p_shop_id: shopId, p_code: order.promo_code });
+  }
+
   const balanceUsed = Number(order.balance_used || 0);
   if (balanceUsed > 0) {
-    const { data: nb, error: be } = await supabase.rpc("deduct_balance", { p_telegram_id: order.buyer_telegram_id, p_amount: balanceUsed });
-    if (!be) await supabase.from("balance_history").insert({
-      telegram_id: order.buyer_telegram_id, amount: -balanceUsed, balance_after: nb,
+    const { data: nb, error: be } = await supabase.rpc("shop_deduct_balance", {
+      p_shop_id: shopId, p_telegram_id: order.buyer_telegram_id, p_amount: balanceUsed,
+    });
+    if (!be) await supabase.from("shop_balance_history").insert({
+      shop_id: shopId, telegram_id: order.buyer_telegram_id, amount: -balanceUsed, balance_after: nb,
       type: "purchase", comment: `Заказ ${order.order_number}`, admin_telegram_id: order.buyer_telegram_id,
     });
   }
 
   const botToken = await decryptShopToken(supabase, shopId, "bot_token_encrypted");
-
   await deliverInventory(supabase, orderData.orderId, "shop_order_items", "product_name", "reserve_shop_inventory", "shop_inventory", "shop_products", order.buyer_telegram_id, order.order_number, balanceUsed, invoice, botToken, "shop_orders");
 }
 

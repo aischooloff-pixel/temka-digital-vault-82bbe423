@@ -865,11 +865,13 @@ export type Database = {
           buyer_telegram_id: number
           created_at: string
           currency: string
+          discount_amount: number
           id: string
           invoice_id: string | null
           order_number: string
           pay_url: string | null
           payment_status: string
+          promo_code: string | null
           shop_id: string
           status: string
           total_amount: number
@@ -880,11 +882,13 @@ export type Database = {
           buyer_telegram_id: number
           created_at?: string
           currency?: string
+          discount_amount?: number
           id?: string
           invoice_id?: string | null
           order_number: string
           pay_url?: string | null
           payment_status?: string
+          promo_code?: string | null
           shop_id: string
           status?: string
           total_amount?: number
@@ -895,11 +899,13 @@ export type Database = {
           buyer_telegram_id?: number
           created_at?: string
           currency?: string
+          discount_amount?: number
           id?: string
           invoice_id?: string | null
           order_number?: string
           pay_url?: string | null
           payment_status?: string
+          promo_code?: string | null
           shop_id?: string
           status?: string
           total_amount?: number
@@ -1403,6 +1409,10 @@ export type Database = {
         Returns: string
       }
       increment_promo_usage: { Args: { p_code: string }; Returns: undefined }
+      increment_shop_promo_usage: {
+        Args: { p_code: string; p_shop_id: string }
+        Returns: undefined
+      }
       reserve_inventory: {
         Args: { p_order_id: string; p_product_id: string; p_quantity: number }
         Returns: {

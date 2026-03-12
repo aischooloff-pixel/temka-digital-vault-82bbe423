@@ -64,10 +64,20 @@ serve(async (req) => {
     if (count && count >= 15) return jsonRes({ error: "Too many requests" }, 429);
     await supabase.from("rate_limits").insert({ identifier: String(telegramUserId), action: "create_order" });
 
-    // User profile
-    const { data: profile } = await supabase.from("user_profiles").select("balance, is_blocked").eq("telegram_id", telegramUserId).single();
-    if (!profile) return jsonRes({ error: "User not found" }, 400);
-    if (profile.is_blocked) return jsonRes({ error: "Account blocked" }, 403);
+    // User profile — tenant-scoped for shops
+    let balance = 0;
+    if (isShop) {
+      const { data: customer } = await supabase.from("shop_customers")
+        .select("balance, is_blocked").eq("shop_id", shopId).eq("telegram_id", telegramUserId).maybeSingle();
+      if (customer?.is_blocked) return jsonRes({ error: "Account blocked" }, 403);
+      balance = Number(customer?.balance || 0);
+    } else {
+      const { data: profile } = await supabase.from("user_profiles")
+        .select("balance, is_blocked").eq("telegram_id", telegramUserId).single();
+      if (!profile) return jsonRes({ error: "User not found" }, 400);
+      if (profile.is_blocked) return jsonRes({ error: "Account blocked" }, 403);
+      balance = Number(profile.balance || 0);
+    }
 
     // Validate products
     let serverTotal = 0;
@@ -94,34 +104,58 @@ serve(async (req) => {
       }
     }
 
-    // Promo (platform only)
+    // Promo — tenant-scoped for shops
     let discountAmount = 0;
     let validatedPromoCode: string | null = null;
-    if (!isShop && promoCode) {
+    if (promoCode) {
       const trimmedCode = String(promoCode).trim().toUpperCase();
-      const { data: promo } = await supabase.from("promocodes").select("*").eq("code", trimmedCode).eq("is_active", true).maybeSingle();
-      if (promo) {
-        const now = new Date().toISOString();
-        const isValid = (!promo.valid_from || now >= promo.valid_from) && (!promo.valid_until || now <= promo.valid_until) &&
-          (promo.max_uses === null || promo.used_count < promo.max_uses);
-        if (isValid) {
-          let perUserOk = true;
-          if (promo.max_uses_per_user) {
-            const { count: c } = await supabase.from("orders").select("id", { count: "exact", head: true })
-              .eq("telegram_id", telegramUserId).eq("promo_code", trimmedCode).in("payment_status", ["paid", "awaiting"]);
-            if (c !== null && c >= promo.max_uses_per_user) perUserOk = false;
+      if (isShop) {
+        const { data: promo } = await supabase.from("shop_promocodes").select("*")
+          .eq("shop_id", shopId).ilike("code", trimmedCode).eq("is_active", true).maybeSingle();
+        if (promo) {
+          const now = new Date().toISOString();
+          const isValid = (!promo.valid_from || now >= promo.valid_from) && (!promo.valid_until || now <= promo.valid_until) &&
+            (promo.max_uses === null || promo.used_count < promo.max_uses);
+          if (isValid) {
+            let perUserOk = true;
+            if (promo.max_uses_per_user) {
+              const { count: c } = await supabase.from("shop_orders").select("id", { count: "exact", head: true })
+                .eq("buyer_telegram_id", telegramUserId).eq("shop_id", shopId)
+                .ilike("promo_code", trimmedCode).in("payment_status", ["paid", "awaiting"]);
+              if (c !== null && c >= promo.max_uses_per_user) perUserOk = false;
+            }
+            if (perUserOk) {
+              validatedPromoCode = trimmedCode;
+              discountAmount = promo.discount_type === "percent"
+                ? serverTotal * (Number(promo.discount_value) / 100) : Math.min(Number(promo.discount_value), serverTotal);
+            }
           }
-          if (perUserOk) {
-            validatedPromoCode = trimmedCode;
-            discountAmount = promo.discount_type === "percent"
-              ? serverTotal * (Number(promo.discount_value) / 100) : Math.min(Number(promo.discount_value), serverTotal);
+        }
+      } else {
+        const { data: promo } = await supabase.from("promocodes").select("*").eq("code", trimmedCode).eq("is_active", true).maybeSingle();
+        if (promo) {
+          const now = new Date().toISOString();
+          const isValid = (!promo.valid_from || now >= promo.valid_from) && (!promo.valid_until || now <= promo.valid_until) &&
+            (promo.max_uses === null || promo.used_count < promo.max_uses);
+          if (isValid) {
+            let perUserOk = true;
+            if (promo.max_uses_per_user) {
+              const { count: c } = await supabase.from("orders").select("id", { count: "exact", head: true })
+                .eq("telegram_id", telegramUserId).eq("promo_code", trimmedCode).in("payment_status", ["paid", "awaiting"]);
+              if (c !== null && c >= promo.max_uses_per_user) perUserOk = false;
+            }
+            if (perUserOk) {
+              validatedPromoCode = trimmedCode;
+              discountAmount = promo.discount_type === "percent"
+                ? serverTotal * (Number(promo.discount_value) / 100) : Math.min(Number(promo.discount_value), serverTotal);
+            }
           }
         }
       }
     }
 
     const totalAfterDiscount = Math.max(0, serverTotal - discountAmount);
-    if (Number(profile.balance) < totalAfterDiscount) return jsonRes({ error: "Insufficient balance" }, 400);
+    if (balance < totalAfterDiscount) return jsonRes({ error: "Insufficient balance" }, 400);
     const balanceUsed = totalAfterDiscount;
 
     // Create order
@@ -131,6 +165,7 @@ serve(async (req) => {
         order_number: orderNumber, buyer_telegram_id: telegramUserId, shop_id: shopId,
         status: "paid", payment_status: "paid", total_amount: serverTotal,
         currency: "USD", balance_used: balanceUsed,
+        discount_amount: discountAmount, promo_code: validatedPromoCode,
       }).select().single();
       if (error) { console.error("Shop order error:", error); return jsonRes({ error: "Failed to create order" }, 500); }
       order = data;
@@ -152,23 +187,43 @@ serve(async (req) => {
       })));
     }
 
-    // Deduct balance
-    const { data: newBalance, error: balError } = await supabase.rpc("deduct_balance", {
-      p_telegram_id: telegramUserId, p_amount: balanceUsed,
-    });
-    if (balError) {
-      const table = isShop ? "shop_orders" : "orders";
-      await supabase.from(table).delete().eq("id", order.id);
-      return jsonRes({ error: "Insufficient balance" }, 400);
+    // Deduct balance — tenant-scoped for shops
+    let newBalance: number;
+    if (isShop) {
+      const { data: nb, error: balError } = await supabase.rpc("shop_deduct_balance", {
+        p_shop_id: shopId, p_telegram_id: telegramUserId, p_amount: balanceUsed,
+      });
+      if (balError) {
+        await supabase.from("shop_orders").delete().eq("id", order.id);
+        return jsonRes({ error: "Insufficient balance" }, 400);
+      }
+      newBalance = nb;
+      await supabase.from("shop_balance_history").insert({
+        shop_id: shopId, telegram_id: telegramUserId, amount: -balanceUsed, balance_after: newBalance,
+        type: "purchase", comment: `Заказ ${orderNumber}`, admin_telegram_id: telegramUserId,
+      });
+    } else {
+      const { data: nb, error: balError } = await supabase.rpc("deduct_balance", {
+        p_telegram_id: telegramUserId, p_amount: balanceUsed,
+      });
+      if (balError) {
+        await supabase.from("orders").delete().eq("id", order.id);
+        return jsonRes({ error: "Insufficient balance" }, 400);
+      }
+      newBalance = nb;
+      await supabase.from("balance_history").insert({
+        telegram_id: telegramUserId, amount: -balanceUsed, balance_after: newBalance,
+        type: "purchase", comment: `Заказ ${orderNumber}`, admin_telegram_id: telegramUserId,
+      });
     }
 
-    await supabase.from("balance_history").insert({
-      telegram_id: telegramUserId, amount: -balanceUsed, balance_after: newBalance,
-      type: "purchase", comment: `Заказ ${orderNumber}`, admin_telegram_id: telegramUserId,
-    });
-
-    if (!isShop && validatedPromoCode) {
-      await supabase.rpc("increment_promo_usage", { p_code: validatedPromoCode });
+    // Promo usage increment
+    if (validatedPromoCode) {
+      if (isShop) {
+        await supabase.rpc("increment_shop_promo_usage", { p_shop_id: shopId, p_code: validatedPromoCode });
+      } else {
+        await supabase.rpc("increment_promo_usage", { p_code: validatedPromoCode });
+      }
     }
 
     // Auto-deliver inventory
