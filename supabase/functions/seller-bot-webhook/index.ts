@@ -898,7 +898,7 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, val: string, ph
 // ═══════════════════════════════════════════════
 // CALLBACK HANDLER
 // ═══════════════════════════════════════════════
-async function handleCallback(tg: ReturnType<typeof TG>, cid: number, mid: number, data: string, cbId: string, shopId: string, adminId: number) {
+async function handleCallback(tg: ReturnType<typeof TG>, cid: number, mid: number, data: string, cbId: string, shopId: string, adminId: number, botToken?: string) {
   // Format: s:<cmd>:<arg1>:<arg2>:... — NO shopId in callback_data
   const parts = data.split(":");
   const cmd = parts[1];
