@@ -406,14 +406,26 @@ serve(async (req) => {
       // Balance deduction
       const balanceUsed = Number(order.balance_used || 0);
       if (balanceUsed > 0) {
-        const { data: newBalance, error: balErr } = await supabase.rpc("deduct_balance", {
-          p_telegram_id: telegramId, p_amount: balanceUsed,
-        });
-        if (!balErr) {
-          await supabase.from("balance_history").insert({
-            telegram_id: telegramId, amount: -balanceUsed, balance_after: newBalance,
-            type: "purchase", comment: `Заказ ${order.order_number}`, admin_telegram_id: telegramId,
+        if (isShop) {
+          const { data: nb, error: be } = await supabase.rpc("shop_deduct_balance", {
+            p_shop_id: shopId, p_telegram_id: telegramId, p_amount: balanceUsed,
           });
+          if (!be) {
+            await supabase.from("shop_balance_history").insert({
+              shop_id: shopId, telegram_id: telegramId, amount: -balanceUsed, balance_after: nb,
+              type: "purchase", comment: `Заказ ${order.order_number}`, admin_telegram_id: telegramId,
+            });
+          }
+        } else {
+          const { data: nb, error: be } = await supabase.rpc("deduct_balance", {
+            p_telegram_id: telegramId, p_amount: balanceUsed,
+          });
+          if (!be) {
+            await supabase.from("balance_history").insert({
+              telegram_id: telegramId, amount: -balanceUsed, balance_after: nb,
+              type: "purchase", comment: `Заказ ${order.order_number}`, admin_telegram_id: telegramId,
+            });
+          }
         }
       }
 
