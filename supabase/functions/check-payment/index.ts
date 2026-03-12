@@ -78,7 +78,7 @@ async function resolveTokens(supabase: any, shopHint?: string) {
   const shopCryptobot = await decrypt(shop.cryptobot_token_encrypted);
   return {
     botToken: await decrypt(shop.bot_token_encrypted),
-    cryptobotToken: shopCryptobot || Deno.env.get("CRYPTOBOT_API_TOKEN") || null,
+    cryptobotToken: shopCryptobot,
     resolvedShopId: shop.id as string,
   };
 }
