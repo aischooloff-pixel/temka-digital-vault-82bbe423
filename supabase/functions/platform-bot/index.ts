@@ -405,6 +405,13 @@ async function shopSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     }
   }
 
+  let opStatus = "❌ выключена";
+  if (shop.is_subscription_required) {
+    opStatus = shop.required_channel_id
+      ? `✅ включена (${shop.required_channel_link || shop.required_channel_id})`
+      : "⚠️ включена, канал не указан";
+  }
+
   const text =
     `⚙️ <b>Настройки: ${esc(shop.name)}</b>\n\n` +
     `📛 Название: ${esc(shop.name)}\n` +
@@ -414,7 +421,8 @@ async function shopSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     `👋 Приветствие: ${shop.welcome_message ? esc(shop.welcome_message.slice(0, 50)) + "…" : "—"}\n` +
     `🔗 Поддержка: ${shop.support_link || "—"}\n` +
     `🤖 Бот: ${botStatus}\n` +
-    `💰 CryptoBot: ${shop.cryptobot_token_encrypted ? "✅ подключён" : "❌ не подключён"}`;
+    `💰 CryptoBot: ${shop.cryptobot_token_encrypted ? "✅ подключён" : "❌ не подключён"}\n` +
+    `📢 ОП: ${opStatus}`;
 
   return tg.edit(chatId, msgId, text, ikb([
     [btn("✏️ Название", `p:edit:${shopId}:name`), btn("🎨 Цвет", `p:edit:${shopId}:color`)],
@@ -422,6 +430,7 @@ async function shopSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     [btn("📝 Описание витрины", `p:edit:${shopId}:hero_desc`)],
     [btn("👋 Приветствие", `p:edit:${shopId}:welcome`), btn("🔗 Поддержка", `p:edit:${shopId}:support`)],
     [btn("🤖 Токен бота", `p:setbot:${shopId}`), btn("💰 CryptoBot", `p:setcb:${shopId}`)],
+    [btn(`📢 ОП ${shop.is_subscription_required ? "✅" : "❌"}`, `p:opsettings:${shopId}`)],
     [btn("◀️ К магазину", `p:shop:${shopId}`)],
   ]));
 }
@@ -841,6 +850,34 @@ async function handleText(tg: ReturnType<typeof TG>, chatId: number, text: strin
     await clearSession(chatId);
     return tg.send(chatId, "✅ CryptoBot-токен сохранён!", ikb([[btn("◀️ К настройкам", `p:settings:${shopId}`)]]));
   }
+
+  // ─── Set OP channel ───────────────────────
+  if (state === "set_op_channel") {
+    const shopId = sData.shop_id as string;
+    const channelInput = val.trim();
+    // Accept @username or t.me link or chat_id
+    let channelId = channelInput;
+    let channelLink = channelInput;
+    if (channelInput.startsWith("https://t.me/")) {
+      channelId = "@" + channelInput.replace("https://t.me/", "").split("/")[0];
+      channelLink = channelInput;
+    } else if (channelInput.startsWith("@")) {
+      channelId = channelInput;
+      channelLink = `https://t.me/${channelInput.slice(1)}`;
+    } else if (/^-?\d+$/.test(channelInput)) {
+      channelId = channelInput;
+      channelLink = "";
+    } else {
+      return tg.send(chatId, "❌ Введите @username канала, ссылку https://t.me/... или числовой ID:");
+    }
+    await db().from("shops").update({
+      required_channel_id: channelId,
+      required_channel_link: channelLink,
+      updated_at: new Date().toISOString(),
+    }).eq("id", shopId);
+    await clearSession(chatId);
+    return tg.send(chatId, `✅ Канал установлен: ${esc(channelId)}`, ikb([[btn("◀️ Настройки ОП", `p:opsettings:${shopId}`)]]));
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -967,7 +1004,89 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
     );
   }
 
-  // Toggle shop
+  // ─── OP settings ──────────────────────────
+  if (cmd === "opsettings") {
+    const shopId = parts[2];
+    const { data: s } = await db().from("shops").select("is_subscription_required, required_channel_link, required_channel_id").eq("id", shopId).single();
+    const enabled = s?.is_subscription_required || false;
+    const ch = s?.required_channel_id || "не указан";
+    const lnk = s?.required_channel_link || "—";
+    const text =
+      `📢 <b>Обязательная подписка (ОП)</b>\n\n` +
+      `Статус: ${enabled ? "✅ Включена" : "❌ Выключена"}\n` +
+      `Канал: <b>${esc(ch)}</b>\n` +
+      `Ссылка: ${lnk}\n\n` +
+      `Когда включена — пользователь должен подписаться на канал, чтобы получить доступ к магазину.`;
+    return tg.edit(chatId, msgId, text, ikb([
+      [btn(enabled ? "🔴 Выключить" : "🟢 Включить", `p:optoggle:${shopId}`)],
+      [btn("📢 Указать канал", `p:opsetc:${shopId}`)],
+      [btn("🧪 Тест подключения", `p:optest:${shopId}`)],
+      [btn("◀️ К настройкам", `p:settings:${shopId}`)],
+    ]));
+  }
+  if (cmd === "optoggle") {
+    const shopId = parts[2];
+    const { data: s } = await db().from("shops").select("is_subscription_required").eq("id", shopId).single();
+    const newVal = !(s?.is_subscription_required);
+    await db().from("shops").update({ is_subscription_required: newVal, updated_at: new Date().toISOString() }).eq("id", shopId);
+    // Re-render
+    const { data: s2 } = await db().from("shops").select("is_subscription_required, required_channel_link, required_channel_id").eq("id", shopId).single();
+    const enabled = s2?.is_subscription_required || false;
+    const ch = s2?.required_channel_id || "не указан";
+    const lnk = s2?.required_channel_link || "—";
+    const text =
+      `📢 <b>Обязательная подписка (ОП)</b>\n\n` +
+      `Статус: ${enabled ? "✅ Включена" : "❌ Выключена"}\n` +
+      `Канал: <b>${esc(ch)}</b>\n` +
+      `Ссылка: ${lnk}`;
+    return tg.edit(chatId, msgId, text, ikb([
+      [btn(enabled ? "🔴 Выключить" : "🟢 Включить", `p:optoggle:${shopId}`)],
+      [btn("📢 Указать канал", `p:opsetc:${shopId}`)],
+      [btn("🧪 Тест подключения", `p:optest:${shopId}`)],
+      [btn("◀️ К настройкам", `p:settings:${shopId}`)],
+    ]));
+  }
+  if (cmd === "opsetc") {
+    const shopId = parts[2];
+    await setSession(chatId, "set_op_channel", { shop_id: shopId });
+    return tg.edit(chatId, msgId,
+      `📢 <b>Укажите канал</b>\n\nОтправьте:\n• @username канала\n• Ссылку https://t.me/channel\n• Или числовой ID канала\n\n⚠️ Бот магазина должен быть добавлен в канал как администратор.`,
+      ikb([[btn("❌ Отмена", `p:opsettings:${shopId}`)]]),
+    );
+  }
+  if (cmd === "optest") {
+    const shopId = parts[2];
+    const { data: s } = await db().from("shops").select("required_channel_id, bot_token_encrypted").eq("id", shopId).single();
+    if (!s?.required_channel_id) {
+      return tg.edit(chatId, msgId, "❌ Канал не указан. Сначала укажите канал.", ikb([[btn("📢 Указать канал", `p:opsetc:${shopId}`)], [btn("◀️ Назад", `p:opsettings:${shopId}`)]]));
+    }
+    if (!s?.bot_token_encrypted) {
+      return tg.edit(chatId, msgId, "❌ Бот магазина не подключён. Сначала подключите бота.", ikb([[btn("◀️ Назад", `p:opsettings:${shopId}`)]]));
+    }
+    // Decrypt bot token and test
+    const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
+    if (!encKey) return tg.edit(chatId, msgId, "❌ Ошибка конфигурации.", ikb([[btn("◀️ Назад", `p:opsettings:${shopId}`)]]));
+    const { data: rawToken } = await db().rpc("decrypt_token", { p_encrypted: s.bot_token_encrypted, p_key: encKey });
+    if (!rawToken) return tg.edit(chatId, msgId, "❌ Ошибка расшифровки токена.", ikb([[btn("◀️ Назад", `p:opsettings:${shopId}`)]]));
+    try {
+      const testRes = await fetch(`https://api.telegram.org/bot${rawToken}/getChatMember`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: s.required_channel_id, user_id: chatId }),
+      }).then(r => r.json());
+      if (testRes.ok) {
+        return tg.edit(chatId, msgId, `✅ Бот имеет доступ к каналу <b>${esc(s.required_channel_id)}</b>\n\nВаш статус: <b>${testRes.result.status}</b>`,
+          ikb([[btn("◀️ Назад", `p:opsettings:${shopId}`)]]));
+      } else {
+        return tg.edit(chatId, msgId, `❌ <b>Ошибка:</b> ${esc(testRes.description || "Бот не имеет доступа к каналу")}\n\n⚠️ Убедитесь что бот магазина добавлен в канал как администратор.`,
+          ikb([[btn("🔄 Повторить", `p:optest:${shopId}`), btn("◀️ Назад", `p:opsettings:${shopId}`)]]));
+      }
+    } catch (e) {
+      return tg.edit(chatId, msgId, `❌ Ошибка: ${(e as Error).message}`, ikb([[btn("◀️ Назад", `p:opsettings:${shopId}`)]]));
+    }
+  }
+
+
   if (cmd === "toggle") {
     const shopId = parts[2];
     const { data: shop } = await db().from("shops").select("status").eq("id", shopId).single();
