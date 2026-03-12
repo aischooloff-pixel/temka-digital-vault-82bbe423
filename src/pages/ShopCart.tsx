@@ -125,6 +125,7 @@ const ShopCart = () => {
               </div>
             </div>
           </div>
+        </div>
       </div>
 
       {recommended.length > 0 && (
