@@ -7,7 +7,11 @@ import { useTelegram } from '@/contexts/TelegramContext';
 import ShopProductCard from '@/components/ShopProductCard';
 
 const ShopCart = () => {
-  const { cart, updateQuantity, removeFromCart, clearCart, cartTotal, cartCount, products, shop } = useShop();
+  const {
+    cart, updateQuantity, removeFromCart, clearCart, cartTotal, cartCount, products, shop,
+    promoCode, setPromoCode, promoResult, promoError, promoLoading, applyPromo, discount, totalAfterDiscount,
+  } = useShop();
+  const { user } = useTelegram();
   const buildPath = useStorefrontPath();
   const shopId = shop?.id || '';
 
