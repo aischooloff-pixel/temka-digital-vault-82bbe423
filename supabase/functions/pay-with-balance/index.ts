@@ -220,17 +220,7 @@ serve(async (req) => {
     // Promo usage increment
     if (validatedPromoCode) {
       if (isShop) {
-        await supabase.from("shop_promocodes")
-          .update({ used_count: supabase.rpc ? undefined : 0 })
-          .eq("shop_id", shopId).ilike("code", validatedPromoCode);
-        // Direct increment
-        const { data: pc } = await supabase.from("shop_promocodes")
-          .select("used_count").eq("shop_id", shopId).ilike("code", validatedPromoCode).maybeSingle();
-        if (pc) {
-          await supabase.from("shop_promocodes")
-            .update({ used_count: (pc.used_count || 0) + 1 })
-            .eq("shop_id", shopId).ilike("code", validatedPromoCode);
-        }
+        await supabase.rpc("increment_shop_promo_usage", { p_shop_id: shopId, p_code: validatedPromoCode });
       } else {
         await supabase.rpc("increment_promo_usage", { p_code: validatedPromoCode });
       }
