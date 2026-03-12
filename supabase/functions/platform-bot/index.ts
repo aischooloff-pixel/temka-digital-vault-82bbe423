@@ -850,6 +850,34 @@ async function handleText(tg: ReturnType<typeof TG>, chatId: number, text: strin
     await clearSession(chatId);
     return tg.send(chatId, "✅ CryptoBot-токен сохранён!", ikb([[btn("◀️ К настройкам", `p:settings:${shopId}`)]]));
   }
+
+  // ─── Set OP channel ───────────────────────
+  if (state === "set_op_channel") {
+    const shopId = sData.shop_id as string;
+    const channelInput = val.trim();
+    // Accept @username or t.me link or chat_id
+    let channelId = channelInput;
+    let channelLink = channelInput;
+    if (channelInput.startsWith("https://t.me/")) {
+      channelId = "@" + channelInput.replace("https://t.me/", "").split("/")[0];
+      channelLink = channelInput;
+    } else if (channelInput.startsWith("@")) {
+      channelId = channelInput;
+      channelLink = `https://t.me/${channelInput.slice(1)}`;
+    } else if (/^-?\d+$/.test(channelInput)) {
+      channelId = channelInput;
+      channelLink = "";
+    } else {
+      return tg.send(chatId, "❌ Введите @username канала, ссылку https://t.me/... или числовой ID:");
+    }
+    await db().from("shops").update({
+      required_channel_id: channelId,
+      required_channel_link: channelLink,
+      updated_at: new Date().toISOString(),
+    }).eq("id", shopId);
+    await clearSession(chatId);
+    return tg.send(chatId, `✅ Канал установлен: ${esc(channelId)}`, ikb([[btn("◀️ Настройки ОП", `p:opsettings:${shopId}`)]]));
+  }
 }
 
 // ═══════════════════════════════════════════════
