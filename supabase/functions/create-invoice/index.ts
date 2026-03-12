@@ -47,7 +47,7 @@ async function resolveTokens(supabase: any, shopId?: string) {
   const shopCryptobot = shop.cryptobot_token_encrypted ? await decrypt(shop.cryptobot_token_encrypted) : null;
   return {
     botToken: shop.bot_token_encrypted ? await decrypt(shop.bot_token_encrypted) : null,
-    cryptobotToken: shopCryptobot || Deno.env.get("CRYPTOBOT_API_TOKEN") || null,
+    cryptobotToken: shopCryptobot,
     botUsername: shop.bot_username || "",
   };
 }
@@ -73,7 +73,7 @@ serve(async (req) => {
     const telegramUserId = tgUser.id;
 
     if (!items?.length || !orderNumber) return jsonRes({ error: "Missing required fields" }, 400);
-    if (!tokens.cryptobotToken) return jsonRes({ error: "Payment system not configured. Contact shop owner." }, 500);
+    if (!tokens.cryptobotToken) return jsonRes({ error: "Платежи не настроены. Владельцу магазина необходимо подключить CryptoBot токен." }, 500);
 
     // Rate limiting
     await supabase.from("rate_limits").delete().lt("created_at", new Date(Date.now() - 3600000).toISOString());

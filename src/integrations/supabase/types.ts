@@ -1264,6 +1264,10 @@ export type Database = {
       }
     }
     Functions: {
+      check_shop_payments_configured: {
+        Args: { p_shop_id: string }
+        Returns: boolean
+      }
       credit_balance: {
         Args: { p_amount: number; p_telegram_id: number }
         Returns: number

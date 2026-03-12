@@ -12,6 +12,7 @@ export interface ShopData {
   welcome_message: string;
   support_link: string;
   status: string;
+  paymentsConfigured?: boolean;
 }
 
 export interface ShopProduct {
@@ -157,6 +158,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setShop(data as ShopData);
       setLoading(false);
+
+      // Check if payments are configured
+      supabase.rpc('check_shop_payments_configured', { p_shop_id: data.id })
+        .then(({ data: configured }) => {
+          setShop(prev => prev ? { ...prev, paymentsConfigured: !!configured } : prev);
+        });
+
 
       // Apply color theme
       const hsl = hexToHSL(data.color || '#2B7FFF');

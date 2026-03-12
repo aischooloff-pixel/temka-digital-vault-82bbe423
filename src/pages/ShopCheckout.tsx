@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import cryptobotLogo from '@/assets/cryptobot-logo.jpeg';
 import { Link, useNavigate } from 'react-router-dom';
-import { Shield, Zap, Lock, CheckCircle2, ArrowLeft, Wallet } from 'lucide-react';
+import { Shield, Zap, Lock, CheckCircle2, ArrowLeft, Wallet, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useShop } from '@/contexts/ShopContext';
 import { useTelegram } from '@/contexts/TelegramContext';
@@ -95,6 +95,14 @@ const ShopCheckout = () => {
       <h1 className="font-display text-xl sm:text-2xl font-bold mb-4">Оформление заказа</h1>
 
       <div className="space-y-3">
+        {shop?.paymentsConfigured === false && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+            <div className="text-xs text-amber-700 dark:text-amber-400">
+              <span className="font-semibold">Платежи не настроены.</span> Владельцу магазина необходимо подключить CryptoBot токен в настройках для приёма оплаты.
+            </div>
+          </div>
+        )}
         <div className="bg-card border border-border/50 rounded-xl p-4">
           <h3 className="font-display font-semibold text-sm mb-2">Ваш аккаунт</h3>
           <div className="flex items-center gap-2">
@@ -176,7 +184,7 @@ const ShopCheckout = () => {
             )}
           </div>
 
-          <Button variant="hero" size="lg" className="w-full" onClick={handleCheckout} disabled={processing}>
+          <Button variant="hero" size="lg" className="w-full" onClick={handleCheckout} disabled={processing || (toPay > 0 && shop?.paymentsConfigured === false)}>
             {processing ? (
               <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /> Создание заказа...</span>
             ) : toPay > 0 ? (

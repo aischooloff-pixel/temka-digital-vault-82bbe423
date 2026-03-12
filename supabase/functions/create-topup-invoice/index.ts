@@ -133,10 +133,7 @@ serve(async (req) => {
         cryptobotToken = decryptedCrypto || null;
       }
 
-      // Fallback to platform CryptoBot token if shop doesn't have one
-      if (!cryptobotToken) {
-        cryptobotToken = Deno.env.get("CRYPTOBOT_API_TOKEN") || null;
-      }
+      // No fallback to platform token — each shop must have its own CryptoBot token
 
       console.log(`[topup] Resolved tenant context: shopId=${resolvedShopId}, slug=${resolvedShopSlug || "-"}`);
     } else {
