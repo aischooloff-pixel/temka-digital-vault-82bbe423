@@ -172,7 +172,8 @@ const OrderSuccess = () => {
                 </span>
               </div>
             </>
-          )}
+            );
+          })()}
           <div className="flex justify-between text-xs">
             <span className="text-muted-foreground">Доставка</span>
             <span className="font-medium">
