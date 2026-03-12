@@ -444,6 +444,13 @@ async function settingsView(tg: ReturnType<typeof TG>, cid: number, mid: number,
     }
   }
 
+  let subStatus = "❌ выключена";
+  if (shop.is_subscription_required) {
+    subStatus = shop.required_channel_id
+      ? `✅ включена (${shop.required_channel_link || shop.required_channel_id})`
+      : "⚠️ включена, но канал не настроен";
+  }
+
   const text =
     `⚙️ <b>Настройки: ${esc(shop.name)}</b>\n\n` +
     `📛 Название: ${esc(shop.name)}\n` +
@@ -453,7 +460,8 @@ async function settingsView(tg: ReturnType<typeof TG>, cid: number, mid: number,
     `👋 Приветствие: ${shop.welcome_message ? esc(shop.welcome_message.slice(0, 50)) + "…" : "—"}\n` +
     `🔗 Поддержка: ${shop.support_link || "—"}\n` +
     `🤖 Бот: ${botStatus}\n` +
-    `💰 CryptoBot: ${shop.cryptobot_token_encrypted ? "✅ подключён" : "❌ не подключён"}`;
+    `💰 CryptoBot: ${shop.cryptobot_token_encrypted ? "✅ подключён" : "❌ не подключён"}\n` +
+    `📢 Подписка на канал: ${subStatus}`;
 
   return tg.edit(cid, mid, text, ikb([
     [btn("✏️ Название", "s:edit:name"), btn("🎨 Цвет", "s:edit:color")],
@@ -461,6 +469,7 @@ async function settingsView(tg: ReturnType<typeof TG>, cid: number, mid: number,
     [btn("📝 Описание витрины", "s:edit:hero_desc")],
     [btn("👋 Приветствие", "s:edit:welcome"), btn("🔗 Поддержка", "s:edit:support")],
     [btn("💰 CryptoBot", "s:setcb")],
+    [btn(`📢 ОП ${shop.is_subscription_required ? "✅" : "❌"}`, "s:opsettings")],
     [btn("◀️ Меню", "s:m")],
   ]));
 }
