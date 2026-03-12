@@ -632,6 +632,50 @@ export type Database = {
           },
         ]
       }
+      shop_balance_history: {
+        Row: {
+          admin_telegram_id: number
+          amount: number
+          balance_after: number
+          comment: string
+          created_at: string
+          id: string
+          shop_id: string
+          telegram_id: number
+          type: string
+        }
+        Insert: {
+          admin_telegram_id: number
+          amount: number
+          balance_after?: number
+          comment?: string
+          created_at?: string
+          id?: string
+          shop_id: string
+          telegram_id: number
+          type?: string
+        }
+        Update: {
+          admin_telegram_id?: number
+          amount?: number
+          balance_after?: number
+          comment?: string
+          created_at?: string
+          id?: string
+          shop_id?: string
+          telegram_id?: number
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_balance_history_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shop_categories: {
         Row: {
           created_at: string
@@ -663,6 +707,68 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "shop_categories_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_customers: {
+        Row: {
+          balance: number
+          created_at: string
+          first_name: string
+          id: string
+          internal_note: string | null
+          is_blocked: boolean
+          is_premium: boolean
+          language_code: string | null
+          last_name: string | null
+          photo_url: string | null
+          role: string
+          shop_id: string
+          telegram_id: number
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          first_name?: string
+          id?: string
+          internal_note?: string | null
+          is_blocked?: boolean
+          is_premium?: boolean
+          language_code?: string | null
+          last_name?: string | null
+          photo_url?: string | null
+          role?: string
+          shop_id: string
+          telegram_id: number
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          first_name?: string
+          id?: string
+          internal_note?: string | null
+          is_blocked?: boolean
+          is_premium?: boolean
+          language_code?: string | null
+          last_name?: string | null
+          photo_url?: string | null
+          role?: string
+          shop_id?: string
+          telegram_id?: number
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_customers_shop_id_fkey"
             columns: ["shop_id"]
             isOneToOne: false
             referencedRelation: "shops"
@@ -1284,6 +1390,18 @@ export type Database = {
         Args: { p_key: string; p_token: string }
         Returns: string
       }
+      ensure_shop_customer: {
+        Args: {
+          p_first_name?: string
+          p_is_premium?: boolean
+          p_language_code?: string
+          p_last_name?: string
+          p_shop_id: string
+          p_telegram_id: number
+          p_username?: string
+        }
+        Returns: string
+      }
       increment_promo_usage: { Args: { p_code: string }; Returns: undefined }
       reserve_inventory: {
         Args: { p_order_id: string; p_product_id: string; p_quantity: number }
@@ -1298,6 +1416,14 @@ export type Database = {
           content: string
           id: string
         }[]
+      }
+      shop_credit_balance: {
+        Args: { p_amount: number; p_shop_id: string; p_telegram_id: number }
+        Returns: number
+      }
+      shop_deduct_balance: {
+        Args: { p_amount: number; p_shop_id: string; p_telegram_id: number }
+        Returns: number
       }
       validate_promo_code: { Args: { p_code: string }; Returns: Json }
     }
