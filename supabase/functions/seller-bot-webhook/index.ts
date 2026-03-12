@@ -1086,8 +1086,82 @@ async function handleCallback(tg: ReturnType<typeof TG>, cid: number, mid: numbe
       return tg.edit(cid, mid, "✅ Промокод удалён.", ikb([[btn("◀️ К промокодам", "s:prl:0")]]));
     }
 
-    // Stats, Settings, Logs, Stock
+    // Stats, Settings, Logs, Stock, OP
     if (cmd === "st") return statsView(tg, cid, mid, shopId);
+    if (cmd === "se") return settingsView(tg, cid, mid, shopId);
+
+    // OP subscription settings
+    if (cmd === "opsettings") {
+      const { data: s } = await supabase().from("shops").select("is_subscription_required, required_channel_link, required_channel_id").eq("id", shopId).single();
+      const enabled = s?.is_subscription_required || false;
+      const ch = s?.required_channel_id || "не указан";
+      const lnk = s?.required_channel_link || "—";
+      let t = `📢 <b>Обязательная подписка (ОП)</b>\n\n`;
+      t += `Статус: <b>${enabled ? "✅ включена" : "❌ выключена"}</b>\n`;
+      t += `Канал: <b>${esc(ch)}</b>\n`;
+      t += `Ссылка: ${esc(lnk)}\n\n`;
+      t += `Когда включено, пользователь должен подписаться на канал перед использованием магазина.\n\n`;
+      t += `⚠️ Бот магазина должен быть добавлен в канал как администратор.`;
+      return tg.edit(cid, mid, t, ikb([
+        [btn(enabled ? "❌ Выключить" : "✅ Включить", "s:optoggle")],
+        [btn("📢 Указать канал", "s:opsetc")],
+        [btn("🔍 Проверить бота", "s:optest")],
+        [btn("◀️ К настройкам", "s:se")],
+      ]));
+    }
+    if (cmd === "optoggle") {
+      const { data: s } = await supabase().from("shops").select("is_subscription_required").eq("id", shopId).single();
+      const newVal = !(s?.is_subscription_required);
+      await supabase().from("shops").update({ is_subscription_required: newVal, updated_at: new Date().toISOString() }).eq("id", shopId);
+      await logAction(shopId, adminId, newVal ? "enable_op" : "disable_op", "shop", shopId);
+      // Re-render OP settings
+      const { data: s2 } = await supabase().from("shops").select("is_subscription_required, required_channel_link, required_channel_id").eq("id", shopId).single();
+      const enabled = s2?.is_subscription_required || false;
+      const ch = s2?.required_channel_id || "не указан";
+      const lnk = s2?.required_channel_link || "—";
+      let t = `📢 <b>Обязательная подписка (ОП)</b>\n\n`;
+      t += `Статус: <b>${enabled ? "✅ включена" : "❌ выключена"}</b>\n`;
+      t += `Канал: <b>${esc(ch)}</b>\n`;
+      t += `Ссылка: ${esc(lnk)}\n\n`;
+      t += `⚠️ Бот магазина должен быть добавлен в канал как администратор.`;
+      return tg.edit(cid, mid, t, ikb([
+        [btn(enabled ? "❌ Выключить" : "✅ Включить", "s:optoggle")],
+        [btn("📢 Указать канал", "s:opsetc")],
+        [btn("🔍 Проверить бота", "s:optest")],
+        [btn("◀️ К настройкам", "s:se")],
+      ]));
+    }
+    if (cmd === "opsetc") {
+      await setSession(cid, "s_set_op_channel", shopId, {});
+      return tg.edit(cid, mid, "📢 <b>Укажите канал</b>\n\nОтправьте @username канала, ссылку (t.me/...) или числовой chat_id:\n\nПример: <code>@mychannel</code>", ikb([[btn("❌ Отмена", "s:se")]]));
+    }
+    if (cmd === "optest") {
+      // Test if bot can access getChatMember on the configured channel
+      const { data: s } = await supabase().from("shops").select("required_channel_id").eq("id", shopId).single();
+      if (!s?.required_channel_id) {
+        return tg.edit(cid, mid, "❌ Канал не указан. Сначала укажите канал.", ikb([[btn("📢 Указать канал", "s:opsetc")], [btn("◀️ Назад", "s:opsettings")]]));
+      }
+      try {
+        const testRes = await fetch(`https://api.telegram.org/bot${botToken}/getChatMember`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: s.required_channel_id, user_id: adminId }),
+        }).then(r => r.json());
+        if (testRes.ok) {
+          return tg.edit(cid, mid, `✅ Бот имеет доступ к каналу <b>${esc(s.required_channel_id)}</b>\n\nСтатус вашего членства: <b>${testRes.result.status}</b>`,
+            ikb([[btn("◀️ Назад", "s:opsettings")]]));
+        } else {
+          return tg.edit(cid, mid, `❌ <b>Ошибка:</b> ${esc(testRes.description || "Бот не имеет доступа к каналу")}\n\n⚠️ Убедитесь что бот добавлен в канал как администратор.`,
+            ikb([[btn("🔄 Повторить", "s:optest"), btn("◀️ Назад", "s:opsettings")]]));
+        }
+      } catch (e) {
+        return tg.edit(cid, mid, `❌ Ошибка проверки: ${(e as Error).message}`, ikb([[btn("◀️ Назад", "s:opsettings")]]));
+      }
+    }
+    // OP check callback from user subscription gate
+    if (cmd === "opcheck") {
+      // This is for non-admin users, handled below in the main flow
+      // But since callbacks go through admin check first, we need special handling
+    }
     if (cmd === "se") return settingsView(tg, cid, mid, shopId);
     if (cmd === "lg") return logsList(tg, cid, mid, shopId, parseInt(parts[2]) || 0);
     if (cmd === "sk") return stockOverview(tg, cid, mid, shopId, parseInt(parts[2]) || 0);
