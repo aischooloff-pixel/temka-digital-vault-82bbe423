@@ -938,6 +938,14 @@ async function handleText(tg: ReturnType<typeof TG>, chatId: number, text: strin
 async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: number, data: string, cbId: string, shopId: string) {
   await tg.answer(cbId);
   const parts = data.split(":");
+
+  // Backward/forward compatibility:
+  // - legacy callbacks: s:<cmd>:<shopId>:...
+  // - shortened callbacks: s:<cmd>:...
+  if (parts[2] !== shopId) {
+    parts.splice(2, 0, shopId);
+  }
+
   const cmd = parts[1];
 
   if (cmd === "noop") return;
