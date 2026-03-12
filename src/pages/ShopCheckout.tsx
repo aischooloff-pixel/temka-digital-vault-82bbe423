@@ -184,7 +184,7 @@ const ShopCheckout = () => {
             )}
           </div>
 
-          <Button variant="hero" size="lg" className="w-full" onClick={handleCheckout} disabled={processing}>
+          <Button variant="hero" size="lg" className="w-full" onClick={handleCheckout} disabled={processing || (toPay > 0 && shop?.paymentsConfigured === false)}>
             {processing ? (
               <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /> Создание заказа...</span>
             ) : toPay > 0 ? (
