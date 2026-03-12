@@ -1327,11 +1327,44 @@ serve(async (req) => {
     const msg = body.message;
     const cb = body.callback_query;
 
-    // ─── Callback query (admin) ─────────────
+    // ─── Callback query ─────────────────────
     if (cb) {
       const chatId = cb.message?.chat?.id || cb.from?.id;
       const msgId = cb.message?.message_id;
       const data = cb.data;
+
+      // Handle OP check callback for ANY user (not just admin)
+      if (chatId && msgId && data === "s:opcheck") {
+        await tg.answer(cb.id);
+        if (shop.is_subscription_required && shop.required_channel_id) {
+          try {
+            const memberRes = await fetch(`https://api.telegram.org/bot${botToken}/getChatMember`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ chat_id: shop.required_channel_id, user_id: chatId }),
+            }).then(r => r.json());
+            if (memberRes.ok && ["member", "administrator", "creator"].includes(memberRes.result.status)) {
+              // Subscribed — show normal start
+              const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
+              const welcomeText = shop.welcome_message
+                ? shop.welcome_message.replace(/{name}/gi, cb.from?.first_name || "друг")
+                : `👋 Привет, <b>${esc(cb.from?.first_name || "друг")}</b>!\n\nДобро пожаловать в ${esc(shop.name)}!`;
+              const supportUrl = shop.support_link ? (shop.support_link.startsWith("http") ? shop.support_link : `https://${shop.support_link}`) : null;
+              await tg.edit(chatId, msgId, welcomeText, {
+                inline_keyboard: [
+                  [{ text: "🛍 Открыть магазин", web_app: { url: shopUrl } }],
+                  ...(supportUrl ? [[{ text: "🆘 Поддержка", url: supportUrl }]] : []),
+                ],
+              });
+            } else {
+              await tg.answer(cb.id, "❌ Вы ещё не подписаны на канал!");
+            }
+          } catch {
+            await tg.answer(cb.id, "❌ Ошибка проверки подписки");
+          }
+        }
+        return new Response("ok");
+      }
+
       if (chatId && msgId && data && data.startsWith("s:")) {
         const owner = await isShopOwner(shopId, chatId);
         if (!owner) {
