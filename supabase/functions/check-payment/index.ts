@@ -296,9 +296,10 @@ serve(async (req) => {
             p_shop_id: resolvedShopId, p_telegram_id: telegramId, p_amount: balanceUsed,
           });
           if (!be) {
+            const promoInfo = order.promo_code ? ` (промо ${order.promo_code}, скидка $${Number(order.discount_amount || 0).toFixed(2)})` : "";
             await supabase.from("shop_balance_history").insert({
               shop_id: resolvedShopId, telegram_id: telegramId, amount: -balanceUsed, balance_after: nb,
-              type: "purchase", comment: `Заказ ${order.order_number}`, admin_telegram_id: telegramId,
+              type: "purchase", comment: `Заказ ${order.order_number}${promoInfo}`, admin_telegram_id: telegramId,
             });
           }
         } else {
