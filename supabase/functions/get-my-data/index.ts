@@ -99,7 +99,8 @@ serve(async (req) => {
             id: o.id, order_number: o.order_number, telegram_id: o.buyer_telegram_id,
             status: o.status, payment_status: o.payment_status, total_amount: o.total_amount,
             currency: o.currency, invoice_id: o.invoice_id, pay_url: o.pay_url,
-            notes: null, discount_amount: 0, promo_code: null, balance_used: o.balance_used || 0,
+            notes: null, discount_amount: Number(o.discount_amount) || 0,
+            promo_code: o.promo_code || null, balance_used: Number(o.balance_used) || 0,
             created_at: o.created_at, updated_at: o.updated_at,
           }));
           return jsonRes({ orders: normalized });
@@ -163,10 +164,10 @@ serve(async (req) => {
 
       case "stats": {
         if (isShop) {
-          const { data: orders } = await supabase.from("shop_orders").select("total_amount, status")
+          const { data: orders } = await supabase.from("shop_orders").select("total_amount, discount_amount, status")
             .eq("buyer_telegram_id", telegramId).eq("shop_id", shopId);
           const paid = (orders || []).filter((o: any) => ["paid", "processing", "delivered", "completed"].includes(o.status));
-          return jsonRes({ stats: { orderCount: (orders || []).length, totalSpent: paid.reduce((s: number, o: any) => s + Number(o.total_amount), 0) } });
+          return jsonRes({ stats: { orderCount: (orders || []).length, totalSpent: paid.reduce((s: number, o: any) => s + Number(o.total_amount) - Number(o.discount_amount || 0), 0) } });
         }
         const { data: orders } = await supabase.from("orders").select("total_amount, status").eq("telegram_id", telegramId);
         const paid = (orders || []).filter((o: any) => ["paid", "processing", "delivered", "completed"].includes(o.status));

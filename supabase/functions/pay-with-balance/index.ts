@@ -198,9 +198,12 @@ serve(async (req) => {
         return jsonRes({ error: "Insufficient balance" }, 400);
       }
       newBalance = nb;
+      const balComment = validatedPromoCode
+        ? `Заказ ${orderNumber} (промо ${validatedPromoCode}, скидка $${discountAmount.toFixed(2)})`
+        : `Заказ ${orderNumber}`;
       await supabase.from("shop_balance_history").insert({
         shop_id: shopId, telegram_id: telegramUserId, amount: -balanceUsed, balance_after: newBalance,
-        type: "purchase", comment: `Заказ ${orderNumber}`, admin_telegram_id: telegramUserId,
+        type: "purchase", comment: balComment, admin_telegram_id: telegramUserId,
       });
     } else {
       const { data: nb, error: balError } = await supabase.rpc("deduct_balance", {
@@ -211,9 +214,12 @@ serve(async (req) => {
         return jsonRes({ error: "Insufficient balance" }, 400);
       }
       newBalance = nb;
+      const balCommentP = validatedPromoCode
+        ? `Заказ ${orderNumber} (промо ${validatedPromoCode}, скидка $${discountAmount.toFixed(2)})`
+        : `Заказ ${orderNumber}`;
       await supabase.from("balance_history").insert({
         telegram_id: telegramUserId, amount: -balanceUsed, balance_after: newBalance,
-        type: "purchase", comment: `Заказ ${orderNumber}`, admin_telegram_id: telegramUserId,
+        type: "purchase", comment: balCommentP, admin_telegram_id: telegramUserId,
       });
     }
 
@@ -263,6 +269,9 @@ serve(async (req) => {
     const notifyBotToken = tokens.botToken;
     if (notifyBotToken) {
       let message = `✅ <b>Оплата балансом подтверждена!</b>\n\n📦 Заказ: <code>${orderNumber}</code>\n💰 Списано: $${balanceUsed.toFixed(2)}\n`;
+      if (discountAmount > 0) {
+        message += `🏷 Промокод: ${validatedPromoCode} (скидка $${discountAmount.toFixed(2)})\n`;
+      }
       if (deliveredContent.length > 0) {
         message += `\n🎁 <b>Ваши товары:</b>\n\n${deliveredContent.join("\n\n")}\n\n⚠️ Сохраните данные!`;
       } else { message += `\nВаш товар будет доставлен в ближайшее время.`; }
