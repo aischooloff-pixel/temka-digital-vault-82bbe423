@@ -110,17 +110,19 @@ const ShopCart = () => {
               {promoError && <p className="text-xs text-destructive">{promoError}</p>}
               {promoResult && <p className="text-xs text-primary">✅ Промокод применён!</p>}
             </div>
-            <Link to={buildPath('/checkout')}>
-              <Button variant="hero" size="lg" className="w-full">
-                Перейти к оплате <ArrowRight className="w-4 h-4 ml-1" />
-              </Button>
-            </Link>
-            <p className="text-xs text-muted-foreground">
-              Оплата через CryptoBot. Товары будут выданы мгновенно после оплаты.
-            </p>
-            <div className="space-y-2 pt-2 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1.5"><Shield className="w-3 h-3 text-primary" /> Безопасная оплата</span>
-              <span className="flex items-center gap-1.5"><Zap className="w-3 h-3 text-primary" /> Мгновенная цифровая доставка</span>
+            <div className="border-t border-border pt-4 space-y-3">
+              <Link to={buildPath('/checkout')}>
+                <Button variant="hero" size="lg" className="w-full">
+                  Перейти к оплате <ArrowRight className="w-4 h-4 ml-1" />
+                </Button>
+              </Link>
+              <p className="text-xs text-muted-foreground">
+                Оплата через CryptoBot. Товары будут выданы мгновенно после оплаты.
+              </p>
+              <div className="space-y-2 pt-2 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5"><Shield className="w-3 h-3 text-primary" /> Безопасная оплата</span>
+                <span className="flex items-center gap-1.5"><Zap className="w-3 h-3 text-primary" /> Мгновенная цифровая доставка</span>
+              </div>
             </div>
           </div>
         </div>
