@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
-import { Trash2, Plus, Minus, ArrowRight, Shield, Zap } from 'lucide-react';
+import { Trash2, Plus, Minus, ArrowRight, Shield, Zap, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useShop } from '@/contexts/ShopContext';
 import { useStorefrontPath } from '@/contexts/StorefrontContext';
+import { useTelegram } from '@/contexts/TelegramContext';
 import ShopProductCard from '@/components/ShopProductCard';
 
 const ShopCart = () => {
