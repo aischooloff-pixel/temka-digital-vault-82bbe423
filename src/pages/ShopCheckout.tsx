@@ -159,6 +159,13 @@ const ShopCheckout = () => {
             ))}
           </div>
 
+          {discount > 0 && (
+            <div className="flex justify-between text-xs text-primary">
+              <span>Промокод ({promoResult?.code})</span>
+              <span>-${discount.toFixed(2)}</span>
+            </div>
+          )}
+
           {balanceUsed > 0 && (
             <div className="flex justify-between text-xs text-primary">
               <span>Списание с баланса</span>
@@ -169,7 +176,7 @@ const ShopCheckout = () => {
           <div className="border-t border-border/30 pt-2 space-y-1">
             <div className="flex justify-between text-sm text-muted-foreground">
               <span>Сумма заказа</span>
-              <span>${cartTotal.toFixed(2)}</span>
+              <span>${totalAfterDiscount.toFixed(2)}</span>
             </div>
             {toPay > 0 ? (
               <div className="flex justify-between font-display font-bold text-base">
