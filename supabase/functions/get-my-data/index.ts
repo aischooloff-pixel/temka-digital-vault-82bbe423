@@ -78,6 +78,13 @@ serve(async (req) => {
 
     switch (action) {
       case "profile": {
+        if (isShop) {
+          // Ensure shop customer exists on profile fetch (first-touch from storefront)
+          await supabase.rpc("ensure_shop_customer", { p_shop_id: shopId, p_telegram_id: telegramId });
+          const { data: customer } = await supabase.from("shop_customers")
+            .select("balance, role, is_blocked").eq("shop_id", shopId).eq("telegram_id", telegramId).maybeSingle();
+          return jsonRes({ profile: customer });
+        }
         const { data: profile } = await supabase.from("user_profiles")
           .select("balance, role, is_blocked").eq("telegram_id", telegramId).maybeSingle();
         return jsonRes({ profile });
@@ -88,7 +95,6 @@ serve(async (req) => {
           const { data: orders } = await supabase.from("shop_orders").select("*")
             .eq("buyer_telegram_id", telegramId).eq("shop_id", shopId)
             .order("created_at", { ascending: false });
-          // Normalize to DbOrder shape
           const normalized = (orders || []).map((o: any) => ({
             id: o.id, order_number: o.order_number, telegram_id: o.buyer_telegram_id,
             status: o.status, payment_status: o.payment_status, total_amount: o.total_amount,
@@ -110,7 +116,6 @@ serve(async (req) => {
             .eq("id", orderId).eq("buyer_telegram_id", telegramId).eq("shop_id", shopId).maybeSingle();
           if (!order) return jsonRes({ error: "Order not found" }, 404);
           const { data: items } = await supabase.from("shop_order_items").select("*").eq("order_id", orderId);
-          // Normalize product_name → product_title
           const normalized = (items || []).map((i: any) => ({
             id: i.id, order_id: i.order_id, product_id: i.product_id,
             product_title: i.product_name, product_price: i.product_price,
@@ -144,7 +149,13 @@ serve(async (req) => {
       }
 
       case "balance-history": {
-        // Balance is global (platform-wide), no shop filtering
+        if (isShop) {
+          // Shop-scoped balance history
+          const { data: history } = await supabase.from("shop_balance_history").select("*")
+            .eq("shop_id", shopId).eq("telegram_id", telegramId).order("created_at", { ascending: false });
+          return jsonRes({ history: history || [] });
+        }
+        // Platform balance history
         const { data: history } = await supabase.from("balance_history").select("*")
           .eq("telegram_id", telegramId).order("created_at", { ascending: false });
         return jsonRes({ history: history || [] });

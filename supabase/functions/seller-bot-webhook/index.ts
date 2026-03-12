@@ -64,7 +64,7 @@ async function logAction(shopId: string, adminTgId: number, action: string, enti
   });
 }
 
-// ─── Session FSM ───────────────────────────
+// ─── Session FSM (shop-isolated via composite key hack) ───
 async function getSession(tgId: number, shopId: string) {
   const { data } = await supabase().from("platform_sessions").select("*").eq("telegram_id", tgId).maybeSingle();
   if (!data) return null;
@@ -91,17 +91,16 @@ async function isShopOwner(shopId: string, telegramId: number): Promise<boolean>
   return shop.owner_id === user.id;
 }
 
-// ─── Ensure user profile exists ──────────────
-async function ensureUserProfile(tgUser: { id: number; first_name?: string; last_name?: string; username?: string; is_premium?: boolean; language_code?: string }) {
-  const { data: existing } = await supabase().from("user_profiles").select("id").eq("telegram_id", tgUser.id).maybeSingle();
-  if (existing) return;
-  await supabase().from("user_profiles").insert({
-    telegram_id: tgUser.id,
-    first_name: tgUser.first_name || "",
-    last_name: tgUser.last_name || null,
-    username: tgUser.username || null,
-    is_premium: tgUser.is_premium || false,
-    language_code: tgUser.language_code || null,
+// ─── Ensure shop customer exists (tenant-scoped) ──────────
+async function ensureShopCustomer(shopId: string, tgUser: { id: number; first_name?: string; last_name?: string; username?: string; is_premium?: boolean; language_code?: string }) {
+  await supabase().rpc("ensure_shop_customer", {
+    p_shop_id: shopId,
+    p_telegram_id: tgUser.id,
+    p_first_name: tgUser.first_name || "",
+    p_last_name: tgUser.last_name || null,
+    p_username: tgUser.username || null,
+    p_is_premium: tgUser.is_premium || false,
+    p_language_code: tgUser.language_code || null,
   });
 }
 
@@ -231,10 +230,11 @@ async function orderView(tg: ReturnType<typeof TG>, cid: number, mid: number, sh
   const { data: o } = await supabase().from("shop_orders").select("*").eq("id", oid).single();
   if (!o) return tg.edit(cid, mid, "Не найден", ikb([[btn("◀️ Назад", "s:ol:0")]]));
   const { data: items } = await supabase().from("shop_order_items").select("*").eq("order_id", oid);
-  const { data: user } = await supabase().from("user_profiles").select("*").eq("telegram_id", o.buyer_telegram_id).maybeSingle();
+  // Use shop_customers instead of user_profiles
+  const { data: customer } = await supabase().from("shop_customers").select("*").eq("shop_id", shopId).eq("telegram_id", o.buyer_telegram_id).maybeSingle();
   let t = `🛒 <b>Заказ ${esc(o.order_number)}</b>\n\n`;
-  t += `👤 ${user ? esc(user.first_name + (user.last_name ? " " + user.last_name : "")) : o.buyer_telegram_id}`;
-  if (user?.username) t += ` @${esc(user.username)}`;
+  t += `👤 ${customer ? esc(customer.first_name + (customer.last_name ? " " + customer.last_name : "")) : o.buyer_telegram_id}`;
+  if (customer?.username) t += ` @${esc(customer.username)}`;
   t += `\n🆔 TG: ${o.buyer_telegram_id}\n\n📦 <b>Состав:</b>\n`;
   items?.forEach(i => { t += `  • ${esc(i.product_name)} ×${i.quantity} — $${Number(i.product_price * i.quantity).toFixed(2)}\n`; });
   t += `\n💰 <b>$${Number(o.total_amount).toFixed(2)}</b> ${o.currency}\n📋 Статус: <b>${o.status}</b>\n💳 Оплата: <b>${o.payment_status}</b>\n`;
@@ -256,22 +256,18 @@ async function orderSetStatus(tg: ReturnType<typeof TG>, cid: number, mid: numbe
 }
 
 // ═══════════════════════════════════════════════
-// USERS
+// USERS — now using shop_customers
 // ═══════════════════════════════════════════════
 async function usersList(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, page: number, filter?: string) {
-  // Get unique buyers for this shop
-  const { data: ordersRaw } = await supabase().from("shop_orders").select("buyer_telegram_id").eq("shop_id", shopId);
-  const buyerIds = [...new Set(ordersRaw?.map(o => o.buyer_telegram_id) || [])];
-  if (!buyerIds.length) return tg.edit(cid, mid, "👥 <b>Пользователи</b>\n\nНет.", ikb([[btn("◀️ Меню", "s:m")]]));
-
-  let query = supabase().from("user_profiles").select("*").in("telegram_id", buyerIds).order("created_at", { ascending: false });
+  // Get all shop customers for this shop
+  let query = supabase().from("shop_customers").select("*").eq("shop_id", shopId).order("created_at", { ascending: false });
   if (filter === "vip") query = query.eq("role", "vip");
   else if (filter === "blocked") query = query.eq("is_blocked", true);
-  const { data: users } = await query;
+  const { data: customers } = await query;
 
-  if (!users?.length) return tg.edit(cid, mid, `👥 <b>Пользователи</b>${filter ? ` [${filter}]` : ""}\n\nНет.`, ikb([[btn("◀️ Меню", "s:m")]]));
-  const pg = paginate(users, page, 8);
-  let t = `👥 <b>Пользователи</b> (${users.length})${filter ? ` [${filter}]` : ""}\n\n`;
+  if (!customers?.length) return tg.edit(cid, mid, `👥 <b>Пользователи</b>${filter ? ` [${filter}]` : ""}\n\nНет.`, ikb([[btn("◀️ Меню", "s:m")]]));
+  const pg = paginate(customers, page, 8);
+  let t = `👥 <b>Пользователи</b> (${customers.length})${filter ? ` [${filter}]` : ""}\n\n`;
   pg.items.forEach(u => {
     const flags = [u.is_premium ? "⭐" : "", u.role === "vip" ? "👑" : "", u.is_blocked ? "🚫" : ""].filter(Boolean).join("");
     t += `👤 <b>${esc(u.first_name)}${u.last_name ? " " + esc(u.last_name) : ""}</b> ${flags}`;
@@ -287,7 +283,8 @@ async function usersList(tg: ReturnType<typeof TG>, cid: number, mid: number, sh
 }
 
 async function userView(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, uid: string) {
-  const { data: u } = await supabase().from("user_profiles").select("*").eq("id", uid).single();
+  // Read from shop_customers
+  const { data: u } = await supabase().from("shop_customers").select("*").eq("id", uid).single();
   if (!u) return tg.edit(cid, mid, "Не найден", ikb([[btn("◀️ Назад", "s:ul:0")]]));
   const { data: orders } = await supabase().from("shop_orders").select("id, total_amount, status, payment_status").eq("shop_id", shopId).eq("buyer_telegram_id", u.telegram_id);
   const paid = orders?.filter(o => ["paid", "completed", "delivered", "processing"].includes(o.status)) || [];
@@ -312,7 +309,7 @@ async function userView(tg: ReturnType<typeof TG>, cid: number, mid: number, sho
 }
 
 async function userViewByTg(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, tgId: number) {
-  const { data: u } = await supabase().from("user_profiles").select("id").eq("telegram_id", tgId).maybeSingle();
+  const { data: u } = await supabase().from("shop_customers").select("id").eq("shop_id", shopId).eq("telegram_id", tgId).maybeSingle();
   if (!u) return tg.edit(cid, mid, "Пользователь не найден", ikb([[btn("◀️ Назад", "s:ul:0")]]));
   return userView(tg, cid, mid, shopId, u.id);
 }
@@ -331,10 +328,10 @@ async function userOrdersList(tg: ReturnType<typeof TG>, cid: number, mid: numbe
   return tg.edit(cid, mid, t, ikb(rows));
 }
 
-// Balance menu
+// Balance menu — now using shop_customers + shop_balance_history
 async function balanceMenu(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, tgId: number) {
-  const { data: u } = await supabase().from("user_profiles").select("balance").eq("telegram_id", tgId).maybeSingle();
-  const { data: history } = await supabase().from("balance_history").select("*").eq("telegram_id", tgId).order("created_at", { ascending: false }).limit(5);
+  const { data: u } = await supabase().from("shop_customers").select("balance").eq("shop_id", shopId).eq("telegram_id", tgId).maybeSingle();
+  const { data: history } = await supabase().from("shop_balance_history").select("*").eq("shop_id", shopId).eq("telegram_id", tgId).order("created_at", { ascending: false }).limit(5);
   let t = `💰 <b>Баланс</b> — TG ${tgId}\n\nТекущий: <b>$${Number(u?.balance || 0).toFixed(2)}</b>\n`;
   if (history?.length) {
     t += `\n📜 <b>Последние операции:</b>\n`;
@@ -407,10 +404,11 @@ async function promoView(tg: ReturnType<typeof TG>, cid: number, mid: number, sh
 async function statsView(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string) {
   const { data: shop } = await supabase().from("shops").select("name").eq("id", shopId).single();
   const d = supabase();
-  const [{ count: pc }, { count: ap }, { data: orders }] = await Promise.all([
+  const [{ count: pc }, { count: ap }, { data: orders }, { count: customerCount }] = await Promise.all([
     d.from("shop_products").select("id", { count: "exact", head: true }).eq("shop_id", shopId),
     d.from("shop_products").select("id", { count: "exact", head: true }).eq("shop_id", shopId).eq("is_active", true),
     d.from("shop_orders").select("id, total_amount, status, buyer_telegram_id, payment_status").eq("shop_id", shopId),
+    d.from("shop_customers").select("id", { count: "exact", head: true }).eq("shop_id", shopId),
   ]);
   const prodIds = (await d.from("shop_products").select("id").eq("shop_id", shopId)).data?.map(p => p.id) || [];
   let invCount = 0;
@@ -422,8 +420,7 @@ async function statsView(tg: ReturnType<typeof TG>, cid: number, mid: number, sh
   const rev = paid.reduce((s, o) => s + Number(o.total_amount), 0);
   const avg = paid.length ? rev / paid.length : 0;
   const problems = orders?.filter(o => ["error", "cancelled"].includes(o.status)).length || 0;
-  const uniqueBuyers = new Set(orders?.map(o => o.buyer_telegram_id) || []).size;
-  let t = `📊 <b>Статистика: ${esc(shop?.name || "")}</b>\n\n👥 Покупателей: <b>${uniqueBuyers}</b>\n📦 Товаров: <b>${ap || 0}</b>/${pc || 0}\n🗃 На складе: <b>${invCount}</b>\n\n`;
+  let t = `📊 <b>Статистика: ${esc(shop?.name || "")}</b>\n\n👥 Покупателей: <b>${customerCount || 0}</b>\n📦 Товаров: <b>${ap || 0}</b>/${pc || 0}\n🗃 На складе: <b>${invCount}</b>\n\n`;
   t += `🛒 Заказов: <b>${orders?.length || 0}</b>\n✅ Оплаченных: <b>${paid.length}</b>\n⚠️ Проблемных: <b>${problems}</b>\n\n`;
   t += `💰 Выручка: <b>$${rev.toFixed(2)}</b>\n📈 Средний чек: <b>$${avg.toFixed(2)}</b>\n`;
   return tg.edit(cid, mid, t, ikb([[btn("🔄 Обновить", "s:st"), btn("◀️ Меню", "s:m")]]));
@@ -499,7 +496,7 @@ async function stockOverview(tg: ReturnType<typeof TG>, cid: number, mid: number
     const ic = p.stock <= 0 ? "❌" : p.stock <= 5 ? "⚠️" : "✅";
     t += `${ic} ${esc(p.name)} — <b>${p.stock}</b>\n`;
   });
-  const rows: Btn[][] = pg.items.map(p => [btn(`${p.stock <= 0 ? "❌" : p.stock <= 5 ? "⚠️" : "✅"} ${p.name.slice(0, 25)}`, `s:iv:${p.id}:0`)]);
+  const rows: Btn[][] = [];
   if (pg.total > 1) rows.push(pgRow("s:sk", pg.page, pg.total));
   rows.push([btn("◀️ Меню", "s:m")]);
   return tg.edit(cid, mid, t, ikb(rows));
@@ -509,41 +506,25 @@ async function stockOverview(tg: ReturnType<typeof TG>, cid: number, mid: number
 // INVENTORY
 // ═══════════════════════════════════════════════
 async function inventoryView(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, pid: string, page: number) {
-  const { data: p } = await supabase().from("shop_products").select("name, stock").eq("id", pid).single();
-  const { data: items } = await supabase().from("shop_inventory").select("*").eq("product_id", pid).order("created_at", { ascending: false });
-  const avail = items?.filter(i => i.status === "available").length || 0;
-  const sold = items?.filter(i => i.status === "sold").length || 0;
-  let t = `🗃 <b>${esc(p?.name || "?")}</b>\n\n📦 Остаток: ${p?.stock || 0}\n✅ Доступно: ${avail}\n📤 Продано: ${sold}\n\n`;
-  if (items?.length) {
-    const pg = paginate(items, page, 5);
-    pg.items.forEach(i => {
-      const st = i.status === "available" ? "✅" : i.status === "sold" ? "📤" : "❓";
-      t += `${st} <code>${esc(i.content.slice(0, 30))}${i.content.length > 30 ? "…" : ""}</code>\n`;
-    });
-    const rows: Btn[][] = [];
-    if (pg.total > 1) rows.push(pgRow(`s:iv:${pid}`, pg.page, pg.total));
-    rows.push([btn("➕ Добавить", `s:ia:${pid}`), btn("🔄 Синхр.", `s:is:${pid}`)]);
-    rows.push([btn("◀️ К товару", `s:pv:${pid}`)]);
-    return tg.edit(cid, mid, t, ikb(rows));
-  }
-  return tg.edit(cid, mid, t, ikb([[btn("➕ Добавить", `s:ia:${pid}`)], [btn("◀️ К товару", `s:pv:${pid}`)]]));
+  const { data: p } = await supabase().from("shop_products").select("name").eq("id", pid).single();
+  const { data: inv } = await supabase().from("shop_inventory").select("id, status, content, created_at").eq("product_id", pid).order("created_at", { ascending: false });
+  const available = inv?.filter(i => i.status === "available") || [];
+  const sold = inv?.filter(i => i.status === "sold") || [];
+  const pg = paginate(available, page, 8);
+  let t = `🗃 <b>Склад: ${esc(p?.name || "?")}</b>\n\n✅ В наличии: <b>${available.length}</b>\n🛒 Продано: <b>${sold.length}</b>\n\n`;
+  pg.items.forEach(i => { t += `📦 <code>${esc(i.content.slice(0, 40))}</code>\n`; });
+  const rows: Btn[][] = [];
+  if (pg.total > 1) rows.push(pgRow(`s:iv:${pid}`, pg.page, pg.total));
+  rows.push([btn("➕ Добавить", `s:ia:${pid}`), btn("🔄 Синхр.", `s:is:${pid}`)]);
+  rows.push([btn("◀️ К товару", `s:pv:${pid}`)]);
+  return tg.edit(cid, mid, t, ikb(rows));
 }
 
 async function inventorySync(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, pid: string, adminId: number) {
   const { count } = await supabase().from("shop_inventory").select("id", { count: "exact", head: true }).eq("product_id", pid).eq("status", "available");
   await supabase().from("shop_products").update({ stock: count || 0, updated_at: new Date().toISOString() }).eq("id", pid);
-  await logAction(shopId, adminId, "sync_inventory", "product", pid, { stock: count });
+  await logAction(shopId, adminId, "sync_inventory", "product", pid, { stock: count || 0 });
   return inventoryView(tg, cid, mid, shopId, pid, 0);
-}
-
-// ═══════════════════════════════════════════════
-// BROADCAST
-// ═══════════════════════════════════════════════
-async function broadcastMenu(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string) {
-  const { data: ordersRaw } = await supabase().from("shop_orders").select("buyer_telegram_id").eq("shop_id", shopId);
-  const uniqueIds = [...new Set(ordersRaw?.map(o => o.buyer_telegram_id) || [])];
-  return tg.edit(cid, mid, `📢 <b>Рассылка</b>\n\n👥 Получателей: <b>${uniqueIds.length}</b>\n\nОтправьте текст (HTML) или фото с подписью.\nПеред отправкой будет показан предпросмотр.`,
-    ikb([[btn("✍️ Написать", "s:bs")], [btn("◀️ Меню", "s:m")]]));
 }
 
 // ═══════════════════════════════════════════════
@@ -551,44 +532,42 @@ async function broadcastMenu(tg: ReturnType<typeof TG>, cid: number, mid: number
 // ═══════════════════════════════════════════════
 async function reviewsList(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string, page: number, filter?: string) {
   let query = supabase().from("shop_reviews").select("*").eq("shop_id", shopId).order("created_at", { ascending: false });
-  if (filter === "approved") query = query.eq("moderation_status", "approved");
-  else if (filter === "rejected") query = query.eq("moderation_status", "rejected");
-  else if (!filter || filter === "pending") query = query.eq("moderation_status", "pending");
-  // else "all" — no filter
-  const { data: reviews } = await query;
-  const statusLabel = filter === "approved" ? "одобренные" : filter === "rejected" ? "отклонённые" : filter === "all" ? "все" : "на модерации";
-  if (!reviews?.length) return tg.edit(cid, mid, `⭐ <b>Отзывы (${statusLabel})</b>\n\nНет отзывов.`, ikb([
-    [btn("⏳ Ожидающие", "s:rvl:0"), btn("✅ Одобренные", "s:rvf:approved:0")],
-    [btn("❌ Отклонённые", "s:rvf:rejected:0"), btn("📋 Все", "s:rvf:all:0")],
-    [btn("◀️ Меню", "s:m")],
-  ]));
-  const pg = paginate(reviews, page, 5);
-  const se: Record<string, string> = { pending: "⏳", approved: "✅", rejected: "❌" };
-  let t = `⭐ <b>Отзывы (${statusLabel})</b> — ${reviews.length}\n\n`;
+  if (filter === "pending") query = query.eq("moderation_status", "pending");
+  else if (filter === "approved") query = query.eq("moderation_status", "approved");
+  const { data: reviews } = await query.limit(50);
+  if (!reviews?.length) return tg.edit(cid, mid, `⭐ <b>Отзывы</b>${filter ? ` [${filter}]` : ""}\n\nНет.`, ikb([[btn("◀️ Меню", "s:m")]]));
+  const pg = paginate(reviews, page, 6);
+  let t = `⭐ <b>Отзывы</b> (${reviews.length})${filter ? ` [${filter}]` : ""}\n\n`;
   pg.items.forEach(r => {
-    t += `${se[r.moderation_status] || "❓"} <b>${esc(r.author)}</b> | ${"⭐".repeat(r.rating)}\n${esc(r.text.slice(0, 80))}\n\n`;
+    const st = r.moderation_status === "approved" ? "✅" : r.moderation_status === "rejected" ? "❌" : "⏳";
+    t += `${st} ${"⭐".repeat(r.rating)} — ${esc(r.author)}\n${esc(r.text.slice(0, 40))}\n\n`;
   });
-  const rows: Btn[][] = pg.items.map(r => [
-    ...(r.moderation_status === "pending" ? [btn("✅", `s:rva:${r.id}`), btn("❌", `s:rvr:${r.id}`)] : []),
-    btn(`${se[r.moderation_status] || ""} ${r.author.slice(0, 18)}`, `s:rvv:${r.id}`)
-  ]);
-  const pfx = filter && filter !== "pending" ? `s:rvf:${filter}` : "s:rvl";
-  if (pg.total > 1) rows.push(pgRow(pfx, pg.page, pg.total));
-  rows.push([btn("⏳ Ожидающие", "s:rvl:0"), btn("✅ Одобренные", "s:rvf:approved:0")]);
-  rows.push([btn("❌ Отклонённые", "s:rvf:rejected:0"), btn("📋 Все", "s:rvf:all:0")]);
+  const rows: Btn[][] = pg.items.map(r => [btn(`${r.moderation_status === "approved" ? "✅" : "⏳"} ${r.author.slice(0, 20)}`, `s:rvv:${r.id}`)]);
+  if (pg.total > 1) rows.push(pgRow(filter ? `s:rvf:${filter}` : "s:rvl", pg.page, pg.total));
+  rows.push([btn("⏳ Ожидающие", "s:rvf:pending:0"), btn("✅ Одобренные", "s:rvf:approved:0")]);
   rows.push([btn("◀️ Меню", "s:m")]);
   return tg.edit(cid, mid, t, ikb(rows));
 }
 
 // ═══════════════════════════════════════════════
-// TEXT FSM HANDLER
+// BROADCAST
 // ═══════════════════════════════════════════════
-async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, photo: any[] | null, shopId: string, adminId: number) {
+async function broadcastMenu(tg: ReturnType<typeof TG>, cid: number, mid: number, shopId: string) {
+  // Count all shop customers (not just buyers)
+  const { count } = await supabase().from("shop_customers").select("id", { count: "exact", head: true }).eq("shop_id", shopId);
+  return tg.edit(cid, mid,
+    `📢 <b>Рассылка</b>\n\n👥 Получателей: <b>${count || 0}</b>\n\nОтправьте текст (поддерживается HTML) или фото с подписью.`,
+    ikb([[btn("✍️ Написать", "s:bs")], [btn("◀️ Меню", "s:m")]]));
+}
+
+// ═══════════════════════════════════════════════
+// FSM TEXT HANDLER
+// ═══════════════════════════════════════════════
+async function handleFSM(tg: ReturnType<typeof TG>, cid: number, val: string, photo: any, shopId: string, adminId: number): Promise<boolean> {
   const session = await getSession(cid, shopId);
   if (!session) return false;
-
-  const { state, data: sData } = session;
-  const val = text.trim();
+  const state = session.state;
+  const sData = (session.data || {}) as Record<string, unknown>;
 
   // ─── /cancel ──────────────────────────────
   if (val === "/cancel") {
@@ -597,97 +576,111 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
     return true;
   }
 
-  // ─── Edit product field ───────────────────
-  if (state.startsWith("ep:")) {
-    const parts = state.split(":");
-    const field = parts[1];
-    const pid = parts.slice(2).join(":");
-
-    // Photo upload
-    if (field === "img") {
-      if (!photo?.length) { await tg.send(cid, "❌ Отправьте фото."); return true; }
-      const fileId = photo[photo.length - 1].file_id;
-      const fileData = await tg.getFile(fileId);
-      if (!fileData.ok) { await tg.send(cid, "❌ Не удалось получить файл."); await clearSession(cid); return true; }
-      const filePath = fileData.result.file_path;
-      const fileUrl = tg.fileUrl(filePath);
-      const fileResp = await fetch(fileUrl);
-      const fileBlob = await fileResp.blob();
-      const ext = filePath.split(".").pop() || "jpg";
-      const storagePath = `shop/${shopId}/${pid}.${ext}`;
-      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const { error: uploadErr } = await supabase().storage.from("product-images").upload(storagePath, fileBlob, { upsert: true, contentType: `image/${ext}` });
-      if (uploadErr) { await tg.send(cid, `❌ Ошибка загрузки: ${uploadErr.message}`); await clearSession(cid); return true; }
-      const imageUrl = `${supabaseUrl}/storage/v1/object/public/product-images/${storagePath}`;
-      await supabase().from("shop_products").update({ image: imageUrl, updated_at: new Date().toISOString() }).eq("id", pid);
-      await logAction(shopId, adminId, "upload_image", "product", pid);
-      await clearSession(cid);
-      await tg.send(cid, `✅ Фото загружено!`, ikb([[btn("📦 Открыть товар", `s:pv:${pid}`)], [btn("◀️ Меню", "s:m")]]));
-      return true;
-    }
-
-    const fm: Record<string, string> = { n: "name", p: "price", s: "stock", d: "description", o: "old_price", sub: "subtitle", f: "features" };
-    const dbF = fm[field];
-    if (!dbF || !pid) { await clearSession(cid); return true; }
-    let v: unknown = val;
-    if (["price", "old_price"].includes(dbF)) { v = parseFloat(val); if (isNaN(v as number)) { await tg.send(cid, "❌ Введите число."); return true; } }
-    if (dbF === "stock") { v = parseInt(val); if (isNaN(v as number)) { await tg.send(cid, "❌ Введите целое число."); return true; } }
-    if (dbF === "features") { v = val.split(",").map(s => s.trim()).filter(Boolean); }
-    await supabase().from("shop_products").update({ [dbF]: v, updated_at: new Date().toISOString() }).eq("id", pid);
-    await logAction(shopId, adminId, `edit_${dbF}`, "product", pid, { [dbF]: v });
-    await clearSession(cid);
-    await tg.send(cid, `✅ <b>${dbF}</b> обновлено!`, ikb([[btn("📦 Открыть товар", `s:pv:${pid}`)], [btn("◀️ Меню", "s:m")]]));
-    return true;
-  }
-
   // ─── Add product ──────────────────────────
   if (state === "ap:t") {
     await setSession(cid, "ap:p", shopId, { ...sData, title: val });
-    await tg.send(cid, `📦 <b>${esc(val)}</b>\n\nВведите цену (USD):`);
+    await tg.send(cid, `Название: <b>${esc(val)}</b>\n\nВведите цену (USD):`);
     return true;
   }
   if (state === "ap:p") {
     const price = parseFloat(val);
-    if (isNaN(price) || price <= 0) { await tg.send(cid, "❌ Введите корректную цену."); return true; }
-    const title = sData.title as string;
-    const { data: product, error } = await supabase().from("shop_products").insert({ name: title, price, stock: 0, is_active: false, shop_id: shopId }).select().single();
-    if (error) { await tg.send(cid, `❌ ${error.message}`); await clearSession(cid); return true; }
-    await logAction(shopId, adminId, "create_product", "product", product.id, { title, price });
+    if (isNaN(price) || price <= 0) { await tg.send(cid, "❌ Введите число > 0."); return true; }
+    await setSession(cid, "ap:d", shopId, { ...sData, price });
+    await tg.send(cid, "Введите описание (или <b>/skip</b>):");
+    return true;
+  }
+  if (state === "ap:d") {
+    const desc = val === "/skip" ? "" : val;
+    const { data: product, error } = await supabase().from("shop_products").insert({
+      name: sData.title as string, price: sData.price as number, description: desc,
+      shop_id: shopId, is_active: true,
+    }).select().single();
     await clearSession(cid);
-    await tg.send(cid, `✅ <b>${esc(title)}</b> создан ($${price.toFixed(2)}).\nТовар скрыт — активируйте через админку.`,
-      ikb([[btn("📦 Открыть", `s:pv:${product.id}`)], [btn("◀️ Меню", "s:m")]]));
+    if (error) { await tg.send(cid, `❌ ${error.message}`); return true; }
+    await logAction(shopId, adminId, "create_product", "product", product.id, { name: sData.title });
+    await tg.send(cid, `✅ Товар <b>${esc(sData.title as string)}</b> создан!`, ikb([[btn("📦 К товару", `s:pv:${product.id}`)], [btn("◀️ Меню", "s:m")]]));
+    return true;
+  }
+
+  // ─── Edit product ─────────────────────────
+  if (state.startsWith("ep:")) {
+    const parts = state.split(":");
+    const field = parts[1]; const pid = parts[2];
+
+    if (field === "img") {
+      if (!photo?.length) { await tg.send(cid, "❌ Отправьте фото."); return true; }
+      const fileId = photo[photo.length - 1].file_id;
+      const fileInfo = await tg.getFile(fileId);
+      if (!fileInfo.ok) { await tg.send(cid, "❌ Ошибка получения файла."); await clearSession(cid); return true; }
+      const fileUrl = tg.fileUrl(fileInfo.result.file_path);
+
+      // Download and upload to Supabase Storage
+      const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+      try {
+        const imgRes = await fetch(fileUrl);
+        const blob = await imgRes.blob();
+        const ext = fileInfo.result.file_path.split(".").pop() || "jpg";
+        const storagePath = `shops/${shopId}/${pid}.${ext}`;
+        const { error: uploadError } = await supabase().storage.from("product-images").upload(storagePath, blob, { upsert: true, contentType: `image/${ext}` });
+        if (uploadError) { await tg.send(cid, `❌ Ошибка загрузки: ${uploadError.message}`); await clearSession(cid); return true; }
+        const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/product-images/${storagePath}`;
+        await supabase().from("shop_products").update({ image: publicUrl, updated_at: new Date().toISOString() }).eq("id", pid);
+        await logAction(shopId, adminId, "update_photo", "product", pid);
+        await clearSession(cid);
+        await tg.send(cid, "✅ Фото обновлено!", ikb([[btn("📦 К товару", `s:pv:${pid}`)]]));
+      } catch (e) {
+        await tg.send(cid, `❌ Ошибка: ${(e as Error).message}`);
+        await clearSession(cid);
+      }
+      return true;
+    }
+
+    const fieldMap: Record<string, string> = { n: "name", p: "price", s: "stock", d: "description", o: "old_price", sub: "subtitle", f: "features" };
+    const dbField = fieldMap[field];
+    if (!dbField) { await clearSession(cid); return true; }
+    let updateVal: unknown = val;
+    if (field === "p" || field === "o") { const n = parseFloat(val); if (isNaN(n)) { await tg.send(cid, "❌ Введите число."); return true; } updateVal = n; }
+    if (field === "s") { const n = parseInt(val); if (isNaN(n)) { await tg.send(cid, "❌ Введите число."); return true; } updateVal = n; }
+    if (field === "f") updateVal = val.split(",").map(s => s.trim()).filter(Boolean);
+    await supabase().from("shop_products").update({ [dbField]: updateVal, updated_at: new Date().toISOString() }).eq("id", pid);
+    await logAction(shopId, adminId, "edit_product", "product", pid, { field: dbField });
+    await clearSession(cid);
+    const resp = await tg.send(cid, "✅ Обновлено!");
+    const mid = resp?.result?.message_id;
+    if (mid) return productView(tg, cid, mid, shopId, pid), true;
     return true;
   }
 
   // ─── Add category ─────────────────────────
   if (state === "ac:n") {
     await setSession(cid, "ac:i", shopId, { ...sData, name: val });
-    await tg.send(cid, `📁 <b>${esc(val)}</b>\n\nОтправьте иконку (emoji):`);
+    await tg.send(cid, `Название: <b>${esc(val)}</b>\n\nВведите иконку (emoji):`);
     return true;
   }
   if (state === "ac:i") {
-    const name = sData.name as string;
-    const { error } = await supabase().from("shop_categories").insert({ name, icon: val.trim(), sort_order: 0, shop_id: shopId });
+    const { error } = await supabase().from("shop_categories").insert({ name: sData.name as string, icon: val, shop_id: shopId });
     await clearSession(cid);
     if (error) { await tg.send(cid, `❌ ${error.message}`); return true; }
-    await logAction(shopId, adminId, "create_category", "category", undefined, { name });
-    await tg.send(cid, `✅ ${val.trim()} <b>${esc(name)}</b> создана!`, ikb([[btn("📁 К категориям", "s:cl:0")], [btn("◀️ Меню", "s:m")]]));
+    await logAction(shopId, adminId, "create_category", "category", undefined, { name: sData.name });
+    await tg.send(cid, `✅ Категория <b>${val} ${esc(sData.name as string)}</b> создана!`, ikb([[btn("📁 К категориям", "s:cl:0")], [btn("◀️ Меню", "s:m")]]));
     return true;
   }
 
   // ─── Edit category ────────────────────────
   if (state.startsWith("ec:")) {
-    const [, field, ...rest] = state.split(":");
-    const catId = rest.join(":");
-    const fm: Record<string, string> = { n: "name", i: "icon", s: "sort_order" };
-    const dbF = fm[field];
-    if (!dbF || !catId) { await clearSession(cid); return true; }
-    let v: unknown = val;
-    if (dbF === "sort_order") v = parseInt(val) || 0;
-    await supabase().from("shop_categories").update({ [dbF]: v }).eq("id", catId);
-    await logAction(shopId, adminId, `edit_cat_${dbF}`, "category", catId, { [dbF]: v });
+    const parts = state.split(":");
+    const field = parts[1]; const catId = parts[2];
+    const fieldMap: Record<string, string> = { n: "name", i: "icon", s: "sort_order" };
+    const dbField = fieldMap[field];
+    if (!dbField) { await clearSession(cid); return true; }
+    let updateVal: unknown = val;
+    if (field === "s") { const n = parseInt(val); if (isNaN(n)) { await tg.send(cid, "❌ Введите число."); return true; } updateVal = n; }
+    await supabase().from("shop_categories").update({ [dbField]: updateVal }).eq("id", catId);
+    await logAction(shopId, adminId, "edit_category", "category", catId, { field: dbField });
     await clearSession(cid);
-    await tg.send(cid, `✅ Обновлено!`, ikb([[btn("📁 Открыть", `s:cv:${catId}`)], [btn("◀️ Меню", "s:m")]]));
+    const resp = await tg.send(cid, "✅ Обновлено!");
+    const mid = resp?.result?.message_id;
+    if (mid) return categoryView(tg, cid, mid, shopId, catId), true;
     return true;
   }
 
@@ -695,8 +688,8 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
   if (state === "s_edit_field") {
     const field = sData.field as string;
     const fieldMap: Record<string, string> = {
-      name: "name", color: "color", hero_title: "hero_title", hero_desc: "hero_description",
-      welcome: "welcome_message", support: "support_link",
+      name: "name", color: "color", hero_title: "hero_title",
+      hero_desc: "hero_description", welcome: "welcome_message", support: "support_link",
     };
     const dbField = fieldMap[field];
     if (!dbField) { await clearSession(cid); return true; }
@@ -766,41 +759,37 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
     return true;
   }
 
-  // ─── User search ──────────────────────────
+  // ─── User search (now using shop_customers) ──────────────
   if (state === "us:q") {
-    const { data: ordersRaw } = await supabase().from("shop_orders").select("buyer_telegram_id").eq("shop_id", shopId);
-    const buyerIds = [...new Set(ordersRaw?.map(o => o.buyer_telegram_id) || [])];
-    if (!buyerIds.length) { await clearSession(cid); await tg.send(cid, "❌ Нет покупателей.", ikb([[btn("◀️ К пользователям", "s:ul:0")]])); return true; }
-
     const isNum = /^\d+$/.test(val);
-    let query = supabase().from("user_profiles").select("*").in("telegram_id", buyerIds);
+    let query = supabase().from("shop_customers").select("*").eq("shop_id", shopId);
     if (isNum) {
       query = query.eq("telegram_id", parseInt(val));
     } else {
       query = query.or(`username.ilike.%${val}%,first_name.ilike.%${val}%,last_name.ilike.%${val}%`);
     }
-    const { data: users } = await query.limit(10);
+    const { data: customers } = await query.limit(10);
     await clearSession(cid);
-    if (!users?.length) { await tg.send(cid, "❌ Ничего не найдено.", ikb([[btn("◀️ К пользователям", "s:ul:0")]])); return true; }
-    let t = `🔍 <b>Результаты</b> (${users.length})\n\n`;
-    users.forEach(u => { t += `👤 <b>${esc(u.first_name)}</b> ${u.username ? `@${esc(u.username)}` : ""} | ${u.telegram_id}\n`; });
-    const rows: Btn[][] = users.map(u => [btn(`${u.first_name} ${u.last_name || ""}`.trim().slice(0, 28), `s:uv:${u.id}`)]);
+    if (!customers?.length) { await tg.send(cid, "❌ Ничего не найдено.", ikb([[btn("◀️ К пользователям", "s:ul:0")]])); return true; }
+    let t = `🔍 <b>Результаты</b> (${customers.length})\n\n`;
+    customers.forEach(u => { t += `👤 <b>${esc(u.first_name)}</b> ${u.username ? `@${esc(u.username)}` : ""} | ${u.telegram_id}\n`; });
+    const rows: Btn[][] = customers.map(u => [btn(`${u.first_name} ${u.last_name || ""}`.trim().slice(0, 28), `s:uv:${u.id}`)]);
     rows.push([btn("◀️ К пользователям", "s:ul:0")]);
     await tg.send(cid, t, ikb(rows));
     return true;
   }
 
-  // ─── User note ────────────────────────────
+  // ─── User note (now using shop_customers) ─────────
   if (state.startsWith("un:")) {
     const tgId = parseInt(state.slice(3));
-    await supabase().from("user_profiles").update({ internal_note: val, updated_at: new Date().toISOString() }).eq("telegram_id", tgId);
+    await supabase().from("shop_customers").update({ internal_note: val, updated_at: new Date().toISOString() }).eq("shop_id", shopId).eq("telegram_id", tgId);
     await logAction(shopId, adminId, "set_note", "user", String(tgId), { note: val });
     await clearSession(cid);
     await tg.send(cid, "✅ Заметка сохранена.", ikb([[btn("◀️ К пользователю", `s:uvt:${tgId}`)]]));
     return true;
   }
 
-  // ─── Balance operations ───────────────────
+  // ─── Balance operations (now using shop_customers + shop_balance_history) ───
   if (state.startsWith("bal:")) {
     const parts = state.split(":");
     const op = parts[1];
@@ -816,7 +805,7 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
 
     const amount = sData.amount as number;
     const comment = val;
-    const { data: u } = await supabase().from("user_profiles").select("balance").eq("telegram_id", tgId).single();
+    const { data: u } = await supabase().from("shop_customers").select("balance").eq("shop_id", shopId).eq("telegram_id", tgId).maybeSingle();
     const current = Number(u?.balance || 0);
     let newBalance: number;
     let histAmount: number;
@@ -826,8 +815,10 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, text: string, p
     else if (op === "d") { newBalance = Math.max(0, current - amount); histAmount = -(Math.min(amount, current)); histType = "debit"; }
     else { newBalance = amount; histAmount = amount - current; histType = "set"; }
 
-    await supabase().from("user_profiles").update({ balance: newBalance, updated_at: new Date().toISOString() }).eq("telegram_id", tgId);
-    await supabase().from("balance_history").insert({ telegram_id: tgId, amount: histAmount, balance_after: newBalance, type: histType, comment, admin_telegram_id: adminId });
+    // Ensure shop customer exists before updating balance
+    await supabase().rpc("ensure_shop_customer", { p_shop_id: shopId, p_telegram_id: tgId });
+    await supabase().from("shop_customers").update({ balance: newBalance, updated_at: new Date().toISOString() }).eq("shop_id", shopId).eq("telegram_id", tgId);
+    await supabase().from("shop_balance_history").insert({ shop_id: shopId, telegram_id: tgId, amount: histAmount, balance_after: newBalance, type: histType, comment, admin_telegram_id: adminId });
     await logAction(shopId, adminId, `balance_${histType}`, "user", String(tgId), { amount: histAmount, balance_after: newBalance, comment });
     await clearSession(cid);
     await tg.send(cid, `✅ Баланс: <b>$${newBalance.toFixed(2)}</b>`, ikb([[btn("💰 Баланс", `s:ub:${tgId}`)], [btn("◀️ К пользователю", `s:uvt:${tgId}`)]]));
@@ -992,7 +983,7 @@ async function handleCallback(tg: ReturnType<typeof TG>, cid: number, mid: numbe
     if (cmd === "ubd") { const tgId = parts[2]; await setSession(cid, `bal:d:${tgId}`, shopId); return tg.send(cid, "➖ Введите сумму для списания:\n\n/cancel — отмена"); }
     if (cmd === "ubs") { const tgId = parts[2]; await setSession(cid, `bal:s:${tgId}`, shopId); return tg.send(cid, "🎯 Введите новое значение баланса:\n\n/cancel — отмена"); }
 
-    // User role
+    // User role (now using shop_customers)
     if (cmd === "ur") {
       const tgId = parseInt(parts[2]);
       return tg.edit(cid, mid, `🏷 <b>Изменить роль</b> — TG ${tgId}`, ikb([
@@ -1002,18 +993,18 @@ async function handleCallback(tg: ReturnType<typeof TG>, cid: number, mid: numbe
     }
     if (cmd === "urs") {
       const tgId = parseInt(parts[2]); const role = parts[3];
-      await supabase().from("user_profiles").update({ role, updated_at: new Date().toISOString() }).eq("telegram_id", tgId);
+      await supabase().from("shop_customers").update({ role, updated_at: new Date().toISOString() }).eq("shop_id", shopId).eq("telegram_id", tgId);
       await logAction(shopId, adminId, "set_role", "user", String(tgId), { role });
       return userViewByTg(tg, cid, mid, shopId, tgId);
     }
 
-    // User block/unblock
+    // User block/unblock (now using shop_customers)
     if (cmd === "ux") {
       const tgId = parseInt(parts[2]);
-      const { data: u } = await supabase().from("user_profiles").select("is_blocked").eq("telegram_id", tgId).single();
+      const { data: u } = await supabase().from("shop_customers").select("is_blocked").eq("shop_id", shopId).eq("telegram_id", tgId).maybeSingle();
       if (u) {
         const newVal = !u.is_blocked;
-        await supabase().from("user_profiles").update({ is_blocked: newVal, updated_at: new Date().toISOString() }).eq("telegram_id", tgId);
+        await supabase().from("shop_customers").update({ is_blocked: newVal, updated_at: new Date().toISOString() }).eq("shop_id", shopId).eq("telegram_id", tgId);
         await logAction(shopId, adminId, newVal ? "block_user" : "unblock_user", "user", String(tgId));
       }
       return userViewByTg(tg, cid, mid, shopId, tgId);
@@ -1101,8 +1092,9 @@ async function handleCallback(tg: ReturnType<typeof TG>, cid: number, mid: numbe
       const session = await getSession(cid, shopId);
       if (!session || session.state !== "bc:preview") return;
       const sd = session.data;
-      const { data: ordersRaw } = await supabase().from("shop_orders").select("buyer_telegram_id").eq("shop_id", shopId);
-      const uniqueIds = [...new Set(ordersRaw?.map(o => o.buyer_telegram_id) || [])];
+      // Use shop_customers for broadcast recipients
+      const { data: customers } = await supabase().from("shop_customers").select("telegram_id").eq("shop_id", shopId);
+      const uniqueIds = [...new Set(customers?.map(c => c.telegram_id) || [])];
       if (!uniqueIds.length) { await clearSession(cid); return tg.send(cid, "❌ Нет покупателей."); }
       let ok = 0, fail = 0;
       for (const uid of uniqueIds) {
@@ -1270,9 +1262,9 @@ serve(async (req) => {
 
     // ─── /start command ─────────────────────
     if (text === "/start" || text.startsWith("/start ")) {
-      // Create user profile if not exists
+      // Create shop customer profile (tenant-scoped)
       if (msg.from) {
-        await ensureUserProfile({
+        await ensureShopCustomer(shopId, {
           id: msg.from.id,
           first_name: msg.from.first_name,
           last_name: msg.from.last_name,
