@@ -165,6 +165,7 @@ serve(async (req) => {
         order_number: orderNumber, buyer_telegram_id: telegramUserId, shop_id: shopId,
         status: "paid", payment_status: "paid", total_amount: serverTotal,
         currency: "USD", balance_used: balanceUsed,
+        discount_amount: discountAmount, promo_code: validatedPromoCode,
       }).select().single();
       if (error) { console.error("Shop order error:", error); return jsonRes({ error: "Failed to create order" }, 500); }
       order = data;
