@@ -12,6 +12,7 @@ export interface ShopData {
   welcome_message: string;
   support_link: string;
   status: string;
+  paymentsConfigured?: boolean;
 }
 
 export interface ShopProduct {
