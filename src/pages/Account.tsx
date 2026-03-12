@@ -229,7 +229,7 @@ const Account = () => {
             </div>
           </div>
           <div className="text-right shrink-0">
-            <div className="text-xs font-bold">${Number(order.total_amount).toFixed(2)}</div>
+            <div className="text-xs font-bold">${finalAmount.toFixed(2)}</div>
             <div className={`text-[10px] flex items-center gap-1 mt-0.5 justify-end ${statusColor(order.status)}`}>
               {statusIcon(order.status)}
               {ORDER_STATUS_LABELS[order.status]}
