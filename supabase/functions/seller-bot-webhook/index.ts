@@ -26,7 +26,24 @@ const TG = (token: string) => {
 };
 
 type Btn = { text: string; callback_data?: string; url?: string; web_app?: { url: string } };
-const btn = (t: string, cb: string): Btn => ({ text: t, callback_data: cb });
+
+const UUID_LIKE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function normalizeCallbackData(callbackData: string): string {
+  if (!callbackData.startsWith("s:") || callbackData.length <= 64) return callbackData;
+
+  const parts = callbackData.split(":");
+  // Legacy format: s:<cmd>:<shopId>:<arg1>[:arg2...]
+  if (parts.length >= 4 && UUID_LIKE_RE.test(parts[2])) {
+    const shortened = `s:${parts[1]}:${parts.slice(3).join(":")}`;
+    if (shortened.length <= 64) return shortened;
+  }
+
+  console.error("seller-bot-webhook: callback_data too long", { original: callbackData, length: callbackData.length });
+  return "s:noop";
+}
+
+const btn = (t: string, cb: string): Btn => ({ text: t, callback_data: normalizeCallbackData(cb) });
 const ikb = (rows: Btn[][]) => ({ inline_keyboard: rows });
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const WEBAPP_DOMAIN = Deno.env.get("WEBAPP_URL") || "https://temka-digital-vault.lovable.app";
@@ -921,6 +938,14 @@ async function handleText(tg: ReturnType<typeof TG>, chatId: number, text: strin
 async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: number, data: string, cbId: string, shopId: string) {
   await tg.answer(cbId);
   const parts = data.split(":");
+
+  // Backward/forward compatibility:
+  // - legacy callbacks: s:<cmd>:<shopId>:...
+  // - shortened callbacks: s:<cmd>:...
+  if (parts[2] !== shopId) {
+    parts.splice(2, 0, shopId);
+  }
+
   const cmd = parts[1];
 
   if (cmd === "noop") return;
