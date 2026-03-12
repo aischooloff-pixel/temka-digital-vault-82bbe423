@@ -1421,13 +1421,45 @@ serve(async (req) => {
         });
       }
 
-      const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
-      const welcomeText = shop.welcome_message || `Добро пожаловать в ${shop.name}!`;
+      // ─── Subscription gate (OP check) ─────
+      if (shop.is_subscription_required && shop.required_channel_id) {
+        // Skip OP check for shop owner
+        const isOwner = await isShopOwner(shopId, chatId);
+        if (!isOwner) {
+          try {
+            const memberRes = await fetch(`https://api.telegram.org/bot${botToken}/getChatMember`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ chat_id: shop.required_channel_id, user_id: chatId }),
+            }).then(r => r.json());
+            const isSubscribed = memberRes.ok && ["member", "administrator", "creator"].includes(memberRes.result?.status);
+            if (!isSubscribed) {
+              const subLink = shop.required_channel_link || `https://t.me/${String(shop.required_channel_id).replace("@", "")}`;
+              await tg.send(chatId,
+                `📢 <b>Для доступа к магазину подпишитесь на канал</b>\n\nПосле подписки нажмите «✅ Проверить».`,
+                { inline_keyboard: [
+                  [{ text: "📢 Подписаться", url: subLink }],
+                  [{ text: "✅ Проверить", callback_data: "s:opcheck" }],
+                ]});
+              return new Response("ok");
+            }
+          } catch (opErr) {
+            console.error("OP check error:", opErr);
+            // If OP check fails (bot not in channel), let user through with warning
+          }
+        }
+      }
 
-      const greeting =
-        `👋 Привет, <b>${esc(firstName)}</b>!\n\n` +
-        `${esc(welcomeText)}\n\n` +
-        `🛍 Откройте витрину чтобы посмотреть товары:`;
+      const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
+
+      // Full welcome message replacement: use owner's text as-is (HTML supported)
+      // If welcome_message is set, it replaces the entire greeting.
+      // Support {name} placeholder for user's first name.
+      let greeting: string;
+      if (shop.welcome_message) {
+        greeting = shop.welcome_message.replace(/{name}/gi, firstName);
+      } else {
+        greeting = `👋 Привет, <b>${esc(firstName)}</b>!\n\nДобро пожаловать в <b>${esc(shop.name)}</b>! 🛍`;
+      }
 
       const supportUrl = shop.support_link
         ? (shop.support_link.startsWith("http") ? shop.support_link : `https://${shop.support_link}`)
