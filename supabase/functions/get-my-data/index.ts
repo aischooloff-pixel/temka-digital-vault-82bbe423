@@ -164,10 +164,10 @@ serve(async (req) => {
 
       case "stats": {
         if (isShop) {
-          const { data: orders } = await supabase.from("shop_orders").select("total_amount, status")
+          const { data: orders } = await supabase.from("shop_orders").select("total_amount, discount_amount, status")
             .eq("buyer_telegram_id", telegramId).eq("shop_id", shopId);
           const paid = (orders || []).filter((o: any) => ["paid", "processing", "delivered", "completed"].includes(o.status));
-          return jsonRes({ stats: { orderCount: (orders || []).length, totalSpent: paid.reduce((s: number, o: any) => s + Number(o.total_amount), 0) } });
+          return jsonRes({ stats: { orderCount: (orders || []).length, totalSpent: paid.reduce((s: number, o: any) => s + Number(o.total_amount) - Number(o.discount_amount || 0), 0) } });
         }
         const { data: orders } = await supabase.from("orders").select("total_amount, status").eq("telegram_id", telegramId);
         const paid = (orders || []).filter((o: any) => ["paid", "processing", "delivered", "completed"].includes(o.status));
