@@ -706,12 +706,43 @@ async function handleFSM(tg: ReturnType<typeof TG>, cid: number, val: string, ph
       await tg.send(cid, "❌ Введи HEX цвет, например: #FF5500");
       return true;
     }
+    // For welcome message, store raw text as-is (full replacement, HTML supported)
     const updateVal = field === "color" ? (val.startsWith("#") ? val : `#${val}`) : val;
     await supabase().from("shops").update({ [dbField]: updateVal, updated_at: new Date().toISOString() }).eq("id", shopId);
     await clearSession(cid);
     const resp = await tg.send(cid, "✅ Обновлено!");
     const mid = resp?.result?.message_id;
     if (mid) return settingsView(tg, cid, mid, shopId), true;
+    return true;
+  }
+
+  // ─── Set OP channel link ──────────────────
+  if (state === "s_set_op_channel") {
+    const input = val.trim();
+    // Accept @username, t.me/username, or numeric chat_id
+    let channelLink = input;
+    let channelId = input;
+    if (/^-?\d+$/.test(input)) {
+      channelId = input;
+      channelLink = input;
+    } else {
+      // Extract username from t.me link or @username
+      let username = input;
+      if (username.includes("t.me/")) {
+        username = username.split("t.me/").pop()?.split("/")[0]?.split("?")[0] || "";
+      }
+      username = username.replace(/^@/, "");
+      if (!username) { await tg.send(cid, "❌ Неверный формат. Отправьте @username канала, ссылку t.me/... или числовой chat_id."); return true; }
+      channelId = `@${username}`;
+      channelLink = `https://t.me/${username}`;
+    }
+    await supabase().from("shops").update({
+      required_channel_id: channelId,
+      required_channel_link: channelLink,
+      updated_at: new Date().toISOString(),
+    }).eq("id", shopId);
+    await clearSession(cid);
+    await tg.send(cid, `✅ Канал установлен: <b>${esc(channelId)}</b>\n\n⚠️ Убедитесь, что бот добавлен в канал как администратор.`, ikb([[btn("◀️ К настройкам", "s:se")]]));
     return true;
   }
 
