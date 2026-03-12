@@ -244,7 +244,7 @@ async function handleOrderPayment(supabase: any, invoice: any, orderData: any) {
 // ─── Shop order payment (tenant-scoped balance) ──
 async function handleShopOrderPayment(supabase: any, invoice: any, orderData: any, shopId: string) {
   const { data: order } = await supabase.from("shop_orders")
-    .select("id, status, payment_status, balance_used, buyer_telegram_id, order_number, shop_id")
+    .select("id, status, payment_status, balance_used, buyer_telegram_id, order_number, shop_id, promo_code")
     .eq("id", orderData.orderId).single();
   if (!order || order.payment_status === "paid") return;
 
