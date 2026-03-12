@@ -269,6 +269,9 @@ serve(async (req) => {
     const notifyBotToken = tokens.botToken;
     if (notifyBotToken) {
       let message = `✅ <b>Оплата балансом подтверждена!</b>\n\n📦 Заказ: <code>${orderNumber}</code>\n💰 Списано: $${balanceUsed.toFixed(2)}\n`;
+      if (discountAmount > 0) {
+        message += `🏷 Промокод: ${validatedPromoCode} (скидка $${discountAmount.toFixed(2)})\n`;
+      }
       if (deliveredContent.length > 0) {
         message += `\n🎁 <b>Ваши товары:</b>\n\n${deliveredContent.join("\n\n")}\n\n⚠️ Сохраните данные!`;
       } else { message += `\nВаш товар будет доставлен в ближайшее время.`; }
