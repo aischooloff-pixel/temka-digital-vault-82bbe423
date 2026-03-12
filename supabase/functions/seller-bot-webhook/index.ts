@@ -1172,10 +1172,11 @@ async function handleCallback(tg: ReturnType<typeof TG>, cid: number, mid: numbe
       const labels: Record<string, string> = {
         name: "📛 название магазина", color: "🎨 HEX цвет (например #FF5500)",
         hero_title: "📌 заголовок витрины", hero_desc: "📝 описание витрины",
-        welcome: "👋 приветственное сообщение", support: "🔗 ссылку на поддержку",
+        welcome: "👋 приветственное сообщение (HTML: &lt;b&gt;, &lt;i&gt;, &lt;a&gt;, {name} для имени)", support: "🔗 ссылку на поддержку",
       };
       await setSession(cid, "s_edit_field", shopId, { field });
-      return tg.edit(cid, mid, `✏️ Введи новое ${labels[field] || field}:`, ikb([[btn("❌ Отмена", "s:se")]]));
+      const extra = field === "welcome" ? "\n\n💡 Сообщение заменяет стартовый текст полностью.\nПоддерживается HTML: &lt;b&gt;, &lt;i&gt;, &lt;u&gt;, &lt;a href=\"\"&gt;\nИспользуйте <code>{name}</code> для имени пользователя." : "";
+      return tg.edit(cid, mid, `✏️ Введи новое ${labels[field] || field}:${extra}`, ikb([[btn("❌ Отмена", "s:se")]]));
     }
 
     // Set CryptoBot token
