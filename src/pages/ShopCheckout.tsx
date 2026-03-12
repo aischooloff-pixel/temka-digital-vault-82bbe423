@@ -10,7 +10,7 @@ import { useUserProfile } from '@/hooks/useOrders';
 import { supabase } from '@/integrations/supabase/client';
 
 const ShopCheckout = () => {
-  const { cart, clearCart, cartTotal, shop } = useShop();
+  const { cart, clearCart, cartTotal, shop, discount, totalAfterDiscount, promoResult } = useShop();
   const { user, isInTelegram, openTelegramLink, haptic, initData } = useTelegram();
   const navigate = useNavigate();
   const buildPath = useStorefrontPath();
@@ -22,8 +22,8 @@ const ShopCheckout = () => {
   const displayName = user ? `${user.firstName}${user.lastName ? ` ${user.lastName}` : ''}` : 'Telegram User';
   const avatar = user?.firstName?.[0]?.toUpperCase() || 'T';
   const balance = Number(profile?.balance || 0);
-  const balanceUsed = Math.min(balance, cartTotal);
-  const toPay = Math.max(0, cartTotal - balanceUsed);
+  const balanceUsed = Math.min(balance, totalAfterDiscount);
+  const toPay = Math.max(0, totalAfterDiscount - balanceUsed);
 
   if (cart.length === 0) {
     return (
