@@ -87,16 +87,14 @@ async function setupSellerWebhook(botToken: string, shopId: string): Promise<{ o
     const data = await res.json();
     if (!data.ok) return { ok: false, error: data.description || "Failed to set webhook" };
 
-    // Set bot commands so users see /start, /admin, /help
+    // Set public bot commands (visible to all users)
     await fetch(`https://api.telegram.org/bot${botToken}/setMyCommands`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         commands: [
           { command: "start", description: "Открыть магазин" },
-          { command: "admin", description: "Админ-панель" },
           { command: "help", description: "Помощь" },
-          { command: "cancel", description: "Отмена текущего действия" },
         ],
       }),
     }).catch(() => {});
