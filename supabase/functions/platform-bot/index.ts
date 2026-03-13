@@ -512,7 +512,6 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
   const rows: Btn[][] = [];
   if (user.subscription_status !== "active") {
     rows.push([btn(`💳 Оплатить $${priceInfo.price}`, "p:pay_sub")]);
-    rows.push([btn("🎫 У меня есть промокод", "p:sub_promo")]);
   }
   rows.push([btn("◀️ Назад", "p:home")]);
   return tg.edit(chatId, msgId, text, ikb(rows));
