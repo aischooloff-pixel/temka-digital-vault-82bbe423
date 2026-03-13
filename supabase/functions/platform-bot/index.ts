@@ -78,7 +78,12 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 
 const PLATFORM_NAME = "ShopBot Platform";
 const WEBAPP_DOMAIN = Deno.env.get("WEBAPP_URL") || "https://temka-digital-vault.lovable.app";
-const SUPPORT_LINK = "https://t.me/support";
+const SUPPORT_LINK_DEFAULT = "https://t.me/support";
+
+async function getSupportLink(): Promise<string> {
+  const { data } = await db().from("shop_settings").select("value").eq("key", "platform_support_link").maybeSingle();
+  return data?.value || Deno.env.get("PLATFORM_SUPPORT_LINK") || SUPPORT_LINK_DEFAULT;
+}
 const EARLY_BIRD_PRICE = 3;
 const STANDARD_PRICE = 5;
 const EARLY_BIRD_LIMIT = 10;
