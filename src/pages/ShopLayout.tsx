@@ -4,8 +4,28 @@ import { StorefrontProvider } from '@/contexts/StorefrontContext';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import BottomNav from '@/components/BottomNav';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ShieldAlert, AlertTriangle } from 'lucide-react';
 import { useParams } from 'react-router-dom';
+
+const ShopUnavailableScreen = ({ type }: { type: 'paused' | 'deleted' }) => (
+  <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center bg-background">
+    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-6">
+      {type === 'paused' ? (
+        <ShieldAlert className="w-8 h-8 text-muted-foreground" />
+      ) : (
+        <AlertTriangle className="w-8 h-8 text-muted-foreground" />
+      )}
+    </div>
+    <h1 className="font-display text-xl font-bold mb-2 text-foreground">
+      {type === 'paused' ? 'Магазин временно недоступен' : 'Магазин не найден'}
+    </h1>
+    <p className="text-muted-foreground text-sm max-w-sm">
+      {type === 'paused'
+        ? 'Этот магазин временно приостановлен. Пожалуйста, обратитесь в поддержку для получения информации.'
+        : 'Магазин был удалён или не существует. Если вы перешли по старой ссылке, она больше не действительна.'}
+    </p>
+  </div>
+);
 
 const ShopContent = () => {
   const { shopId } = useParams();
@@ -20,13 +40,14 @@ const ShopContent = () => {
     );
   }
 
+  // Shop not found at all (deleted or never existed)
   if (error || !shop) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center">
-        <h1 className="font-display text-2xl font-bold mb-2">😔</h1>
-        <p className="text-muted-foreground">{error || 'Магазин не найден'}</p>
-      </div>
-    );
+    return <ShopUnavailableScreen type="deleted" />;
+  }
+
+  // Shop exists but is not active (paused/deactivated)
+  if (shop.status !== 'active') {
+    return <ShopUnavailableScreen type="paused" />;
   }
 
   return (

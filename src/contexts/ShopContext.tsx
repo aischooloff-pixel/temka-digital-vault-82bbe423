@@ -157,8 +157,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const fetchShop = async () => {
       let query = supabase
         .from('shops')
-        .select('id, name, slug, color, hero_title, hero_description, welcome_message, support_link, status')
-        .eq('status', 'active');
+        .select('id, name, slug, color, hero_title, hero_description, welcome_message, support_link, status');
 
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(shopId);
       if (isUuid) {
@@ -169,8 +168,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const { data, error: err } = await query.maybeSingle();
       if (err) { setError('Ошибка загрузки магазина'); setLoading(false); return; }
-      if (!data) { setError('Магазин не найден'); setLoading(false); return; }
+      if (!data) { setError('Магазин не найден или удалён'); setLoading(false); return; }
 
+      // If shop is not active, still set the data so ShopLayout can show proper status screen
       setShop(data as ShopData);
       setLoading(false);
 
