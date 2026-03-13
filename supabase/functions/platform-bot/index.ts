@@ -1752,7 +1752,7 @@ async function admSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: num
     `📝 <b>shop_settings:</b>\n${settingsText}`;
   return tg.edit(chatId, msgId, text, ikb([
     [btn("👋 Приветствие", "adm:welcmgr"), btn("📢 Настройки ОП", "adm:platop")],
-    [btn("✏️ Изменить setting", "adm:setedit")],
+    [btn("🔗 Поддержка", "adm:setsupport"), btn("✏️ Изменить setting", "adm:setedit")],
     [btn("◀️ Меню", "adm:home")],
   ]));
 }
@@ -2374,6 +2374,16 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
   // ─── Settings ─────────────────────────────
   if (cmd === "settings") return admSettings(tg, chatId, msgId);
   if (cmd === "setedit") { await setSession(chatId, "adm_edit_setting", {}); return tg.edit(chatId, msgId, "✏️ Введите в формате:\n<code>ключ = значение</code>\n\nНапример: <code>support_username = @support</code>", ikb([[btn("❌ Отмена", "adm:settings")]])); }
+  if (cmd === "setsupport") {
+    const currentLink = await getSupportLink();
+    await setSession(chatId, "adm_set_support", {});
+    return tg.edit(chatId, msgId, `🔗 <b>Ссылка на поддержку</b>\n\nТекущая: ${esc(currentLink)}\n\nВведите новую ссылку на поддержку:\n\n<i>Например: https://t.me/username</i>`, ikb([[btn("🗑 Сбросить на дефолт", "adm:clearsupport")], [btn("❌ Отмена", "adm:settings")]]));
+  }
+  if (cmd === "clearsupport") {
+    await db().from("shop_settings").delete().eq("key", "platform_support_link");
+    await admLog(adminTgId, "clear_support_link", "settings", "platform_support_link");
+    return tg.edit(chatId, msgId, `✅ Ссылка на поддержку сброшена на значение по умолчанию: ${esc(SUPPORT_LINK_DEFAULT)}`, ikb([[btn("◀️ Настройки", "adm:settings")]]));
+  }
 
   // ─── Platform OP management ───────────────
   if (cmd === "platop") {
@@ -2944,6 +2954,19 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     await db().from("shops").update({ required_channel_id: channelId, required_channel_link: channelLink, updated_at: new Date().toISOString() }).eq("id", shopId);
     await admLog(chatId, "set_op_channel", "shop", shopId, { channel_id: channelId, channel_link: channelLink });
     return tg.send(chatId, `✅ Канал ОП установлен: <code>${esc(channelId)}</code>`, ikb([[btn("◀️ К магазину", `adm:scard:${shopId}`)]]));
+  }
+
+  // ─── Set support link ─────────────────────
+  if (state === "adm_set_support") {
+    await clearSession(chatId);
+    let link = val.trim();
+    // Auto-prefix https if user provides just @username or t.me/...
+    if (link.startsWith("@")) link = `https://t.me/${link.slice(1)}`;
+    else if (link.startsWith("t.me/")) link = `https://${link}`;
+    else if (!link.startsWith("http://") && !link.startsWith("https://")) link = `https://${link}`;
+    await db().from("shop_settings").upsert({ key: "platform_support_link", value: link, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    await admLog(chatId, "set_support_link", "settings", "platform_support_link", { link });
+    return tg.send(chatId, `✅ Ссылка на поддержку обновлена:\n${esc(link)}`, ikb([[btn("◀️ Настройки", "adm:settings")]]));
   }
 
   // ─── User: enter subscription promo code ──
