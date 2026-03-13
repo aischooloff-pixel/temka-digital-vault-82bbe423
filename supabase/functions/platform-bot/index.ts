@@ -667,7 +667,7 @@ async function wizardStep(tg: ReturnType<typeof TG>, chatId: number, step: numbe
     case 6: text = `🔗 <b>Шаг 6 из 7</b>\n\nВведи ссылку на поддержку\n\nНапример: <i>https://t.me/nickname</i>`; kb = [[btn("◀️ Назад", "p:wback:5")], cancelRow]; nextState = "wiz_6"; break;
     case 7: text = `🤖 <b>Шаг 7 из 7</b>\n\nВведи API токен своего Telegram бота\n\nКак получить:\n1. Открой @BotFather\n2. Напиши /newbot\n3. Следуй инструкции\n4. Скопируй токен`; kb = [[urlBtn("📖 Подробная инструкция", "https://timeweb.com/ru/community/articles/token-bota-telegram-kak-sdelat-gde-vzyat-i-kuda-vstavlyat?ysclid=mmpciarkmm977762080")], [btn("◀️ Назад", "p:wback:6")], cancelRow]; nextState = "wiz_7"; break;
   }
-  if (msgId) { const res = await tg.edit(chatId, msgId, text, ikb(kb)); await persistWizardSession(chatId, nextState, sData, msgId); return res; }
+  if (msgId) { const res = await tg.edit(chatId, msgId, text, ikb(kb)); await persistWizardSession(chatId, nextState, sData, resolveWizardMessageId(msgId, res)); return res; }
   const res = await tg.send(chatId, text, ikb(kb));
   const sentMsgId = res?.result?.message_id;
   await persistWizardSession(chatId, nextState, sData, sentMsgId);
