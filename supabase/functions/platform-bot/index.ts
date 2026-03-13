@@ -2924,7 +2924,8 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     const { data: result } = await db().rpc("validate_platform_subscription_promo", { p_code: code, p_telegram_id: chatId });
     const r = result as any;
     if (!r || !r.valid) return tg.send(chatId, `❌ ${r?.error || "Промокод не найден"}`, ikb([[btn("🔄 Попробовать другой", "p:sub_promo")], [btn("◀️ Назад", "p:sub")]]));
-    const SUBSCRIPTION_PRICE = 9;
+    const priceInfo = await getSubscriptionPrice(chatId);
+    const SUBSCRIPTION_PRICE = priceInfo.price;
     const discountAmount = r.discount_type === "percent" ? Math.min(SUBSCRIPTION_PRICE, SUBSCRIPTION_PRICE * r.discount_value / 100) : Math.min(SUBSCRIPTION_PRICE, Number(r.discount_value));
     const finalAmount = Math.max(0, SUBSCRIPTION_PRICE - discountAmount);
     await setSession(chatId, "sub_promo_applied", { promo_code: r.code, promo_id: r.id, discount_amount: discountAmount });
