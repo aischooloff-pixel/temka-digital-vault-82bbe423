@@ -1771,7 +1771,8 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
     return tg.edit(chatId, msgId, `🔗 Введите ссылку на канал:\n\n<code>https://t.me/channel_name</code>`, ikb([[btn("❌ Отмена", "adm:platop")]]));
   }
   if (cmd === "platop_clear") {
-    await db().from("shop_settings").delete().eq("key", "platform_channel_id");
+    // Upsert empty value so DB record exists and env fallback is skipped
+    await db().from("shop_settings").upsert({ key: "platform_channel_id", value: "", updated_at: new Date().toISOString() }, { onConflict: "key" });
     await db().from("shop_settings").delete().eq("key", "platform_channel_link");
     await admLog(adminTgId, "clear_platform_op", "settings", "platform_op");
     return tg.edit(chatId, msgId, "✅ ОП платформы очищена. Подписка на канал больше не требуется.", ikb([[btn("◀️ Настройки ОП", "adm:platop")], [btn("◀️ Настройки", "adm:settings")]]));
