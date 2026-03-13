@@ -1464,7 +1464,7 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
   if (cmd === "ushops") {
     const userId = parts[2]; const page = parseInt(parts[3]) || 0;
     const { data: shops } = await db().from("shops").select("*").eq("owner_id", userId).order("created_at");
-    if (!shops?.length) return tg.edit(chatId, msgId, "🏪 Нет магазинов у пользователя.", ikb([[btn("◀️ Назад", "adm:users:0")]]));
+    if (!shops?.length) return tg.edit(chatId, msgId, "🏪 Нет магазинов у пользователя.", ikb([[btn("◀️ Назад", `adm:ucard:${(await db().from("platform_users").select("telegram_id").eq("id", userId).maybeSingle()).data?.telegram_id || 0}`)]]));
     let text = `🏪 <b>Магазины пользователя</b> (${shops.length})\n\n`;
     const rows: Btn[][] = [];
     for (const s of shops) {
@@ -1472,7 +1472,9 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
       text += `${dot} ${esc(s.name)}\n`;
       rows.push([btn(`${dot} ${s.name}`, `adm:scard:${s.id}`)]);
     }
-    rows.push([btn("◀️ Назад", "adm:users:0")]);
+    // Back to user card, not user list
+    const { data: ownerUser } = await db().from("platform_users").select("telegram_id").eq("id", userId).maybeSingle();
+    rows.push([btn("◀️ К пользователю", `adm:ucard:${ownerUser?.telegram_id || 0}`)]);
     return tg.edit(chatId, msgId, text, ikb(rows));
   }
   if (cmd === "uorders") {
