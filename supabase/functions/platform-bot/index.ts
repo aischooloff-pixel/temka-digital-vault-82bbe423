@@ -310,11 +310,28 @@ async function getWelcomeConfig(): Promise<{ text: string; media_type?: string; 
 // ═══════════════════════════════════════════════
 // WELCOME / START
 // ═══════════════════════════════════════════════
+async function welcomeButtons(chatId: number): Promise<Btn[][]> {
+  const hasShop = await userHasShop(chatId);
+  if (hasShop) {
+    const { data: pu } = await db().from("platform_users").select("id").eq("telegram_id", chatId).maybeSingle();
+    const { data: shop } = await db().from("shops").select("id, name").eq("owner_id", pu?.id || "").maybeSingle();
+    return [
+      [btn(`🏪 ${shop ? shop.name : "Мой магазин"}`, `p:shop:${shop?.id || ""}`), btn("📖 Как это работает", "p:howitworks")],
+      [btn("👤 Мой профиль", "p:profile")],
+    ];
+  }
+  return [
+    [btn("🏪 Создать магазин", "p:create"), btn("📖 Как это работает", "p:howitworks")],
+    [btn("👤 Мой профиль", "p:profile")],
+    [btn("🏪 Мои магазины", "p:myshops:0")],
+  ];
+}
+
 async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName: string) {
   const config = await getWelcomeConfig();
   const defaultText = `👋 Привет, <b>${esc(firstName)}</b>!\nДобро пожаловать в <b>${PLATFORM_NAME}</b>\n\nСоздай свой Telegram магазин\nс автовыдачей за 5 минут.\n\n— Никакого кода и хостинга\n— Автовыдача товаров 24/7\n— Приём крипты через CryptoBot\n— Полная настройка под себя`;
   const welcomeText = config.text ? config.text.replace(/\{name\}/g, esc(firstName)) : defaultText;
-  const kb = { ...ikb([[btn("🏪 Создать магазин", "p:create"), btn("📖 Как это работает", "p:howitworks")], [btn("👤 Мой профиль", "p:profile")], [btn("🏪 Мои магазины", "p:myshops:0")]]) };
+  const kb = { ...ikb(await welcomeButtons(chatId)) };
 
   if (config.media_type === "photo" && config.media_url) {
     await tg.sendPhoto(chatId, config.media_url, welcomeText, kb);
