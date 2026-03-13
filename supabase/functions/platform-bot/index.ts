@@ -353,12 +353,12 @@ async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName:
   const kb = { ...ikb(await welcomeButtons(chatId)) };
 
   if (config.media_type === "photo" && config.media_url) {
-    await tg.sendPhoto(chatId, config.media_url);
+    await tg.sendPhoto(chatId, config.media_url, welcomeText, kb);
   } else if (config.media_type === "video" && config.media_url) {
-    await tg.sendVideo(chatId, config.media_url);
+    await tg.sendVideo(chatId, config.media_url, welcomeText, kb);
+  } else {
+    await tg.send(chatId, welcomeText, kb);
   }
-  await tg.send(chatId, welcomeText, kb);
-  const hasShop = await userHasShop(chatId);
   // Check subscription reminders in background
   await sendTrialReminder(chatId);
   await checkAndEnforceSubscription(chatId);
