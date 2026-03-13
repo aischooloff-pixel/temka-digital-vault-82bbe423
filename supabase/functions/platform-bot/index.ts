@@ -555,10 +555,72 @@ function trackWizardMessage(sData: Record<string, unknown>, msgId?: number): Rec
   return { ...sData, wizard_active_message_id: msgId, wizard_message_ids: ids.slice(-20) };
 }
 
+function extractMessageIdFromResult(res: unknown): number | undefined {
+  const id = Number((res as { result?: { message_id?: number } } | null)?.result?.message_id);
+  return Number.isInteger(id) && id > 0 ? id : undefined;
+}
+
+function resolveWizardMessageId(currentMsgId: number | undefined, res: unknown): number | undefined {
+  return extractMessageIdFromResult(res) ?? currentMsgId;
+}
+
+const WIZARD_STEP_BY_STATE: Record<string, number> = {
+  wiz_1: 1,
+  wiz_2: 2,
+  wiz_3: 3,
+  wiz_4: 4,
+  wiz_5: 5,
+  wiz_6: 6,
+  wiz_7: 7,
+};
+
+function isWizardFlowState(state?: string | null): boolean {
+  return !!state && (state === "wiz_launching" || state.startsWith("wiz_"));
+}
+
 async function persistWizardSession(chatId: number, state: string, sData: Record<string, unknown>, msgId?: number) {
   const nextData = trackWizardMessage(sData, msgId);
   await setSession(chatId, state, nextData);
   return nextData;
+}
+
+async function reopenActiveWizard(tg: ReturnType<typeof TG>, chatId: number, session: Awaited<ReturnType<typeof getSession>>): Promise<boolean> {
+  if (!session || !isWizardFlowState(session.state)) return false;
+
+  const state = session.state;
+  const sData = { ...(session.data || {}) } as Record<string, unknown>;
+  const activeMsgId = Number(sData.wizard_active_message_id);
+  const msgId = Number.isInteger(activeMsgId) && activeMsgId > 0 ? activeMsgId : undefined;
+
+  if (state === "wiz_launching" || state === "wiz_finalizing") return true;
+
+  if (state === "wiz_2_custom") {
+    const text = "🎨 Введи HEX цвет, например: <code>#FF5500</code>";
+    const markup = ikb([[btn("◀️ Назад", "p:wback:2")]]);
+    if (msgId) {
+      const res = await tg.edit(chatId, msgId, text, markup);
+      await persistWizardSession(chatId, "wiz_2_custom", sData, resolveWizardMessageId(msgId, res));
+      return true;
+    }
+    const res = await tg.send(chatId, text, markup);
+    await persistWizardSession(chatId, "wiz_2_custom", sData, extractMessageIdFromResult(res));
+    return true;
+  }
+
+  if (state === "wiz_confirm") {
+    await showConfirmation(tg, chatId, sData, msgId);
+    return true;
+  }
+
+  if (state === "wiz_legal") {
+    await showLegalAgreement(tg, chatId, sData, msgId);
+    return true;
+  }
+
+  const step = WIZARD_STEP_BY_STATE[state];
+  if (!step) return false;
+  await wizardStep(tg, chatId, step, sData, msgId);
+  return true;
 }
 
 function expectedWizardStates(cmd: string, parts: string[]): string[] {
