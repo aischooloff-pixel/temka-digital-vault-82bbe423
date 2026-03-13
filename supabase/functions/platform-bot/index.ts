@@ -555,10 +555,72 @@ function trackWizardMessage(sData: Record<string, unknown>, msgId?: number): Rec
   return { ...sData, wizard_active_message_id: msgId, wizard_message_ids: ids.slice(-20) };
 }
 
+function extractMessageIdFromResult(res: unknown): number | undefined {
+  const id = Number((res as { result?: { message_id?: number } } | null)?.result?.message_id);
+  return Number.isInteger(id) && id > 0 ? id : undefined;
+}
+
+function resolveWizardMessageId(currentMsgId: number | undefined, res: unknown): number | undefined {
+  return extractMessageIdFromResult(res) ?? currentMsgId;
+}
+
+const WIZARD_STEP_BY_STATE: Record<string, number> = {
+  wiz_1: 1,
+  wiz_2: 2,
+  wiz_3: 3,
+  wiz_4: 4,
+  wiz_5: 5,
+  wiz_6: 6,
+  wiz_7: 7,
+};
+
+function isWizardFlowState(state?: string | null): boolean {
+  return !!state && (state === "wiz_launching" || state.startsWith("wiz_"));
+}
+
 async function persistWizardSession(chatId: number, state: string, sData: Record<string, unknown>, msgId?: number) {
   const nextData = trackWizardMessage(sData, msgId);
   await setSession(chatId, state, nextData);
   return nextData;
+}
+
+async function reopenActiveWizard(tg: ReturnType<typeof TG>, chatId: number, session: Awaited<ReturnType<typeof getSession>>): Promise<boolean> {
+  if (!session || !isWizardFlowState(session.state)) return false;
+
+  const state = session.state;
+  const sData = { ...(session.data || {}) } as Record<string, unknown>;
+  const activeMsgId = Number(sData.wizard_active_message_id);
+  const msgId = Number.isInteger(activeMsgId) && activeMsgId > 0 ? activeMsgId : undefined;
+
+  if (state === "wiz_launching" || state === "wiz_finalizing") return true;
+
+  if (state === "wiz_2_custom") {
+    const text = "🎨 Введи HEX цвет, например: <code>#FF5500</code>";
+    const markup = ikb([[btn("◀️ Назад", "p:wback:2")]]);
+    if (msgId) {
+      const res = await tg.edit(chatId, msgId, text, markup);
+      await persistWizardSession(chatId, "wiz_2_custom", sData, resolveWizardMessageId(msgId, res));
+      return true;
+    }
+    const res = await tg.send(chatId, text, markup);
+    await persistWizardSession(chatId, "wiz_2_custom", sData, extractMessageIdFromResult(res));
+    return true;
+  }
+
+  if (state === "wiz_confirm") {
+    await showConfirmation(tg, chatId, sData, msgId);
+    return true;
+  }
+
+  if (state === "wiz_legal") {
+    await showLegalAgreement(tg, chatId, sData, msgId);
+    return true;
+  }
+
+  const step = WIZARD_STEP_BY_STATE[state];
+  if (!step) return false;
+  await wizardStep(tg, chatId, step, sData, msgId);
+  return true;
 }
 
 function expectedWizardStates(cmd: string, parts: string[]): string[] {
@@ -605,7 +667,7 @@ async function wizardStep(tg: ReturnType<typeof TG>, chatId: number, step: numbe
     case 6: text = `🔗 <b>Шаг 6 из 7</b>\n\nВведи ссылку на поддержку\n\nНапример: <i>https://t.me/nickname</i>`; kb = [[btn("◀️ Назад", "p:wback:5")], cancelRow]; nextState = "wiz_6"; break;
     case 7: text = `🤖 <b>Шаг 7 из 7</b>\n\nВведи API токен своего Telegram бота\n\nКак получить:\n1. Открой @BotFather\n2. Напиши /newbot\n3. Следуй инструкции\n4. Скопируй токен`; kb = [[urlBtn("📖 Подробная инструкция", "https://timeweb.com/ru/community/articles/token-bota-telegram-kak-sdelat-gde-vzyat-i-kuda-vstavlyat?ysclid=mmpciarkmm977762080")], [btn("◀️ Назад", "p:wback:6")], cancelRow]; nextState = "wiz_7"; break;
   }
-  if (msgId) { const res = await tg.edit(chatId, msgId, text, ikb(kb)); await persistWizardSession(chatId, nextState, sData, msgId); return res; }
+  if (msgId) { const res = await tg.edit(chatId, msgId, text, ikb(kb)); await persistWizardSession(chatId, nextState, sData, resolveWizardMessageId(msgId, res)); return res; }
   const res = await tg.send(chatId, text, ikb(kb));
   const sentMsgId = res?.result?.message_id;
   await persistWizardSession(chatId, nextState, sData, sentMsgId);
@@ -621,7 +683,7 @@ async function showConfirmation(tg: ReturnType<typeof TG>, chatId: number, sData
   const kb = botValidation.ok
     ? ikb([[btn("✅ Всё верно", "p:confirm_create"), btn("✏️ Изменить", "p:wback:1")], [btn("❌ Отмена", "p:wcancel")]])
     : ikb([[btn("🔄 Другой токен", "p:wback:7"), btn("✏️ Изменить", "p:wback:1")], [btn("❌ Отмена", "p:wcancel")]]);
-  if (msgId) { const res = await tg.edit(chatId, msgId, text, kb); await persistWizardSession(chatId, "wiz_confirm", sData, msgId); return res; }
+  if (msgId) { const res = await tg.edit(chatId, msgId, text, kb); await persistWizardSession(chatId, "wiz_confirm", sData, resolveWizardMessageId(msgId, res)); return res; }
   const res = await tg.send(chatId, text, kb);
   await persistWizardSession(chatId, "wiz_confirm", sData, res?.result?.message_id);
   return res;
@@ -632,7 +694,7 @@ async function showLegalAgreement(tg: ReturnType<typeof TG>, chatId: number, sDa
   const privacyUrl = `${WEBAPP_DOMAIN}/platform/privacy`;
   const disclaimerUrl = `${WEBAPP_DOMAIN}/platform/disclaimer`;
   const text = `📜 <b>Правовое соглашение</b>\n\nПеред созданием магазина ознакомьтесь:\n\n📋 <a href="${legalUrl}">Условия использования</a>\n🔒 <a href="${privacyUrl}">Политика конфиденциальности</a>\n⚠️ <a href="${disclaimerUrl}">Отказ от ответственности</a>\n\nНажимая «Принимаю», вы подтверждаете согласие.`;
-  if (msgId) { const res = await tg.edit(chatId, msgId, text, ikb([[btn("✅ Принимаю", "p:accept_terms")], [btn("◀️ Назад", "p:wback:7")], [btn("❌ Отмена", "p:wcancel")]])); await persistWizardSession(chatId, "wiz_legal", sData, msgId); return res; }
+  if (msgId) { const res = await tg.edit(chatId, msgId, text, ikb([[btn("✅ Принимаю", "p:accept_terms")], [btn("◀️ Назад", "p:wback:7")], [btn("❌ Отмена", "p:wcancel")]])); await persistWizardSession(chatId, "wiz_legal", sData, resolveWizardMessageId(msgId, res)); return res; }
   const res = await tg.send(chatId, text, ikb([[btn("✅ Принимаю", "p:accept_terms")], [btn("◀️ Назад", "p:wback:7")], [btn("❌ Отмена", "p:wcancel")]]));
   await persistWizardSession(chatId, "wiz_legal", sData, res?.result?.message_id);
   return res;
@@ -2968,6 +3030,13 @@ serve(async (req) => {
       }
       if (text === "🏪 Создать магазин" || text === "🏪 Мой магазин") {
         if (!(await enforceSubscription(tg, chatId, from.first_name))) return new Response("ok");
+
+        const existingSession = await getSession(chatId);
+        if (existingSession && isWizardFlowState(existingSession.state)) {
+          await reopenActiveWizard(tg, chatId, existingSession);
+          return new Response("ok");
+        }
+
         const hasShop = await userHasShop(chatId);
         if (hasShop) {
           // Show existing shop
@@ -2977,16 +3046,28 @@ serve(async (req) => {
             if (shop) {
               const resp = await tg.send(chatId, "⏳");
               const mid = resp?.result?.message_id;
-              if (mid) return shopView(tg, chatId, mid, shop.id);
+              if (mid) await shopView(tg, chatId, mid, shop.id);
+              return new Response("ok");
             }
           }
           await myShops(tg, chatId);
-        } else {
-          await clearSession(chatId);
-          const resp = await tg.send(chatId, "⏳");
-          const mid = resp?.result?.message_id;
-          if (mid) await wizardStep(tg, chatId, 1, {}, mid);
+          return new Response("ok");
         }
+
+        if (existingSession) await clearSession(chatId);
+
+        const launchToken = crypto.randomUUID();
+        await setSession(chatId, "wiz_launching", { launch_token: launchToken, started_at: new Date().toISOString() });
+
+        const launchSession = await getSession(chatId);
+        const currentLaunchToken = String((launchSession?.data as Record<string, unknown> | undefined)?.launch_token || "");
+        if (launchSession?.state !== "wiz_launching" || currentLaunchToken !== launchToken) {
+          return new Response("ok");
+        }
+
+        const resp = await tg.send(chatId, "⏳");
+        const mid = extractMessageIdFromResult(resp);
+        await wizardStep(tg, chatId, 1, {}, mid);
         return new Response("ok");
       }
 
