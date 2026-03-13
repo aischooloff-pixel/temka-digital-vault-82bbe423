@@ -734,8 +734,13 @@ async function showLegalAgreement(tg: ReturnType<typeof TG>, chatId: number, sDa
 async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
   const session = await getSession(chatId);
   if (!session) return tg.edit(chatId, msgId, "❌ Сессия истекла", ikb([[btn("◀️ Меню", "p:home")]]));
+  if (session.state === "wiz_finalizing") return;
+  if (session.state !== "wiz_legal") return markWizardCallbackAsStale(tg, chatId, msgId);
 
-  const sData = session.data as Record<string, unknown>;
+  const sData = (session.data || {}) as Record<string, unknown>;
+  const finalizingData = trackWizardMessage(sData, msgId);
+  await setSession(chatId, "wiz_finalizing", finalizingData);
+
   const { data: user } = await db().from("platform_users").select("id").eq("telegram_id", chatId).maybeSingle();
   if (!user) return;
 
@@ -798,6 +803,7 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
       : `\n\n⚠️ Бот @${botUsername} сохранён, но webhook не установлен: ${whResult.error}`;
   }
 
+  await deactivateWizardMessages(tg, chatId, finalizingData, msgId);
   await clearSession(chatId);
 
   const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
