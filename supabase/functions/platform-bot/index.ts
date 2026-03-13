@@ -200,20 +200,63 @@ async function checkAllChannels(tg: ReturnType<typeof TG>, userId: number): Prom
       const status = result?.result?.status;
       if (!["member", "administrator", "creator"].includes(status)) return false;
     } catch {
-      // skip failed checks
+      // If we can't check, fail open to avoid blocking users due to API errors
+      console.error(`Failed to check channel ${ch} for user ${userId}`);
     }
   }
   return true;
 }
 
-function channelButtons(): Btn[][] {
+function getChannelLinks(): { id: string; link: string }[] {
   const raw = Deno.env.get("PLATFORM_CHANNEL_ID") || "";
-  const channels = raw.split(",").map(s => s.trim()).filter(Boolean);
-  const row: Btn[] = channels.map((ch, i) => {
+  return raw.split(",").map(s => s.trim()).filter(Boolean).map(ch => {
     const link = ch.startsWith("@") ? `https://t.me/${ch.slice(1)}` : ch.startsWith("-100") ? `https://t.me/c/${ch.slice(4)}` : `https://t.me/${ch}`;
-    return urlBtn(`📢 Канал ${channels.length > 1 ? i + 1 : ""}`.trim(), link);
+    return { id: ch, link };
   });
-  return row.length ? [row, [btn("✅ Проверить подписку", "p:checksub")]] : [];
+}
+
+function hasChannelRequirement(): boolean {
+  const raw = Deno.env.get("PLATFORM_CHANNEL_ID") || "";
+  return raw.split(",").map(s => s.trim()).filter(Boolean).length > 0;
+}
+
+function channelButtons(): Btn[][] {
+  const channels = getChannelLinks();
+  if (!channels.length) return [];
+  const row: Btn[] = channels.map((ch, i) =>
+    urlBtn(`📢 ${channels.length > 1 ? `Канал ${i + 1}` : "Подписаться"}`, ch.link)
+  );
+  return [row, [btn("✅ Проверить подписку", "p:checksub")]];
+}
+
+async function showSubscribeGate(tg: ReturnType<typeof TG>, chatId: number, firstName?: string): Promise<void> {
+  const channels = getChannelLinks();
+  const channelList = channels.length > 1
+    ? channels.map((ch, i) => `  ${i + 1}. ${ch.id}`).join("\n")
+    : "";
+
+  const text =
+    `🔒 <b>Подписка на канал обязательна</b>\n\n` +
+    `Для использования <b>${PLATFORM_NAME}</b> необходимо подписаться на ${channels.length > 1 ? "наши каналы" : "наш канал"}.\n` +
+    (channelList ? `\n${channelList}\n` : "") +
+    `\nПосле подписки нажми кнопку «✅ Проверить подписку».`;
+
+  const rows: Btn[][] = [];
+  for (const ch of channels) {
+    rows.push([urlBtn(`📢 ${channels.length > 1 ? ch.id : "Подписаться на канал"}`, ch.link)]);
+  }
+  rows.push([btn("✅ Проверить подписку", "p:checksub")]);
+
+  await tg.send(chatId, text, ikb(rows));
+}
+
+// Returns true if user is subscribed (or no requirement). Returns false if gate was shown.
+async function enforceSubscription(tg: ReturnType<typeof TG>, chatId: number, firstName?: string): Promise<boolean> {
+  if (!hasChannelRequirement()) return true;
+  const subscribed = await checkAllChannels(tg, chatId);
+  if (subscribed) return true;
+  await showSubscribeGate(tg, chatId, firstName);
+  return false;
 }
 
 // ─── Upsert platform user ─────────────────────
