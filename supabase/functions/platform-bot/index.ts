@@ -494,16 +494,116 @@ const COLORS: Record<string, string> = {
   purple: "#8E24AA", black: "#212121", orange: "#FB8C00",
 };
 
+const WIZARD_CALLBACK_COMMANDS = new Set(["wcolor", "wback", "confirm_create", "accept_terms"]);
+const WIZARD_STALE_TEXT = "⚠️ Этот шаг больше неактуален. Магазин уже создан или сценарий завершён.";
+const WIZARD_FINAL_TEXT = "✅ Сценарий завершён. Этот шаг больше неактуален.";
+
+function extractWizardMessageIds(sData: Record<string, unknown>): number[] {
+  const raw = sData.wizard_message_ids;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((id) => Number(id))
+    .filter((id) => Number.isInteger(id) && id > 0);
+}
+
+function trackWizardMessage(sData: Record<string, unknown>, msgId?: number): Record<string, unknown> {
+  if (!msgId) return sData;
+  const ids = extractWizardMessageIds(sData);
+  if (!ids.includes(msgId)) ids.push(msgId);
+
+  return {
+    ...sData,
+    wizard_active_message_id: msgId,
+    wizard_message_ids: ids.slice(-20),
+  };
+}
+
+async function persistWizardSession(chatId: number, state: string, sData: Record<string, unknown>, msgId?: number) {
+  const nextData = trackWizardMessage(sData, msgId);
+  await setSession(chatId, state, nextData);
+  return nextData;
+}
+
+function expectedWizardStates(cmd: string, parts: string[]): string[] {
+  if (cmd === "wcolor") return ["wiz_2"];
+  if (cmd === "confirm_create") return ["wiz_confirm"];
+  if (cmd === "accept_terms") return ["wiz_legal"];
+
+  if (cmd === "wback") {
+    const step = parseInt(parts[2]) || 1;
+    const map: Record<number, string[]> = {
+      1: ["wiz_2"],
+      2: ["wiz_3", "wiz_2_custom"],
+      3: ["wiz_4"],
+      4: ["wiz_5"],
+      5: ["wiz_6"],
+      6: ["wiz_7"],
+      7: ["wiz_confirm"],
+    };
+    return map[step] || [];
+  }
+
+  return [];
+}
+
+async function markWizardCallbackAsStale(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
+  try {
+    await tg.edit(chatId, msgId, WIZARD_STALE_TEXT);
+  } catch {}
+}
+
+async function validateWizardCallback(
+  tg: ReturnType<typeof TG>,
+  chatId: number,
+  msgId: number,
+  cmd: string,
+  parts: string[],
+  session: Awaited<ReturnType<typeof getSession>>,
+): Promise<boolean> {
+  if (!session) {
+    await markWizardCallbackAsStale(tg, chatId, msgId);
+    return false;
+  }
+
+  if (cmd === "accept_terms" && session.state === "wiz_finalizing") {
+    return false;
+  }
+
+  const expectedStates = expectedWizardStates(cmd, parts);
+  if (!expectedStates.includes(session.state)) {
+    await markWizardCallbackAsStale(tg, chatId, msgId);
+    return false;
+  }
+
+  const activeMsgId = Number((session.data as Record<string, unknown>)?.wizard_active_message_id);
+  if (Number.isInteger(activeMsgId) && activeMsgId > 0 && activeMsgId !== msgId) {
+    await markWizardCallbackAsStale(tg, chatId, msgId);
+    return false;
+  }
+
+  return true;
+}
+
+async function deactivateWizardMessages(tg: ReturnType<typeof TG>, chatId: number, sData: Record<string, unknown>, keepMsgId?: number) {
+  const ids = extractWizardMessageIds(sData).filter((id) => id !== keepMsgId);
+  await Promise.all(ids.map(async (id) => {
+    try {
+      await tg.edit(chatId, id, WIZARD_FINAL_TEXT);
+    } catch {}
+  }));
+}
+
 async function wizardStep(tg: ReturnType<typeof TG>, chatId: number, step: number, sData: Record<string, unknown>, msgId?: number) {
   let text = "";
   let kb: Btn[][] = [];
+  let nextState = "wiz_1";
   const cancelRow = [btn("❌ Отмена", "p:home")];
 
   switch (step) {
     case 1:
       text = `📝 <b>Шаг 1 из 7</b>\n\nВведи название своего магазина\n\nНапример: <i>NickShop, Digital Store</i>`;
       kb = [cancelRow];
-      await setSession(chatId, "wiz_1", sData);
+      nextState = "wiz_1";
       break;
     case 2:
       text = `🎨 <b>Шаг 2 из 7</b>\n\nВыбери цвет интерфейса магазина`;
@@ -515,27 +615,27 @@ async function wizardStep(tg: ReturnType<typeof TG>, chatId: number, step: numbe
         [btn("◀️ Назад", "p:wback:1")],
         cancelRow,
       ];
-      await setSession(chatId, "wiz_2", sData);
+      nextState = "wiz_2";
       break;
     case 3:
       text = `📌 <b>Шаг 3 из 7</b>\n\nВведи заголовок витрины\n<i>(крупный текст на главной странице магазина)</i>\n\nНапример: <i>Премиум цифровой маркетплейс</i>`;
       kb = [[btn("◀️ Назад", "p:wback:2")], cancelRow];
-      await setSession(chatId, "wiz_3", sData);
+      nextState = "wiz_3";
       break;
     case 4:
       text = `📝 <b>Шаг 4 из 7</b>\n\nВведи описание витрины\n<i>(подзаголовок под заголовком)</i>\n\nНапример: <i>Проверенные аккаунты и скрипты.\nМгновенная доставка.</i>`;
       kb = [[btn("◀️ Назад", "p:wback:3")], cancelRow];
-      await setSession(chatId, "wiz_4", sData);
+      nextState = "wiz_4";
       break;
     case 5:
       text = `👋 <b>Шаг 5 из 7</b>\n\nВведи приветственное сообщение для покупателей`;
       kb = [[btn("◀️ Назад", "p:wback:4")], cancelRow];
-      await setSession(chatId, "wiz_5", sData);
+      nextState = "wiz_5";
       break;
     case 6:
       text = `🔗 <b>Шаг 6 из 7</b>\n\nВведи ссылку на поддержку\n\nНапример: <i>https://t.me/nickname</i>`;
       kb = [[btn("◀️ Назад", "p:wback:5")], cancelRow];
-      await setSession(chatId, "wiz_6", sData);
+      nextState = "wiz_6";
       break;
     case 7:
       text =
@@ -550,14 +650,20 @@ async function wizardStep(tg: ReturnType<typeof TG>, chatId: number, step: numbe
         [btn("◀️ Назад", "p:wback:6")],
         cancelRow,
       ];
-      await setSession(chatId, "wiz_7", sData);
+      nextState = "wiz_7";
       break;
   }
 
   if (msgId) {
-    return tg.edit(chatId, msgId, text, ikb(kb));
+    const res = await tg.edit(chatId, msgId, text, ikb(kb));
+    await persistWizardSession(chatId, nextState, sData, msgId);
+    return res;
   }
-  return tg.send(chatId, text, ikb(kb));
+
+  const res = await tg.send(chatId, text, ikb(kb));
+  const sentMsgId = res?.result?.message_id;
+  await persistWizardSession(chatId, nextState, sData, sentMsgId);
+  return res;
 }
 
 async function showConfirmation(tg: ReturnType<typeof TG>, chatId: number, sData: Record<string, unknown>, msgId?: number) {
@@ -595,10 +701,34 @@ async function showConfirmation(tg: ReturnType<typeof TG>, chatId: number, sData
         [btn("❌ Отмена", "p:home")],
       ]);
 
-  await setSession(chatId, "wiz_confirm", sData);
+  if (msgId) {
+    const res = await tg.edit(chatId, msgId, text, kb);
+    await persistWizardSession(chatId, "wiz_confirm", sData, msgId);
+    return res;
+  }
 
-  if (msgId) return tg.edit(chatId, msgId, text, kb);
-  return tg.send(chatId, text, kb);
+  const res = await tg.send(chatId, text, kb);
+  const sentMsgId = res?.result?.message_id;
+  await persistWizardSession(chatId, "wiz_confirm", sData, sentMsgId);
+  return res;
+}
+
+async function showLegalAgreement(tg: ReturnType<typeof TG>, chatId: number, sData: Record<string, unknown>, msgId: number) {
+  const text =
+    `📋 <b>Перед созданием магазина</b>\n\n` +
+    `Ознакомьтесь с документами платформы, нажав на ссылки ниже.\n\n` +
+    `Нажимая «Я подтверждаю», вы соглашаетесь с условиями использования, политикой конфиденциальности и отказом от ответственности.`;
+
+  const res = await tg.edit(chatId, msgId, text, ikb([
+    [urlBtn("Условия использования", `${WEBAPP_DOMAIN}/platform/terms`)],
+    [urlBtn("Политика конфиденциальности", `${WEBAPP_DOMAIN}/platform/privacy`)],
+    [urlBtn("Отказ от ответственности", `${WEBAPP_DOMAIN}/platform/disclaimer`)],
+    [btn("✅ Я подтверждаю", "p:accept_terms")],
+    [btn("❌ Отмена", "p:home")],
+  ]));
+
+  await persistWizardSession(chatId, "wiz_legal", sData, msgId);
+  return res;
 }
 
 async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
