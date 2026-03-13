@@ -626,7 +626,7 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
     await upsertUser(from); await clearSession(chatId); await tg.deleteMessage(chatId, msgId);
     return sendWelcome(tg, chatId, from.first_name || "друг");
   }
-  if (cmd !== "noop" && hasChannelRequirement()) { const subscribed = await checkAllChannels(tg, chatId); if (!subscribed) { await showSubscribeGate(tg, chatId, from.first_name); return; } }
+  if (cmd !== "noop" && (await hasChannelRequirement())) { const subscribed = await checkAllChannels(tg, chatId); if (!subscribed) { await showSubscribeGate(tg, chatId, from.first_name); return; } }
   if (cmd === "home") {
     await clearSession(chatId);
     const text = `👋 <b>${esc(from.first_name || "")}</b>, ты в главном меню\n\nВыбери действие:`;
