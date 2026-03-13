@@ -2280,6 +2280,25 @@ serve(async (req) => {
         return new Response("ok");
       }
 
+      // ─── Photo/Video message (for media FSM) ─
+      const photo = msg.photo;
+      const video = msg.video;
+      if (photo || video) {
+        const session = await getSession(chatId);
+        if (session?.state === "adm_welc_set_media") {
+          const sData = session.data as Record<string, unknown>;
+          const mediaType = sData.media_type as string;
+          await clearSession(chatId);
+          let fileId = "";
+          if (photo) fileId = photo[photo.length - 1].file_id;
+          if (video) fileId = video.file_id;
+          await db().from("shop_settings").upsert({ key: "platform_welcome_media_type", value: mediaType, updated_at: new Date().toISOString() }, { onConflict: "key" });
+          await db().from("shop_settings").upsert({ key: "platform_welcome_media_url", value: fileId, updated_at: new Date().toISOString() }, { onConflict: "key" });
+          await tg.send(chatId, `✅ Медиа (${mediaType}) сохранено!`, ikb([[btn("👁 Предпросмотр", "adm:welc_preview")], [btn("◀️ Назад", "adm:welcmgr")]]));
+          return new Response("ok");
+        }
+      }
+
       // ─── FSM handler ──────────────────────
       await handleText(tg, chatId, text, from);
       return new Response("ok");
