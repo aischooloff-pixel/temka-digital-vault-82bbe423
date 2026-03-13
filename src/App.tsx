@@ -72,6 +72,11 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <Routes>
+              {/* Platform legal pages — standalone, no layout */}
+              <Route path="/platform/terms" element={<PlatformTerms />} />
+              <Route path="/platform/privacy" element={<PlatformPrivacy />} />
+              <Route path="/platform/disclaimer" element={<PlatformDisclaimer />} />
+
               {/* Seller shop storefront */}
               <Route path="/shop/:shopId" element={<ShopLayout />}>
                 <Route index element={<ShopIndex />} />
@@ -104,8 +109,8 @@ const App = () => (
                 <Route path="/terms" element={<Legal />} />
                 <Route path="/privacy" element={<Legal />} />
                 <Route path="/refund" element={<Legal />} />
-              <Route path="/disclaimer" element={<Legal />} />
-              <Route path="/delivery" element={<Delivery />} />
+                <Route path="/disclaimer" element={<Legal />} />
+                <Route path="/delivery" element={<Delivery />} />
                 <Route path="/guarantees" element={<Guarantees />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
