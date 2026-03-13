@@ -694,7 +694,7 @@ async function showConfirmation(tg: ReturnType<typeof TG>, chatId: number, sData
   const kb = botValidation.ok
     ? ikb([
         [btn("✅ Всё верно", "p:confirm_create"), btn("✏️ Изменить", "p:wback:1")],
-        [btn("❌ Отмена", "p:home")],
+        [btn("❌ Отмена", "p:wcancel")],
       ])
     : ikb([
         [btn("🔄 Ввести токен заново", "p:wback:7")],
