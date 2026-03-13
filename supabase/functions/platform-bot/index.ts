@@ -1743,7 +1743,7 @@ async function admSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: num
     `⚙️ <b>Системные настройки</b>\n\n` +
     `🏷 Платформа: <b>${PLATFORM_NAME}</b>\n` +
     `🌐 WEBAPP: <code>${WEBAPP_DOMAIN}</code>\n` +
-    `🔗 Поддержка: ${SUPPORT_LINK}\n\n` +
+    `🔗 Поддержка: ${await getSupportLink()}\n\n` +
     `${opText}\n` +
     `📝 <b>shop_settings:</b>\n${settingsText}`;
   return tg.edit(chatId, msgId, text, ikb([
