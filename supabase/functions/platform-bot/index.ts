@@ -310,11 +310,28 @@ async function getWelcomeConfig(): Promise<{ text: string; media_type?: string; 
 // ═══════════════════════════════════════════════
 // WELCOME / START
 // ═══════════════════════════════════════════════
+async function welcomeButtons(chatId: number): Promise<Btn[][]> {
+  const hasShop = await userHasShop(chatId);
+  if (hasShop) {
+    const { data: pu } = await db().from("platform_users").select("id").eq("telegram_id", chatId).maybeSingle();
+    const { data: shop } = await db().from("shops").select("id, name").eq("owner_id", pu?.id || "").maybeSingle();
+    return [
+      [btn(`🏪 ${shop ? shop.name : "Мой магазин"}`, `p:shop:${shop?.id || ""}`), btn("📖 Как это работает", "p:howitworks")],
+      [btn("👤 Мой профиль", "p:profile")],
+    ];
+  }
+  return [
+    [btn("🏪 Создать магазин", "p:create"), btn("📖 Как это работает", "p:howitworks")],
+    [btn("👤 Мой профиль", "p:profile")],
+    [btn("🏪 Мои магазины", "p:myshops:0")],
+  ];
+}
+
 async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName: string) {
   const config = await getWelcomeConfig();
   const defaultText = `👋 Привет, <b>${esc(firstName)}</b>!\nДобро пожаловать в <b>${PLATFORM_NAME}</b>\n\nСоздай свой Telegram магазин\nс автовыдачей за 5 минут.\n\n— Никакого кода и хостинга\n— Автовыдача товаров 24/7\n— Приём крипты через CryptoBot\n— Полная настройка под себя`;
   const welcomeText = config.text ? config.text.replace(/\{name\}/g, esc(firstName)) : defaultText;
-  const kb = { ...ikb([[btn("🏪 Создать магазин", "p:create"), btn("📖 Как это работает", "p:howitworks")], [btn("👤 Мой профиль", "p:profile")], [btn("🏪 Мои магазины", "p:myshops:0")]]) };
+  const kb = { ...ikb(await welcomeButtons(chatId)) };
 
   if (config.media_type === "photo" && config.media_url) {
     await tg.sendPhoto(chatId, config.media_url, welcomeText, kb);
@@ -334,7 +351,7 @@ async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName:
 // ═══════════════════════════════════════════════
 function howItWorks(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
   const text = `📖 <b>Как это работает?</b>\n\n1️⃣ <b>Создай магазин</b> — пройди простой онбординг из 7 шагов\n\n2️⃣ <b>Добавь товары</b> — загрузи инвентарь прямо в бота\n\n3️⃣ <b>Подключи оплату</b> — CryptoBot принимает крипту автоматически\n\n4️⃣ <b>Поделись ссылкой</b> — клиенты покупают через твоего бота\n\n5️⃣ <b>Автовыдача 24/7</b> — товар доставляется мгновенно после оплаты\n\n💰 Стоимость: от <b>$${EARLY_BIRD_PRICE}/мес</b> — 1 магазин на пользователя\n🆓 7 дней бесплатного пробного периода`;
-  return tg.edit(chatId, msgId, text, ikb([[btn("🏪 Создать магазин", "p:create")], [btn("◀️ Назад", "p:home")]]));
+  return tg.edit(chatId, msgId, text, ikb([[urlBtn("📚 Подробная информация", `${WEBAPP_DOMAIN}/about`)], [btn("🏪 Создать магазин", "p:create")], [btn("◀️ Назад", "p:home")]]));
 }
 
 // ═══════════════════════════════════════════════
@@ -360,7 +377,7 @@ async function showProfile(tg: ReturnType<typeof TG>, chatId: number, msgId?: nu
     subExtra += `\n\n🆓 <i>Пробный период — ${TRIAL_DAYS} дней после создания магазина.</i>`;
     subExtra += `\n<i>После окончания потребуется подписка $${priceInfo.price}/мес.</i>`;
   }
-  const text = `👤 <b>${esc(user.first_name)}${user.last_name ? " " + esc(user.last_name) : ""}</b>\n\nМагазинов: <b>${shopCount || 0}</b>\nПодписка: <b>${subLabel}</b>${subExtra}\n💰 Ваша цена: <b>$${priceInfo.price}/мес</b> (${priceInfo.tier === "early_3" ? "early bird 🎉" : "стандарт"})`;
+  const text = `👤 <b>${esc(user.first_name)}${user.last_name ? " " + esc(user.last_name) : ""}</b>${user.username ? `\n🔗 @${esc(user.username)}` : ""}\n\n🏪 Магазинов: <b>${shopCount || 0}</b>\n📊 Подписка: <b>${subLabel}</b>${subExtra}\n💰 Ваша цена: <b>$${priceInfo.price}/мес</b> ${priceInfo.tier === "early_3" ? "🎉 Early Bird" : "📌 Стандарт"}\n🆔 ID: <code>${chatId}</code>`;
   const profileUrl = `${WEBAPP_DOMAIN}/account`;
   const kb = ikb([[urlBtn("Открыть профиль", profileUrl)], [btn("Мои магазины", "p:myshops:0")], [btn("Подписка", "p:sub")], [btn("◀️ Назад", "p:home")]]);
   if (msgId) return tg.edit(chatId, msgId, text, kb);
@@ -437,7 +454,7 @@ async function shopSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
   if (shop.is_subscription_required) {
     opStatus = shop.required_channel_id ? `✅ включена (${shop.required_channel_link || shop.required_channel_id})` : "⚠️ включена, канал не указан";
   }
-  const text = `⚙️ <b>Настройки: ${esc(shop.name)}</b>\n\n📛 Название: ${esc(shop.name)}\n🎨 Цвет: ${shop.color}\n📌 Заголовок: ${shop.hero_title || "—"}\n📝 Описание: ${shop.hero_description ? esc(shop.hero_description.slice(0, 60)) + "…" : "—"}\n👋 Приветствие: ${shop.welcome_message ? esc(shop.welcome_message.slice(0, 50)) + "…" : "—"}\n🔗 Поддержка: ${shop.support_link || "—"}\n🤖 Бот: ${botStatus}\n💰 CryptoBot: ${shop.cryptobot_token_encrypted ? "✅ подключён" : "❌ не подключён"}\n📢 ОП: ${opStatus}`;
+  const text = `⚙️ <b>Настройки: ${esc(shop.name)}</b>\n\n📛 Название: ${esc(shop.name)}\n🎨 Цвет: ${shop.color}\n📌 Заголовок: ${shop.hero_title || "—"}\n📝 Описание: ${shop.hero_description ? esc(shop.hero_description.slice(0, 60)) + "…" : "—"}\n👋 Приветствие: ${shop.welcome_message ? esc(shop.welcome_message.slice(0, 50)) + "…" : "—"}\n🔗 Поддержка: ${shop.support_link || "—"}\n🤖 Бот: ${botStatus}\n💰 CryptoBot: ${shop.cryptobot_token_encrypted ? "✅ подключён" : "❌ не подключён"}\n📢 ОП: ${opStatus}\n\n⚠️ <i>Полное управление магазином (товары, заказы, клиенты) осуществляется через</i> /admin <i>в подключённом вами боте.</i>`;
   return tg.edit(chatId, msgId, text, ikb([
     [btn("✏️ Название", `p:edit:${shopId}:name`), btn("🎨 Цвет", `p:edit:${shopId}:color`)],
     [btn("📌 Заголовок витрины", `p:edit:${shopId}:hero_title`)],
@@ -495,7 +512,6 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
   const rows: Btn[][] = [];
   if (user.subscription_status !== "active") {
     rows.push([btn(`💳 Оплатить $${priceInfo.price}`, "p:pay_sub")]);
-    rows.push([btn("🎫 У меня есть промокод", "p:sub_promo")]);
   }
   rows.push([btn("◀️ Назад", "p:home")]);
   return tg.edit(chatId, msgId, text, ikb(rows));
@@ -535,7 +551,7 @@ function expectedWizardStates(cmd: string, parts: string[]): string[] {
   if (cmd === "wcancel") return ["wiz_1", "wiz_2", "wiz_2_custom", "wiz_3", "wiz_4", "wiz_5", "wiz_6", "wiz_7", "wiz_confirm", "wiz_legal"];
   if (cmd === "wback") {
     const step = parseInt(parts[2]) || 1;
-    const map: Record<number, string[]> = { 1: ["wiz_2"], 2: ["wiz_3", "wiz_2_custom"], 3: ["wiz_4"], 4: ["wiz_5"], 5: ["wiz_6"], 6: ["wiz_7"], 7: ["wiz_confirm"] };
+    const map: Record<number, string[]> = { 1: ["wiz_2", "wiz_confirm"], 2: ["wiz_3", "wiz_2_custom"], 3: ["wiz_4"], 4: ["wiz_5"], 5: ["wiz_6"], 6: ["wiz_7"], 7: ["wiz_confirm", "wiz_legal"] };
     return map[step] || [];
   }
   return [];
@@ -570,7 +586,7 @@ async function wizardStep(tg: ReturnType<typeof TG>, chatId: number, step: numbe
     case 4: text = `📝 <b>Шаг 4 из 7</b>\n\nВведи описание витрины\n<i>(подзаголовок под заголовком)</i>\n\nНапример: <i>Проверенные аккаунты и скрипты.\nМгновенная доставка.</i>`; kb = [[btn("◀️ Назад", "p:wback:3")], cancelRow]; nextState = "wiz_4"; break;
     case 5: text = `👋 <b>Шаг 5 из 7</b>\n\nВведи приветственное сообщение для покупателей`; kb = [[btn("◀️ Назад", "p:wback:4")], cancelRow]; nextState = "wiz_5"; break;
     case 6: text = `🔗 <b>Шаг 6 из 7</b>\n\nВведи ссылку на поддержку\n\nНапример: <i>https://t.me/nickname</i>`; kb = [[btn("◀️ Назад", "p:wback:5")], cancelRow]; nextState = "wiz_6"; break;
-    case 7: text = `🤖 <b>Шаг 7 из 7</b>\n\nВведи API токен своего Telegram бота\n\nКак получить:\n1. Открой @BotFather\n2. Напиши /newbot\n3. Следуй инструкции\n4. Скопируй токен`; kb = [[urlBtn("📖 Подробная инструкция", "https://core.telegram.org/bots/tutorial")], [btn("◀️ Назад", "p:wback:6")], cancelRow]; nextState = "wiz_7"; break;
+    case 7: text = `🤖 <b>Шаг 7 из 7</b>\n\nВведи API токен своего Telegram бота\n\nКак получить:\n1. Открой @BotFather\n2. Напиши /newbot\n3. Следуй инструкции\n4. Скопируй токен`; kb = [[urlBtn("📖 Подробная инструкция", "https://timeweb.com/ru/community/articles/token-bota-telegram-kak-sdelat-gde-vzyat-i-kuda-vstavlyat?ysclid=mmpciarkmm977762080")], [btn("◀️ Назад", "p:wback:6")], cancelRow]; nextState = "wiz_7"; break;
   }
   if (msgId) { const res = await tg.edit(chatId, msgId, text, ikb(kb)); await persistWizardSession(chatId, nextState, sData, msgId); return res; }
   const res = await tg.send(chatId, text, ikb(kb));
@@ -799,7 +815,7 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
     const config = await getWelcomeConfig();
     const defaultText = `👋 Привет, <b>${esc(from.first_name || "")}</b>!\nДобро пожаловать в <b>${PLATFORM_NAME}</b>\n\nСоздай свой Telegram магазин\nс автовыдачей за 5 минут.\n\n— Никакого кода и хостинга\n— Автовыдача товаров 24/7\n— Приём крипты через CryptoBot\n— Полная настройка под себя`;
     const text = config.text ? config.text.replace(/\{name\}/g, esc(from.first_name || "")) : defaultText;
-    return tg.edit(chatId, msgId, text, ikb([[btn("🏪 Создать магазин", "p:create"), btn("📖 Как это работает", "p:howitworks")], [btn("👤 Мой профиль", "p:profile")], [btn("🏪 Мои магазины", "p:myshops:0")]]));
+    return tg.edit(chatId, msgId, text, ikb(await welcomeButtons(chatId)));
   }
   if (cmd === "noop") return;
   if (cmd === "howitworks") return howItWorks(tg, chatId, msgId);
@@ -826,7 +842,7 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
     const config = await getWelcomeConfig();
     const defaultText = `👋 Привет, <b>${esc(from.first_name || "")}</b>!\nДобро пожаловать в <b>${PLATFORM_NAME}</b>\n\nСоздай свой Telegram магазин\nс автовыдачей за 5 минут.\n\n— Никакого кода и хостинга\n— Автовыдача товаров 24/7\n— Приём крипты через CryptoBot\n— Полная настройка под себя`;
     const text = config.text ? config.text.replace(/\{name\}/g, esc(from.first_name || "")) : defaultText;
-    return tg.edit(chatId, msgId, text, ikb([[btn("🏪 Создать магазин", "p:create"), btn("📖 Как это работает", "p:howitworks")], [btn("👤 Мой профиль", "p:profile")], [btn("🏪 Мои магазины", "p:myshops:0")]]));
+    return tg.edit(chatId, msgId, text, ikb(await welcomeButtons(chatId)));
   }
   if (cmd === "wcolor") {
     const session = wizardSession!; const sData = { ...(session.data || {}) } as Record<string, unknown>;
