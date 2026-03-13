@@ -789,8 +789,10 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
   await clearSession(chatId);
   const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
   const text = `🎉 <b>Магазин создан!</b>\n\nВот твоя ссылка:\n${esc(shopUrl)}${botStatusMsg}${trialMsg}`;
-  return tg.edit(chatId, msgId, text, ikb([[btn("📋 Скопировать ссылку", `p:copylink:${shop.id}`)], [btn("⚙️ Настройки", `p:settings:${shop.id}`)], [btn("◀️ Меню", "p:home")]]));
-}
+  await tg.edit(chatId, msgId, text, ikb([[btn("📋 Скопировать ссылку", `p:copylink:${shop.id}`)], [btn("⚙️ Настройки", `p:settings:${shop.id}`)], [btn("◀️ Меню", "p:home")]]));
+  // Update bottom panel to show "Мой магазин" instead of "Создать магазин"
+  await tg.send(chatId, "📋 Клавиатура обновлена:", bottomPanel(true));
+  return;
 
 // ═══════════════════════════════════════════════
 // DELETE SHOP
