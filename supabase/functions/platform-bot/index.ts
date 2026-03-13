@@ -829,10 +829,8 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
   if (cmd !== "noop" && (await hasChannelRequirement())) { const subscribed = await checkAllChannels(tg, chatId); if (!subscribed) { await showSubscribeGate(tg, chatId, from.first_name); return; } }
   if (cmd === "home") {
     await clearSession(chatId);
-    const config = await getWelcomeConfig();
-    const defaultText = `👋 Привет, <b>${esc(from.first_name || "")}</b>!\nДобро пожаловать в <b>${PLATFORM_NAME}</b>\n\nСоздай свой Telegram магазин\nс автовыдачей за 5 минут.\n\n— Никакого кода и хостинга\n— Автовыдача товаров 24/7\n— Приём крипты через CryptoBot\n— Полная настройка под себя`;
-    const text = config.text ? config.text.replace(/\{name\}/g, esc(from.first_name || "")) : defaultText;
-    return tg.edit(chatId, msgId, text, ikb(await welcomeButtons(chatId)));
+    await tg.deleteMessage(chatId, msgId);
+    return sendWelcome(tg, chatId, from.first_name || "друг");
   }
   if (cmd === "noop") return;
   if (cmd === "howitworks") return howItWorks(tg, chatId, msgId);
@@ -856,10 +854,8 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
   }
   if (cmd === "wcancel") {
     await clearSession(chatId);
-    const config = await getWelcomeConfig();
-    const defaultText = `👋 Привет, <b>${esc(from.first_name || "")}</b>!\nДобро пожаловать в <b>${PLATFORM_NAME}</b>\n\nСоздай свой Telegram магазин\nс автовыдачей за 5 минут.\n\n— Никакого кода и хостинга\n— Автовыдача товаров 24/7\n— Приём крипты через CryptoBot\n— Полная настройка под себя`;
-    const text = config.text ? config.text.replace(/\{name\}/g, esc(from.first_name || "")) : defaultText;
-    return tg.edit(chatId, msgId, text, ikb(await welcomeButtons(chatId)));
+    await tg.deleteMessage(chatId, msgId);
+    return sendWelcome(tg, chatId, from.first_name || "друг");
   }
   if (cmd === "wcolor") {
     const session = wizardSession!; const sData = { ...(session.data || {}) } as Record<string, unknown>;
