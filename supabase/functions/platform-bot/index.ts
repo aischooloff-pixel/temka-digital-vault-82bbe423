@@ -618,7 +618,7 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
   if (cmd === "checksub") {
     const ok = await checkAllChannels(tg, chatId);
     if (!ok) {
-      const channels = getChannelLinks(); const rows: Btn[][] = [];
+      const channels = await getChannelLinks(); const rows: Btn[][] = [];
       for (const ch of channels) rows.push([urlBtn(`📢 ${channels.length > 1 ? ch.id : "Подписаться на канал"}`, ch.link)]);
       rows.push([btn("✅ Проверить подписку", "p:checksub")]);
       return tg.edit(chatId, msgId, "❌ <b>Подписка не найдена</b>\n\nПодпишись на канал и нажми «Проверить подписку» снова.", ikb(rows));
