@@ -62,8 +62,12 @@ const TG = (token: string) => {
   };
 };
 
-// ─── Supabase ─────────────────────────────────
-const db = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+// ─── Supabase (singleton per request, set in serve()) ─────
+let _db: ReturnType<typeof createClient> | null = null;
+const db = () => {
+  if (!_db) _db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  return _db;
+};
 
 // ─── Helpers ──────────────────────────────────
 type Btn = { text: string; callback_data?: string; url?: string };
