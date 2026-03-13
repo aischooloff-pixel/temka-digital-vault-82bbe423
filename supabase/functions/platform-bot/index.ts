@@ -1312,12 +1312,27 @@ async function admSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: num
   let settingsText = "";
   for (const s of settings || []) settingsText += `• <code>${esc(s.key)}</code> = ${esc(s.value.slice(0, 50))}\n`;
   if (!settingsText) settingsText = "Нет настроек.\n";
+
+  // Platform OP info
+  const platformChannelId = Deno.env.get("PLATFORM_CHANNEL_ID") || "—";
+  const { count: opShops } = await db().from("shops").select("id", { count: "exact", head: true }).eq("is_subscription_required", true);
+  const { data: opShopList } = await db().from("shops").select("id, name, required_channel_id, required_channel_link").eq("is_subscription_required", true).limit(10);
+  let opText = `📢 <b>ОП (обязательная подписка):</b>\n`;
+  opText += `Platform Channel ID: <code>${esc(platformChannelId)}</code>\n`;
+  opText += `Магазинов с ОП: ${opShops || 0}\n`;
+  if (opShopList?.length) {
+    for (const s of opShopList) {
+      opText += `  • ${esc(s.name)}: ${s.required_channel_id || "канал не указан"}${s.required_channel_link ? ` (${esc(s.required_channel_link)})` : ""}\n`;
+    }
+  }
+
   const text =
     `⚙️ <b>Системные настройки</b>\n\n` +
     `🏷 Платформа: <b>${PLATFORM_NAME}</b>\n` +
     `🌐 WEBAPP: <code>${WEBAPP_DOMAIN}</code>\n` +
     `🔗 Поддержка: ${SUPPORT_LINK}\n` +
-    `📢 Каналы: ${Deno.env.get("PLATFORM_CHANNEL_ID") || "—"}\n\n` +
+    `📢 Platform Channel: <code>${esc(platformChannelId)}</code>\n\n` +
+    `${opText}\n` +
     `📝 <b>shop_settings:</b>\n${settingsText}`;
   return tg.edit(chatId, msgId, text, ikb([
     [btn("✏️ Изменить setting", "adm:setedit")],
