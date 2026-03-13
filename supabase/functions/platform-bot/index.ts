@@ -273,8 +273,8 @@ async function myShops(tg: ReturnType<typeof TG>, chatId: number, msgId?: number
   if (!user) return;
   const { data: shops } = await db().from("shops").select("*").eq("owner_id", user.id).order("created_at");
   if (!shops?.length) {
-    const text = "🏪 <b>Мои магазины</b>\n\nУ тебя пока нет магазинов.";
-    const kb = ikb([[btn("➕ Создать магазин", "p:create")], [btn("◀️ Назад", "p:home")]]);
+    const text = "🏪 <b>Мои магазины</b>\n\n📭 У тебя пока нет магазинов.\n\nСоздай свой первый Telegram магазин\nс автовыдачей за несколько минут!";
+    const kb = ikb([[btn("🏪 Создать первый магазин", "p:create")], [btn("📖 Как это работает", "p:howitworks")], [btn("◀️ Назад", "p:home")]]);
     return msgId ? tg.edit(chatId, msgId, text, kb) : tg.send(chatId, text, kb);
   }
   const perPage = 5;
