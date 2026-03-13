@@ -1063,9 +1063,18 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
   if (cmd === "stats") return shopStats(tg, chatId, msgId, parts[2]);
 
   // ─── Create shop wizard ───────────────────
-  if (cmd === "create") {
-    return wizardStep(tg, chatId, 1, {}, msgId);
   }
+
+  if (cmd === "wcancel") {
+    await clearSession(chatId);
+    const text =
+      `👋 <b>${esc(from.first_name || "")}</b>, ты в главном меню\n\n` +
+      `Выбери действие:`;
+    return tg.edit(chatId, msgId, text, ikb([
+      [btn("🏪 Создать магазин", "p:create"), btn("📖 Как это работает", "p:howitworks")],
+      [btn("👤 Мой профиль", "p:profile")],
+      [btn("🏪 Мои магазины", "p:myshops:0")],
+    ]));
 
   // Wizard color selection
   if (cmd === "wcolor") {
