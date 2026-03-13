@@ -78,7 +78,12 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 
 const PLATFORM_NAME = "ShopBot Platform";
 const WEBAPP_DOMAIN = Deno.env.get("WEBAPP_URL") || "https://temka-digital-vault.lovable.app";
-const SUPPORT_LINK = "https://t.me/support";
+const SUPPORT_LINK_DEFAULT = "https://t.me/support";
+
+async function getSupportLink(): Promise<string> {
+  const { data } = await db().from("shop_settings").select("value").eq("key", "platform_support_link").maybeSingle();
+  return data?.value || Deno.env.get("PLATFORM_SUPPORT_LINK") || SUPPORT_LINK_DEFAULT;
+}
 const EARLY_BIRD_PRICE = 3;
 const STANDARD_PRICE = 5;
 const EARLY_BIRD_LIMIT = 10;
@@ -221,9 +226,21 @@ async function connectBotToken(rawToken: string, shopId: string): Promise<{ ok: 
 }
 
 // ─── Session FSM ──────────────────────────────
+const WIZARD_SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
 async function getSession(tgId: number) {
   const { data } = await db().from("platform_sessions").select("*").eq("telegram_id", tgId).maybeSingle();
-  return data as { telegram_id: number; state: string; data: Record<string, unknown> } | null;
+  if (!data) return null;
+  // TTL: auto-clear stale wizard sessions
+  const session = data as { telegram_id: number; state: string; data: Record<string, unknown>; updated_at: string };
+  if (session.state.startsWith("wiz_")) {
+    const updatedAt = new Date(session.updated_at || 0).getTime();
+    if (Date.now() - updatedAt > WIZARD_SESSION_TTL_MS) {
+      await db().from("platform_sessions").delete().eq("telegram_id", tgId);
+      return null;
+    }
+  }
+  return session;
 }
 async function setSession(tgId: number, state: string, data: Record<string, unknown> = {}) {
   await db().from("platform_sessions").upsert({ telegram_id: tgId, state, data, updated_at: new Date().toISOString() }, { onConflict: "telegram_id" });
@@ -311,6 +328,10 @@ async function upsertUser(from: { id: number; first_name: string; last_name?: st
 // ─── Bottom panel (keyboard) ──────────────────
 const bottomPanel = (hasShop: boolean) => ({ keyboard: [[{ text: "👤 Профиль" }, { text: "🆘 Поддержка" }], [{ text: hasShop ? "🏪 Мой магазин" : "🏪 Создать магазин" }]], resize_keyboard: true, is_persistent: true });
 
+async function sendBottomPanel(tg: ReturnType<typeof TG>, chatId: number, hasShop: boolean): Promise<void> {
+  await tg.send(chatId, "⬇️", bottomPanel(hasShop));
+}
+
 async function userHasShop(telegramId: number): Promise<boolean> {
   const { data: user } = await db().from("platform_users").select("id").eq("telegram_id", telegramId).maybeSingle();
   if (!user) return false;
@@ -351,6 +372,7 @@ async function welcomeButtons(chatId: number): Promise<Btn[][]> {
 }
 
 async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName: string) {
+  const hasShop = await userHasShop(chatId);
   const config = await getWelcomeConfig();
   const defaultText = `👋 Привет, <b>${esc(firstName)}</b>!\nДобро пожаловать в <b>${PLATFORM_NAME}</b>\n\nСоздай свой Telegram магазин\nс автовыдачей за 5 минут.\n\n— Никакого кода и хостинга\n— Автовыдача товаров 24/7\n— Приём крипты через CryptoBot\n— Полная настройка под себя`;
   const welcomeText = config.text ? config.text.replace(/\{name\}/g, esc(firstName)) : defaultText;
@@ -363,6 +385,8 @@ async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName:
   } else {
     await tg.send(chatId, welcomeText, kb);
   }
+  // Send/update persistent bottom panel keyboard
+  await tg.send(chatId, "📋 Используйте кнопки ниже для навигации:", bottomPanel(hasShop));
   // Check subscription reminders in background
   await sendTrialReminder(chatId);
   await checkAndEnforceSubscription(chatId);
@@ -765,10 +789,12 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
   await clearSession(chatId);
   const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
   const text = `🎉 <b>Магазин создан!</b>\n\nВот твоя ссылка:\n${esc(shopUrl)}${botStatusMsg}${trialMsg}`;
-  return tg.edit(chatId, msgId, text, ikb([[btn("📋 Скопировать ссылку", `p:copylink:${shop.id}`)], [btn("⚙️ Настройки", `p:settings:${shop.id}`)], [btn("◀️ Меню", "p:home")]]));
+  await tg.edit(chatId, msgId, text, ikb([[btn("📋 Скопировать ссылку", `p:copylink:${shop.id}`)], [btn("⚙️ Настройки", `p:settings:${shop.id}`)], [btn("◀️ Меню", "p:home")]]));
+  // Update bottom panel to show "Мой магазин" instead of "Создать магазин"
+  await tg.send(chatId, "📋 Клавиатура обновлена:", bottomPanel(true));
+  return;
 }
 
-// ═══════════════════════════════════════════════
 // DELETE SHOP
 // ═══════════════════════════════════════════════
 async function deleteShopConfirm(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string) {
@@ -794,7 +820,11 @@ async function deleteShopExecute(tg: ReturnType<typeof TG>, chatId: number, msgI
   await db().from("shop_balance_history").delete().eq("shop_id", shopId);
   await db().from("shop_customers").delete().eq("shop_id", shopId);
   await db().from("shops").delete().eq("id", shopId);
-  return tg.edit(chatId, msgId, "✅ Магазин удалён.", ikb([[btn("◀️ К магазинам", "p:myshops:0")]]));
+  await tg.edit(chatId, msgId, "✅ Магазин удалён.", ikb([[btn("◀️ К магазинам", "p:myshops:0")]]));
+  // Update bottom panel to show "Создать магазин"
+  const stillHasShop = await userHasShop(chatId);
+  await tg.send(chatId, "📋 Клавиатура обновлена:", bottomPanel(stillHasShop));
+  return;
 }
 
 function howToAddProducts(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string) {
@@ -1717,7 +1747,7 @@ async function admSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: num
     `⚙️ <b>Системные настройки</b>\n\n` +
     `🏷 Платформа: <b>${PLATFORM_NAME}</b>\n` +
     `🌐 WEBAPP: <code>${WEBAPP_DOMAIN}</code>\n` +
-    `🔗 Поддержка: ${SUPPORT_LINK}\n\n` +
+    `🔗 Поддержка: ${await getSupportLink()}\n\n` +
     `${opText}\n` +
     `📝 <b>shop_settings:</b>\n${settingsText}`;
   return tg.edit(chatId, msgId, text, ikb([
@@ -3038,7 +3068,8 @@ serve(async (req) => {
         return new Response("ok");
       }
       if (text === "🆘 Поддержка") {
-        await tg.send(chatId, `🆘 Свяжитесь с поддержкой:\n${SUPPORT_LINK}`, ikb([[urlBtn("🆘 Написать в поддержку", SUPPORT_LINK)]]));
+        const supportLink = await getSupportLink();
+        await tg.send(chatId, `🆘 Свяжитесь с поддержкой:\n${supportLink}`, ikb([[urlBtn("🆘 Написать в поддержку", supportLink)]]));
         return new Response("ok");
       }
       if (text === "🏪 Мои магазины") {
