@@ -136,7 +136,8 @@ async function clearSession(tgId: number) {
 async function getPlatformChannelIds(): Promise<string[]> {
   // Try DB first (shop_settings key = 'platform_channel_id')
   const { data } = await db().from("shop_settings").select("value").eq("key", "platform_channel_id").single();
-  const raw = data?.value || Deno.env.get("PLATFORM_CHANNEL_ID") || "";
+  // If DB has a record (even empty), respect it — don't fallback to env
+  const raw = data ? (data.value || "") : (Deno.env.get("PLATFORM_CHANNEL_ID") || "");
   return raw.split(",").map(s => s.trim()).filter(Boolean);
 }
 
