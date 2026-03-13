@@ -979,7 +979,7 @@ async function admShopCard(tg: ReturnType<typeof TG>, chatId: number, msgId: num
     [btn("👥 Клиенты", `adm:scusts:${shopId}:0`), btn("🎟 Промо", `adm:spromo:${shopId}:0`)],
     [btn("⭐ Отзывы", `adm:srevs:${shopId}:0`), btn("📋 Логи", `adm:slogs:${shopId}:0`)],
     [btn(shop.status === "active" ? "⏸ Пауза" : "▶️ Активировать", `adm:stoggle:${shopId}`)],
-    [btn("📢 ОП: " + (shop.is_subscription_required ? "✅" : "❌"), `adm:optoggle:${shopId}`), btn("📢 Канал ОП", `adm:opsetc:${shopId}`)],
+    [btn("📢 Настройки ОП" + (shop.is_subscription_required ? " ✅" : ""), `adm:opsetc:${shopId}`)],
     [btn("🗑 Удалить", `adm:sdel:${shopId}`), btn("🔗 Storefront", `adm:slink:${shopId}`)],
     [btn("◀️ Назад", "adm:shops:0")],
   ];
@@ -1444,12 +1444,48 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
     const newVal = !s.is_subscription_required;
     await db().from("shops").update({ is_subscription_required: newVal, updated_at: new Date().toISOString() }).eq("id", shopId);
     await admLog(adminTgId, newVal ? "enable_op" : "disable_op", "shop", shopId);
-    return admShopCard(tg, chatId, msgId, shopId);
+    // Re-render OP settings screen
+    const { data: updated } = await db().from("shops").select("required_channel_id, required_channel_link, is_subscription_required, name").eq("id", shopId).single();
+    const chId = updated?.required_channel_id || "—";
+    const chLink = updated?.required_channel_link || "—";
+    const opStatus = updated?.is_subscription_required ? "✅ Включена" : "❌ Выключена";
+    const text = `📢 <b>Настройки ОП</b>\n🏪 ${esc(updated?.name || "")}\n\n` +
+      `Статус: ${opStatus}\n` +
+      `ID канала: <code>${esc(chId)}</code>\n` +
+      `Ссылка: ${chLink === "—" ? "—" : esc(chLink)}`;
+    return tg.edit(chatId, msgId, text, ikb([
+      [btn(updated?.is_subscription_required ? "❌ Выкл ОП" : "✅ Вкл ОП", `adm:optoggle:${shopId}`)],
+      [btn("✏️ ID канала", `adm:opsetid:${shopId}`), btn("🔗 Ссылка", `adm:opsetlink:${shopId}`)],
+      [btn("🗑 Очистить всё", `adm:opclear:${shopId}`)],
+      [btn("◀️ К магазину", `adm:scard:${shopId}`)],
+    ]));
   }
   if (cmd === "opsetc") {
     const shopId = parts[2];
-    await setSession(chatId, "adm_op_channel", { shopId });
-    return tg.edit(chatId, msgId, `📢 Введите ID канала и ссылку через пробел:\n\n<code>@channel_name https://t.me/channel_name</code>\n\nИли только ID: <code>@channel_name</code>`, ikb([[btn("🗑 Очистить", `adm:opclear:${shopId}`), btn("❌ Отмена", `adm:scard:${shopId}`)]]));
+    const { data: s } = await db().from("shops").select("required_channel_id, required_channel_link, is_subscription_required, name").eq("id", shopId).single();
+    const chId = s?.required_channel_id || "—";
+    const chLink = s?.required_channel_link || "—";
+    const opStatus = s?.is_subscription_required ? "✅ Включена" : "❌ Выключена";
+    const text = `📢 <b>Настройки ОП</b>\n🏪 ${esc(s?.name || "")}\n\n` +
+      `Статус: ${opStatus}\n` +
+      `ID канала: <code>${esc(chId)}</code>\n` +
+      `Ссылка: ${chLink === "—" ? "—" : esc(chLink)}`;
+    return tg.edit(chatId, msgId, text, ikb([
+      [btn(s?.is_subscription_required ? "❌ Выкл ОП" : "✅ Вкл ОП", `adm:optoggle:${shopId}`)],
+      [btn("✏️ ID канала", `adm:opsetid:${shopId}`), btn("🔗 Ссылка", `adm:opsetlink:${shopId}`)],
+      [btn("🗑 Очистить всё", `adm:opclear:${shopId}`)],
+      [btn("◀️ К магазину", `adm:scard:${shopId}`)],
+    ]));
+  }
+  if (cmd === "opsetid") {
+    const shopId = parts[2];
+    await setSession(chatId, "adm_op_set_id", { shopId });
+    return tg.edit(chatId, msgId, `📢 Введите ID канала:\n\n<code>@channel_name</code> или <code>-100xxxxxxxxxx</code>`, ikb([[btn("❌ Отмена", `adm:opsetc:${shopId}`)]]));
+  }
+  if (cmd === "opsetlink") {
+    const shopId = parts[2];
+    await setSession(chatId, "adm_op_set_link", { shopId });
+    return tg.edit(chatId, msgId, `🔗 Введите ссылку на канал:\n\n<code>https://t.me/channel_name</code>`, ikb([[btn("❌ Отмена", `adm:opsetc:${shopId}`)]]));
   }
   if (cmd === "opclear") {
     const shopId = parts[2];
@@ -1928,7 +1964,27 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     return tg.send(chatId, `✅ Магазин «${esc(shopName)}» удалён.${comment ? ` Причина: ${esc(comment)}` : ""}`, ikb([[btn("◀️ К магазинам", "adm:shops:0")]]));
   }
 
-  // ─── Set OP channel ───────────────────────
+  // ─── Set OP channel ID ─────────────────────
+  if (state === "adm_op_set_id") {
+    const shopId = sData.shopId as string;
+    await clearSession(chatId);
+    const channelId = val.trim();
+    await db().from("shops").update({ required_channel_id: channelId, updated_at: new Date().toISOString() }).eq("id", shopId);
+    await admLog(chatId, "set_op_channel_id", "shop", shopId, { channel_id: channelId });
+    return tg.send(chatId, `✅ ID канала установлен: <code>${esc(channelId)}</code>`, ikb([[btn("◀️ Настройки ОП", `adm:opsetc:${shopId}`)]]));
+  }
+
+  // ─── Set OP channel link ──────────────────
+  if (state === "adm_op_set_link") {
+    const shopId = sData.shopId as string;
+    await clearSession(chatId);
+    const channelLink = val.trim();
+    await db().from("shops").update({ required_channel_link: channelLink, updated_at: new Date().toISOString() }).eq("id", shopId);
+    await admLog(chatId, "set_op_channel_link", "shop", shopId, { channel_link: channelLink });
+    return tg.send(chatId, `✅ Ссылка на канал установлена: ${esc(channelLink)}`, ikb([[btn("◀️ Настройки ОП", `adm:opsetc:${shopId}`)]]));
+  }
+
+  // ─── Legacy: Set OP channel (combined) ────
   if (state === "adm_op_channel") {
     const shopId = sData.shopId as string;
     await clearSession(chatId);
