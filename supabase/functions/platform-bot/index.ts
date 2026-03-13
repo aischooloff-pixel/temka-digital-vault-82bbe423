@@ -1372,6 +1372,7 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
 
   if (cmd === "home") return admHome(tg, chatId, msgId);
   if (cmd === "noop") return;
+  if (cmd === "stats") return admStats(tg, chatId, msgId);
 
   // ─── Users ────────────────────────────────
   if (cmd === "users") return admUsersList(tg, chatId, msgId, parseInt(parts[2]) || 0);
