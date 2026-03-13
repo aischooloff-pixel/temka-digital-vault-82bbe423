@@ -1283,6 +1283,9 @@ async function handleCallback(tg: ReturnType<typeof TG>, cid: number, mid: numbe
 // MAIN SERVE
 // ═══════════════════════════════════════════════
 serve(async (req) => {
+  // Reset singleton per request
+  _db = null;
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*" } });
   }
