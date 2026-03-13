@@ -334,16 +334,12 @@ async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName:
   const kb = { ...ikb(await welcomeButtons(chatId)) };
 
   if (config.media_type === "photo" && config.media_url) {
-    await tg.sendPhoto(chatId, config.media_url, welcomeText);
-    await tg.send(chatId, "⬇️ Выбери действие:", kb);
+    await tg.sendPhoto(chatId, config.media_url);
   } else if (config.media_type === "video" && config.media_url) {
-    await tg.sendVideo(chatId, config.media_url, welcomeText);
-    await tg.send(chatId, "⬇️ Выбери действие:", kb);
-  } else {
-    await tg.send(chatId, welcomeText, kb);
+    await tg.sendVideo(chatId, config.media_url);
   }
+  await tg.send(chatId, welcomeText, kb);
   const hasShop = await userHasShop(chatId);
-  await tg.send(chatId, "⬇️ Используй меню внизу для навигации", bottomPanel(hasShop));
   // Check subscription reminders in background
   await sendTrialReminder(chatId);
   await checkAndEnforceSubscription(chatId);
