@@ -540,7 +540,7 @@ function howToAddProducts(tg: ReturnType<typeof TG>, chatId: number, msgId: numb
 // TEXT FSM HANDLER
 // ═══════════════════════════════════════════════
 async function handleText(tg: ReturnType<typeof TG>, chatId: number, text: string, from: { id: number; first_name: string; last_name?: string; username?: string; is_premium?: boolean; language_code?: string }) {
-  if (hasChannelRequirement()) {
+  if (await hasChannelRequirement()) {
     const subscribed = await checkAllChannels(tg, chatId);
     if (!subscribed) { await showSubscribeGate(tg, chatId, from.first_name); return; }
   }
