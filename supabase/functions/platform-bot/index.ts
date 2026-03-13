@@ -378,7 +378,10 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
   }
   const text = `💳 <b>Подписка</b>\n\n📊 Статус: <b>${subMap[user.subscription_status] || user.subscription_status}</b>${daysLeft}\n\n💰 Стоимость: <b>$9/мес</b>\n\nВключает:\n• Неограниченное кол-во магазинов\n• Приём платежей через CryptoBot\n• Собственный Telegram-бот\n• Авто-доставка цифровых товаров`;
   const rows: Btn[][] = [];
-  if (user.subscription_status !== "active") rows.push([btn("💳 Оплатить $9", "p:pay_sub")]);
+  if (user.subscription_status !== "active") {
+    rows.push([btn("💳 Оплатить $9", "p:pay_sub")]);
+    rows.push([btn("🎫 У меня есть промокод", "p:sub_promo")]);
+  }
   rows.push([btn("◀️ Назад", "p:home")]);
   return tg.edit(chatId, msgId, text, ikb(rows));
 }
@@ -742,7 +745,63 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
   }
   if (cmd === "delshop") return deleteShopConfirm(tg, chatId, msgId, parts[2]);
   if (cmd === "confirmdelete") return deleteShopExecute(tg, chatId, msgId, parts[2]);
-  if (cmd === "pay_sub") return tg.edit(chatId, msgId, "💳 Оплата подписки будет доступна в ближайшее время.", ikb([[btn("◀️ Назад", "p:sub")]]));
+  if (cmd === "pay_sub") {
+    const SUBSCRIPTION_PRICE = 9;
+    const telegramId = chatId;
+    const session = await getSession(chatId);
+    const promoData = session?.state === "sub_promo_applied" ? session.data as Record<string, unknown> : null;
+    let discountAmount = 0;
+    let promoCode: string | null = null;
+    let promoId: string | null = null;
+    if (promoData) {
+      promoCode = promoData.promo_code as string;
+      promoId = promoData.promo_id as string;
+      discountAmount = Number(promoData.discount_amount || 0);
+    }
+    const finalAmount = Math.max(0, SUBSCRIPTION_PRICE - discountAmount);
+    const { data: user } = await db().from("platform_users").select("id").eq("telegram_id", telegramId).maybeSingle();
+    if (!user) return tg.edit(chatId, msgId, "❌ Пользователь не найден.", ikb([[btn("◀️ Назад", "p:sub")]]));
+    const { data: payment, error: payError } = await db().from("subscription_payments").insert({
+      user_id: user.id, amount: SUBSCRIPTION_PRICE, promo_code: promoCode, discount_amount: discountAmount, final_amount: finalAmount,
+      status: finalAmount === 0 ? "paid" : "pending",
+    }).select("id").single();
+    if (payError || !payment) return tg.edit(chatId, msgId, `❌ Ошибка: ${payError?.message || "unknown"}`, ikb([[btn("◀️ Назад", "p:sub")]]));
+    if (promoId && promoCode) {
+      await db().rpc("increment_platform_promo_usage", { p_promo_id: promoId, p_telegram_id: telegramId, p_payment_id: payment.id, p_discount_amount: discountAmount });
+    }
+    if (finalAmount === 0) {
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      await db().from("platform_users").update({ subscription_status: "active", subscription_expires_at: expiresAt, updated_at: new Date().toISOString() }).eq("telegram_id", telegramId);
+      await clearSession(chatId);
+      return tg.edit(chatId, msgId, `✅ <b>Подписка активирована!</b>\n\n🎫 Промокод: <code>${esc(promoCode || "")}</code>\n💰 Скидка: $${discountAmount.toFixed(2)}\n\n✅ Подписка до ${new Date(expiresAt).toLocaleDateString("ru")}`, ikb([[btn("◀️ В меню", "p:home")]]));
+    }
+    const platformCBToken = Deno.env.get("CRYPTOBOT_API_TOKEN");
+    if (!platformCBToken) { await clearSession(chatId); return tg.edit(chatId, msgId, "❌ Платёжная система не настроена.", ikb([[btn("◀️ Назад", "p:sub")]])); }
+    try {
+      const botInfo = await fetch(`https://api.telegram.org/bot${Deno.env.get("PLATFORM_BOT_TOKEN")}/getMe`).then(r => r.json());
+      const invoiceRes = await fetch("https://pay.crypt.bot/api/createInvoice", {
+        method: "POST", headers: { "Content-Type": "application/json", "Crypto-Pay-API-Token": platformCBToken },
+        body: JSON.stringify({
+          currency_type: "fiat", fiat: "USD", amount: finalAmount.toFixed(2),
+          description: `Подписка ${PLATFORM_NAME} (1 мес)${promoCode ? ` [промо: ${promoCode}]` : ""}`,
+          payload: JSON.stringify({ type: "subscription", paymentId: payment.id, telegramUserId: telegramId }),
+          paid_btn_name: "callback", paid_btn_url: `https://t.me/${botInfo.result?.username || "bot"}`,
+        }),
+      }).then(r => r.json());
+      if (!invoiceRes.ok) { await clearSession(chatId); return tg.edit(chatId, msgId, `❌ Ошибка CryptoBot: ${invoiceRes.error?.name || "unknown"}`, ikb([[btn("◀️ Назад", "p:sub")]])); }
+      const invoice = invoiceRes.result;
+      await db().from("subscription_payments").update({ invoice_id: String(invoice.invoice_id), status: "awaiting" }).eq("id", payment.id);
+      await clearSession(chatId);
+      let text = `💳 <b>Оплата подписки</b>\n\n💰 Стоимость: $${SUBSCRIPTION_PRICE.toFixed(2)}`;
+      if (discountAmount > 0) text += `\n🎫 Промокод: <code>${esc(promoCode || "")}</code>\n🏷 Скидка: -$${discountAmount.toFixed(2)}`;
+      text += `\n💵 К оплате: <b>$${finalAmount.toFixed(2)}</b>\n\nНажмите кнопку ниже для оплаты:`;
+      return tg.edit(chatId, msgId, text, ikb([[urlBtn("💳 Оплатить", invoice.pay_url)], [btn("◀️ Назад", "p:sub")]]));
+    } catch (e) { await clearSession(chatId); return tg.edit(chatId, msgId, `❌ Ошибка: ${(e as Error).message}`, ikb([[btn("◀️ Назад", "p:sub")]])); }
+  }
+  if (cmd === "sub_promo") {
+    await setSession(chatId, "sub_enter_promo", {});
+    return tg.edit(chatId, msgId, `🎫 <b>Промокод на подписку</b>\n\nВведите промокод:`, ikb([[btn("❌ Отмена", "p:sub")]]));
+  }
 }
 
 
@@ -796,9 +855,9 @@ async function admHome(tg: ReturnType<typeof TG>, chatId: number, msgId?: number
     [btn("🏪 Магазины", "adm:shops:0"), btn("💳 Подписки/платежи", "adm:finance:sub:0")],
     [btn("🧾 Заказы", "adm:orders:all:0"), btn("🤖 Боты/webhook", "adm:bots:0")],
     [btn("🎟 Промокоды", "adm:promo:platform:0"), btn("⭐ Отзывы", "adm:reviews:shop:0")],
-    [btn("📢 Рассылки", "adm:broadcast"), btn("🚨 Риски/блокировки", "adm:risks")],
-    [btn("📋 Логи", "adm:logs:0"), btn("⚙️ Настройки", "adm:settings")],
-    [btn("👮 Администраторы", "adm:admins")],
+    [btn("🎫 Промо подписки", "adm:subpromo:0"), btn("📢 Рассылки", "adm:broadcast")],
+    [btn("🚨 Риски/блокировки", "adm:risks"), btn("📋 Логи", "adm:logs:0")],
+    [btn("⚙️ Настройки", "adm:settings"), btn("👮 Администраторы", "adm:admins")],
   ]);
   if (msgId) return tg.edit(chatId, msgId, text, kb);
   return tg.send(chatId, text, kb);
@@ -1407,6 +1466,83 @@ async function admSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: num
   ]));
 }
 
+// ─── SUBSCRIPTION PROMOS (platform-level) ─────
+async function admSubPromoList(tg: ReturnType<typeof TG>, chatId: number, msgId: number, page: number) {
+  const perPage = 5;
+  const { count } = await db().from("platform_subscription_promos").select("id", { count: "exact", head: true });
+  const total = count || 0;
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+  const p = Math.min(Math.max(0, page), totalPages - 1);
+  const { data: promos } = await db().from("platform_subscription_promos").select("*").order("created_at", { ascending: false }).range(p * perPage, (p + 1) * perPage - 1);
+  let text = `🎫 <b>Промокоды подписки</b> (${total})\n\n`;
+  const rows: Btn[][] = [];
+  for (const pr of promos || []) {
+    const active = pr.is_active ? "✅" : "❌";
+    const discountLabel = pr.discount_type === "percent" ? `${pr.discount_value}%` : `$${pr.discount_value}`;
+    text += `${active} <code>${pr.code}</code> — ${discountLabel} (${pr.used_count}/${pr.max_uses || "∞"})${pr.note ? ` 📝` : ""}\n`;
+    rows.push([btn(`${active} ${pr.code}`, `adm:spcard:${pr.id}`)]);
+  }
+  if (!promos?.length) text += "Нет промокодов.\n";
+  if (totalPages > 1) {
+    const nav: Btn[] = [];
+    if (p > 0) nav.push(btn("◀️", `adm:subpromo:${p - 1}`));
+    nav.push(btn(`${p + 1}/${totalPages}`, "adm:noop"));
+    if (p < totalPages - 1) nav.push(btn("▶️", `adm:subpromo:${p + 1}`));
+    rows.push(nav);
+  }
+  rows.push([btn("➕ Создать", "adm:spcreate")]);
+  rows.push([btn("◀️ Меню", "adm:home")]);
+  return tg.edit(chatId, msgId, text, ikb(rows));
+}
+
+async function admSubPromoCard(tg: ReturnType<typeof TG>, chatId: number, msgId: number, promoId: string) {
+  const { data: pr } = await db().from("platform_subscription_promos").select("*").eq("id", promoId).single();
+  if (!pr) return tg.edit(chatId, msgId, "❌ Не найден.", ikb([[btn("◀️ Назад", "adm:subpromo:0")]]));
+  const discountLabel = pr.discount_type === "percent" ? `${pr.discount_value}%` : `$${Number(pr.discount_value).toFixed(2)}`;
+  const { count: usageCount } = await db().from("platform_promo_usages").select("id", { count: "exact", head: true }).eq("promo_id", promoId);
+  const text =
+    `🎫 <b>Промокод: ${esc(pr.code)}</b>\n\n` +
+    `Статус: ${pr.is_active ? "✅ Активен" : "❌ Неактивен"}\n` +
+    `Скидка: <b>${discountLabel}</b> (${pr.discount_type})\n` +
+    `Лимит: ${pr.max_uses || "∞"} (использовано: ${pr.used_count})\n` +
+    `На пользователя: ${pr.max_uses_per_user || "∞"}\n` +
+    `Действует: ${pr.valid_from ? new Date(pr.valid_from).toLocaleDateString("ru") : "—"} → ${pr.valid_until ? new Date(pr.valid_until).toLocaleDateString("ru") : "—"}\n` +
+    `Создал: <code>${pr.created_by}</code>\n` +
+    `Всего использований: ${usageCount || 0}\n` +
+    (pr.note ? `\n📝 <i>${esc(pr.note)}</i>\n` : "") +
+    `\nСоздан: ${new Date(pr.created_at).toLocaleString("ru")}`;
+  return tg.edit(chatId, msgId, text, ikb([
+    [btn(pr.is_active ? "❌ Деактивировать" : "✅ Активировать", `adm:sptoggle:${promoId}`)],
+    [btn("📊 Использования", `adm:spusage:${promoId}:0`)],
+    [btn("✏️ Заметка", `adm:spnote:${promoId}`), btn("🗑 Удалить", `adm:spdelete:${promoId}`)],
+    [btn("◀️ Назад", "adm:subpromo:0")],
+  ]));
+}
+
+async function admSubPromoUsages(tg: ReturnType<typeof TG>, chatId: number, msgId: number, promoId: string, page: number) {
+  const perPage = 10;
+  const { count } = await db().from("platform_promo_usages").select("id", { count: "exact", head: true }).eq("promo_id", promoId);
+  const total = count || 0;
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+  const p = Math.min(Math.max(0, page), totalPages - 1);
+  const { data: usages } = await db().from("platform_promo_usages").select("*").eq("promo_id", promoId).order("created_at", { ascending: false }).range(p * perPage, (p + 1) * perPage - 1);
+  let text = `📊 <b>Использования промокода</b> (${total})\n\n`;
+  for (const u of usages || []) {
+    text += `• TG <code>${u.telegram_id}</code> — скидка $${Number(u.discount_amount).toFixed(2)} — ${new Date(u.created_at).toLocaleString("ru")}\n`;
+  }
+  if (!usages?.length) text += "Нет использований.\n";
+  const rows: Btn[][] = [];
+  if (totalPages > 1) {
+    const nav: Btn[] = [];
+    if (p > 0) nav.push(btn("◀️", `adm:spusage:${promoId}:${p - 1}`));
+    nav.push(btn(`${p + 1}/${totalPages}`, "adm:noop"));
+    if (p < totalPages - 1) nav.push(btn("▶️", `adm:spusage:${promoId}:${p + 1}`));
+    rows.push(nav);
+  }
+  rows.push([btn("◀️ К промокоду", `adm:spcard:${promoId}`)]);
+  return tg.edit(chatId, msgId, text, ikb(rows));
+}
+
 // ─── ADMINS ───────────────────────────────────
 async function admAdminsList(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
   const { data: admins } = await db().from("platform_admins").select("*").order("created_at");
@@ -1690,8 +1826,44 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
     } catch (e) { return tg.edit(chatId, msgId, `❌ ${(e as Error).message}`, ikb([[btn("◀️ Назад", `adm:bcard:${shopId}`)]])); }
   }
 
-  // ─── Promocodes ───────────────────────────
+  // ─── Promocodes (goods) ────────────────────
   if (cmd === "promo") return admPromoList(tg, chatId, msgId, parts[2] || "platform", parseInt(parts[3]) || 0);
+
+  // ─── Subscription Promos ──────────────────
+  if (cmd === "subpromo") return admSubPromoList(tg, chatId, msgId, parseInt(parts[2]) || 0);
+  if (cmd === "spcard") return admSubPromoCard(tg, chatId, msgId, parts[2]);
+  if (cmd === "spusage") return admSubPromoUsages(tg, chatId, msgId, parts[2], parseInt(parts[3]) || 0);
+  if (cmd === "spcreate") {
+    await setSession(chatId, "adm_sp_create", { step: "code" });
+    return tg.edit(chatId, msgId, `🎫 <b>Создание промокода подписки</b>\n\nВведите код промокода (латиница, цифры):`, ikb([[btn("❌ Отмена", "adm:subpromo:0")]]));
+  }
+  if (cmd === "sptoggle") {
+    const promoId = parts[2];
+    const { data: pr } = await db().from("platform_subscription_promos").select("is_active, code").eq("id", promoId).single();
+    if (!pr) return;
+    const newActive = !pr.is_active;
+    await db().from("platform_subscription_promos").update({ is_active: newActive, updated_at: new Date().toISOString() }).eq("id", promoId);
+    await admLog(adminTgId, newActive ? "activate_sub_promo" : "deactivate_sub_promo", "sub_promo", promoId, { code: pr.code });
+    return admSubPromoCard(tg, chatId, msgId, promoId);
+  }
+  if (cmd === "spdelete") {
+    const promoId = parts[2];
+    return tg.edit(chatId, msgId, `⚠️ <b>Удалить промокод подписки?</b>\n\nЭто необратимо. Все данные использований будут потеряны.`, ikb([
+      [btn("✅ Да, удалить", `adm:spdelconfirm:${promoId}`), btn("❌ Отмена", `adm:spcard:${promoId}`)],
+    ]));
+  }
+  if (cmd === "spdelconfirm") {
+    const promoId = parts[2];
+    const { data: pr } = await db().from("platform_subscription_promos").select("code").eq("id", promoId).maybeSingle();
+    await db().from("platform_subscription_promos").delete().eq("id", promoId);
+    await admLog(adminTgId, "delete_sub_promo", "sub_promo", promoId, { code: pr?.code });
+    return tg.edit(chatId, msgId, `✅ Промокод удалён.`, ikb([[btn("◀️ К промокодам", "adm:subpromo:0")]]));
+  }
+  if (cmd === "spnote") {
+    const promoId = parts[2];
+    await setSession(chatId, "adm_sp_note", { promoId });
+    return tg.edit(chatId, msgId, `📝 Введите заметку для промокода:`, ikb([[btn("❌ Отмена", `adm:spcard:${promoId}`)]]));
+  }
 
   // ─── Reviews ──────────────────────────────
   if (cmd === "reviews") return admReviewsList(tg, chatId, msgId, parts[2] || "shop", parseInt(parts[3]) || 0);
@@ -2049,6 +2221,67 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     return tg.send(chatId, `✅ Ссылка на канал ОП установлена:\n${esc(link)}`, ikb([[btn("◀️ Настройки ОП", "adm:platop")]]));
   }
 
+  // ─── Subscription Promo: create wizard ─────
+  if (state === "adm_sp_create") {
+    const step = sData.step as string;
+    if (step === "code") {
+      const code = val.trim().toUpperCase();
+      if (!code || !/^[A-Z0-9_-]+$/.test(code)) return tg.send(chatId, "❌ Код должен содержать только латиницу, цифры, _ и -. Попробуйте снова:");
+      // Check uniqueness
+      const { data: existing } = await db().from("platform_subscription_promos").select("id").eq("code", code).maybeSingle();
+      if (existing) return tg.send(chatId, `❌ Промокод <code>${esc(code)}</code> уже существует. Введите другой:`);
+      await setSession(chatId, "adm_sp_create", { ...sData, code, step: "discount_type" });
+      return tg.send(chatId, `Код: <code>${esc(code)}</code>\n\nВыберите тип скидки:`, ikb([
+        [btn("📊 Процент", "adm:noop"), btn("💵 Фиксированная", "adm:noop")],
+      ]));
+      // Since we can't use callbacks mid-FSM easily, let's ask as text
+    }
+    if (step === "discount_type") {
+      const dt = val.toLowerCase();
+      if (dt !== "percent" && dt !== "fixed" && dt !== "процент" && dt !== "фикс" && dt !== "%" && dt !== "$") {
+        return tg.send(chatId, `Введите тип скидки: <code>percent</code> (процент) или <code>fixed</code> (фиксированная $):`);
+      }
+      const discountType = (dt === "percent" || dt === "процент" || dt === "%") ? "percent" : "fixed";
+      await setSession(chatId, "adm_sp_create", { ...sData, discount_type: discountType, step: "discount_value" });
+      return tg.send(chatId, `Тип: ${discountType === "percent" ? "процент" : "фиксированная $"}\n\nВведите значение скидки (число):`);
+    }
+    if (step === "discount_value") {
+      const dv = parseFloat(val);
+      if (isNaN(dv) || dv <= 0) return tg.send(chatId, "❌ Введите положительное число:");
+      if (sData.discount_type === "percent" && dv > 100) return tg.send(chatId, "❌ Процент не может быть больше 100:");
+      await setSession(chatId, "adm_sp_create", { ...sData, discount_value: dv, step: "max_uses" });
+      return tg.send(chatId, `Скидка: ${dv}${sData.discount_type === "percent" ? "%" : "$"}\n\nВведите макс. число использований (или <code>0</code> = безлимит):`);
+    }
+    if (step === "max_uses") {
+      const mu = parseInt(val);
+      if (isNaN(mu) || mu < 0) return tg.send(chatId, "❌ Введите число ≥ 0:");
+      await setSession(chatId, "adm_sp_create", { ...sData, max_uses: mu || null, step: "note" });
+      return tg.send(chatId, `Лимит: ${mu || "безлимит"}\n\nВведите заметку (или <code>-</code> без заметки):`);
+    }
+    if (step === "note") {
+      const note = val === "-" ? null : val;
+      await clearSession(chatId);
+      const code = sData.code as string;
+      const { error } = await db().from("platform_subscription_promos").insert({
+        code, discount_type: sData.discount_type, discount_value: sData.discount_value,
+        max_uses: sData.max_uses || null, max_uses_per_user: 1,
+        created_by: chatId, note,
+      });
+      if (error) return tg.send(chatId, `❌ Ошибка: ${error.message}`, ikb([[btn("◀️ К промокодам", "adm:subpromo:0")]]));
+      await admLog(chatId, "create_sub_promo", "sub_promo", code, { discount_type: sData.discount_type, discount_value: sData.discount_value });
+      return tg.send(chatId, `✅ Промокод <code>${esc(code)}</code> создан!\n\n${sData.discount_type === "percent" ? `${sData.discount_value}%` : `$${sData.discount_value}`} скидка на подписку`, ikb([[btn("◀️ К промокодам", "adm:subpromo:0")]]));
+    }
+  }
+
+  // ─── Subscription Promo: note ─────────────
+  if (state === "adm_sp_note") {
+    const promoId = sData.promoId as string;
+    const note = val === "-" ? null : val;
+    await clearSession(chatId);
+    await db().from("platform_subscription_promos").update({ note, updated_at: new Date().toISOString() }).eq("id", promoId);
+    return tg.send(chatId, "✅ Заметка обновлена.", ikb([[btn("◀️ К промокоду", `adm:spcard:${promoId}`)]]));
+  }
+
   // ─── Welcome: set text ────────────────────
   if (state === "adm_welc_set_text") {
     await clearSession(chatId);
@@ -2202,6 +2435,21 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     await db().from("shops").update({ required_channel_id: channelId, required_channel_link: channelLink, updated_at: new Date().toISOString() }).eq("id", shopId);
     await admLog(chatId, "set_op_channel", "shop", shopId, { channel_id: channelId, channel_link: channelLink });
     return tg.send(chatId, `✅ Канал ОП установлен: <code>${esc(channelId)}</code>`, ikb([[btn("◀️ К магазину", `adm:scard:${shopId}`)]]));
+  }
+
+  // ─── User: enter subscription promo code ──
+  if (state === "sub_enter_promo") {
+    await clearSession(chatId);
+    const code = val.trim().toUpperCase();
+    if (!code) return tg.send(chatId, "❌ Введите код.", ikb([[btn("◀️ Назад", "p:sub")]]));
+    const { data: result } = await db().rpc("validate_platform_subscription_promo", { p_code: code, p_telegram_id: chatId });
+    const r = result as any;
+    if (!r || !r.valid) return tg.send(chatId, `❌ ${r?.error || "Промокод не найден"}`, ikb([[btn("🔄 Попробовать другой", "p:sub_promo")], [btn("◀️ Назад", "p:sub")]]));
+    const SUBSCRIPTION_PRICE = 9;
+    const discountAmount = r.discount_type === "percent" ? Math.min(SUBSCRIPTION_PRICE, SUBSCRIPTION_PRICE * r.discount_value / 100) : Math.min(SUBSCRIPTION_PRICE, Number(r.discount_value));
+    const finalAmount = Math.max(0, SUBSCRIPTION_PRICE - discountAmount);
+    await setSession(chatId, "sub_promo_applied", { promo_code: r.code, promo_id: r.id, discount_amount: discountAmount });
+    return tg.send(chatId, `✅ Промокод <code>${esc(r.code)}</code> применён!\n\n💰 Стоимость: $${SUBSCRIPTION_PRICE.toFixed(2)}\n🏷 Скидка: -$${discountAmount.toFixed(2)}\n💵 К оплате: <b>$${finalAmount.toFixed(2)}</b>\n\nНажмите «Оплатить» для продолжения:`, ikb([[btn(`💳 Оплатить $${finalAmount.toFixed(2)}`, "p:pay_sub")], [btn("◀️ Без промокода", "p:sub")]]));
   }
 }
 
