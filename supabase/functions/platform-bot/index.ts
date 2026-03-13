@@ -554,6 +554,8 @@ async function deleteShopExecute(tg: ReturnType<typeof TG>, chatId: number, msgI
   await db().from("shop_products").delete().eq("shop_id", shopId);
   await db().from("shop_orders").delete().eq("shop_id", shopId);
   await db().from("shop_categories").delete().eq("shop_id", shopId);
+  await db().from("shop_balance_history").delete().eq("shop_id", shopId);
+  await db().from("shop_customers").delete().eq("shop_id", shopId);
   await db().from("shops").delete().eq("id", shopId);
   return tg.edit(chatId, msgId, "✅ Магазин удалён.", ikb([[btn("◀️ К магазинам", "p:myshops:0")]]));
 }
