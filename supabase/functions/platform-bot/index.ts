@@ -1849,6 +1849,96 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     await admLog(chatId, "add_admin", "admin", String(tgId));
     return tg.send(chatId, `✅ Админ ${tgId} добавлен.`, ikb([[btn("◀️ К администраторам", "adm:admins")]]));
   }
+
+  // ─── Toggle shop status (with comment) ────
+  if (state === "adm_toggle_comment") {
+    const shopId = sData.shopId as string;
+    const newStatus = sData.newStatus as string;
+    const shopName = sData.shopName as string;
+    const comment = val === "-" ? "" : val;
+    await clearSession(chatId);
+
+    await db().from("shops").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", shopId);
+    await admLog(chatId, `shop_${newStatus}`, "shop", shopId, { comment });
+
+    // Notify shop owner
+    const { data: shop } = await db().from("shops").select("owner_id").eq("id", shopId).single();
+    if (shop) {
+      const { data: owner } = await db().from("platform_users").select("telegram_id").eq("id", shop.owner_id).maybeSingle();
+      if (owner) {
+        const token = Deno.env.get("PLATFORM_BOT_TOKEN")!;
+        const statusLabel = newStatus === "paused" ? "⚠️ приостановлен" : "✅ активирован";
+        let msg = `${newStatus === "paused" ? "⚠️" : "✅"} Ваш магазин «<b>${esc(shopName)}</b>» был ${statusLabel} администратором платформы.`;
+        if (comment) msg += `\n\n📝 <b>Причина:</b> ${esc(comment)}`;
+        if (newStatus === "paused") msg += `\n\nЕсли у вас есть вопросы, обратитесь в поддержку.`;
+        try { await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: owner.telegram_id, text: msg, parse_mode: "HTML" }) }); } catch {}
+      }
+    }
+
+    const resp = await tg.send(chatId, `✅ Магазин «${esc(shopName)}» ${newStatus === "paused" ? "приостановлен" : "активирован"}.${comment ? ` Причина: ${esc(comment)}` : ""}`, ikb([[btn("◀️ К магазину", `adm:scard:${shopId}`)]]));
+    return;
+  }
+
+  // ─── Delete shop (with comment) ───────────
+  if (state === "adm_delete_comment") {
+    const shopId = sData.shopId as string;
+    const shopName = sData.shopName as string;
+    const comment = val === "-" ? "" : val;
+    await clearSession(chatId);
+
+    await admLog(chatId, "delete_shop", "shop", shopId, { comment, shop_name: shopName });
+
+    // Get owner info before deletion
+    const { data: shop } = await db().from("shops").select("bot_token_encrypted, owner_id").eq("id", shopId).single();
+    let ownerTgId: number | null = null;
+    if (shop) {
+      const { data: owner } = await db().from("platform_users").select("telegram_id").eq("id", shop.owner_id).maybeSingle();
+      ownerTgId = owner?.telegram_id || null;
+
+      // Cleanup webhook
+      if (shop.bot_token_encrypted) {
+        const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
+        if (encKey) { try { const { data: rawToken } = await db().rpc("decrypt_token", { p_encrypted: shop.bot_token_encrypted, p_key: encKey }); if (rawToken) await removeSellerWebhook(rawToken); } catch {} }
+      }
+    }
+
+    // Delete all related data
+    const { data: products } = await db().from("shop_products").select("id").eq("shop_id", shopId);
+    const prodIds = products?.map(p => p.id) || [];
+    if (prodIds.length) { await db().from("shop_inventory").delete().in("product_id", prodIds); await db().from("shop_order_items").delete().in("product_id", prodIds); }
+    await db().from("shop_reviews").delete().eq("shop_id", shopId);
+    await db().from("shop_promocodes").delete().eq("shop_id", shopId);
+    await db().from("shop_admin_logs").delete().eq("shop_id", shopId);
+    await db().from("shop_products").delete().eq("shop_id", shopId);
+    await db().from("shop_orders").delete().eq("shop_id", shopId);
+    await db().from("shop_categories").delete().eq("shop_id", shopId);
+    await db().from("shop_balance_history").delete().eq("shop_id", shopId);
+    await db().from("shop_customers").delete().eq("shop_id", shopId);
+    await db().from("shops").delete().eq("id", shopId);
+
+    // Notify owner
+    if (ownerTgId) {
+      const token = Deno.env.get("PLATFORM_BOT_TOKEN")!;
+      let msg = `❌ Ваш магазин «<b>${esc(shopName)}</b>» был удалён администратором платформы.`;
+      if (comment) msg += `\n\n📝 <b>Причина:</b> ${esc(comment)}`;
+      msg += `\n\nЕсли у вас есть вопросы, обратитесь в поддержку.`;
+      try { await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: ownerTgId, text: msg, parse_mode: "HTML" }) }); } catch {}
+    }
+
+    return tg.send(chatId, `✅ Магазин «${esc(shopName)}» удалён.${comment ? ` Причина: ${esc(comment)}` : ""}`, ikb([[btn("◀️ К магазинам", "adm:shops:0")]]));
+  }
+
+  // ─── Set OP channel ───────────────────────
+  if (state === "adm_op_channel") {
+    const shopId = sData.shopId as string;
+    await clearSession(chatId);
+    const parts = val.split(/\s+/);
+    const channelId = parts[0];
+    const channelLink = parts[1] || null;
+    await db().from("shops").update({ required_channel_id: channelId, required_channel_link: channelLink, updated_at: new Date().toISOString() }).eq("id", shopId);
+    await admLog(chatId, "set_op_channel", "shop", shopId, { channel_id: channelId, channel_link: channelLink });
+    return tg.send(chatId, `✅ Канал ОП установлен: <code>${esc(channelId)}</code>`, ikb([[btn("◀️ К магазину", `adm:scard:${shopId}`)]]));
+  }
 }
 
 // ═══════════════════════════════════════════════
