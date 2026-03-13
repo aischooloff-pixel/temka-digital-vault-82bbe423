@@ -1776,7 +1776,60 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
     return tg.edit(chatId, msgId, "✅ ОП платформы очищена. Подписка на канал больше не требуется.", ikb([[btn("◀️ Настройки ОП", "adm:platop")], [btn("◀️ Настройки", "adm:settings")]]));
   }
 
-  // ─── Admins ───────────────────────────────
+  // ─── Welcome message management ───────────
+  if (cmd === "welcmgr") {
+    const config = await getWelcomeConfig();
+    const hasCustom = !!config.text;
+    const mediaLabel = config.media_type === "photo" ? "📷 Фото" : config.media_type === "video" ? "🎬 Видео" : "❌ Нет";
+    let text = `👋 <b>Управление приветствием</b>\n\n`;
+    text += `Статус: ${hasCustom ? "✅ Пользовательское" : "📝 По умолчанию"}\n`;
+    text += `Медиа: ${mediaLabel}\n`;
+    if (config.text) text += `\n<b>Текст:</b>\n${config.text.slice(0, 300)}${config.text.length > 300 ? "…" : ""}`;
+    return tg.edit(chatId, msgId, text, ikb([
+      [btn("✏️ Задать текст", "adm:welc_settext")],
+      [btn("📷 Фото", "adm:welc_setmedia:photo"), btn("🎬 Видео", "adm:welc_setmedia:video")],
+      [btn("🗑 Убрать медиа", "adm:welc_clearmedia")],
+      [btn("👁 Предпросмотр", "adm:welc_preview")],
+      [btn("🗑 Сбросить к дефолту", "adm:welc_reset")],
+      [btn("◀️ Назад", "adm:settings")],
+    ]));
+  }
+  if (cmd === "welc_settext") {
+    await setSession(chatId, "adm_welc_set_text", {});
+    return tg.edit(chatId, msgId, `✏️ <b>Введите текст приветствия</b>\n\nПоддерживается HTML:\n<code>&lt;b&gt;жирный&lt;/b&gt;</code>\n<code>&lt;i&gt;курсив&lt;/i&gt;</code>\n<code>&lt;u&gt;подчёркнутый&lt;/u&gt;</code>\n<code>&lt;a href="url"&gt;ссылка&lt;/a&gt;</code>\n<code>&lt;code&gt;код&lt;/code&gt;</code>\n\nПлейсхолдер: <code>{name}</code> — имя пользователя`, ikb([[btn("❌ Отмена", "adm:welcmgr")]]));
+  }
+  if (cmd === "welc_setmedia") {
+    const mediaType = parts[2]; // photo or video
+    await setSession(chatId, "adm_welc_set_media", { media_type: mediaType });
+    const typeLabel = mediaType === "photo" ? "фото" : "видео";
+    return tg.edit(chatId, msgId, `📎 Отправьте ${typeLabel} или введите URL/file_id:`, ikb([[btn("❌ Отмена", "adm:welcmgr")]]));
+  }
+  if (cmd === "welc_clearmedia") {
+    await db().from("shop_settings").delete().eq("key", "platform_welcome_media_type");
+    await db().from("shop_settings").delete().eq("key", "platform_welcome_media_url");
+    await admLog(adminTgId, "clear_welcome_media", "settings", "welcome");
+    return tg.edit(chatId, msgId, "✅ Медиа убрано.", ikb([[btn("◀️ Назад", "adm:welcmgr")]]));
+  }
+  if (cmd === "welc_preview") {
+    const config = await getWelcomeConfig();
+    const previewText = config.text ? config.text.replace(/\{name\}/g, "Тест") : `👋 Привет, <b>Тест</b>!\nДобро пожаловать в <b>${PLATFORM_NAME}</b>\n\n(дефолтное сообщение)`;
+    if (config.media_type === "photo" && config.media_url) {
+      await tg.sendPhoto(chatId, config.media_url, previewText);
+    } else if (config.media_type === "video" && config.media_url) {
+      await tg.sendVideo(chatId, config.media_url, previewText);
+    } else {
+      await tg.send(chatId, `👁 <b>Предпросмотр:</b>\n\n${previewText}`);
+    }
+    return;
+  }
+  if (cmd === "welc_reset") {
+    await db().from("shop_settings").delete().eq("key", "platform_welcome_text");
+    await db().from("shop_settings").delete().eq("key", "platform_welcome_media_type");
+    await db().from("shop_settings").delete().eq("key", "platform_welcome_media_url");
+    await admLog(adminTgId, "reset_welcome", "settings", "welcome");
+    return tg.edit(chatId, msgId, "✅ Приветствие сброшено к дефолту.", ikb([[btn("◀️ Назад", "adm:welcmgr")]]));
+  }
+
   if (cmd === "admins") return admAdminsList(tg, chatId, msgId);
   if (cmd === "addadmin") { await setSession(chatId, "adm_add_admin", {}); return tg.edit(chatId, msgId, "👮 Введите Telegram ID нового администратора:", ikb([[btn("❌ Отмена", "adm:admins")]])); }
   if (cmd === "rmadmin") {
