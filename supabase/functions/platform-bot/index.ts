@@ -528,7 +528,7 @@ function expectedWizardStates(cmd: string, parts: string[]): string[] {
   if (cmd === "wcolor") return ["wiz_2"];
   if (cmd === "confirm_create") return ["wiz_confirm"];
   if (cmd === "accept_terms") return ["wiz_legal"];
-  if (cmd === "wcancel") return ["wiz_1", "wiz_2", "wiz_2_custom", "wiz_3", "wiz_4", "wiz_5", "wiz_6", "wiz_7", "wiz_confirm", "wiz_legal", "wiz_finalizing"];
+  if (cmd === "wcancel") return ["wiz_1", "wiz_2", "wiz_2_custom", "wiz_3", "wiz_4", "wiz_5", "wiz_6", "wiz_7", "wiz_confirm", "wiz_legal"];
 
   if (cmd === "wback") {
     const step = parseInt(parts[2]) || 1;
