@@ -62,8 +62,12 @@ const TG = (token: string) => {
   };
 };
 
-// ─── Supabase ─────────────────────────────────
-const db = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+// ─── Supabase (singleton per request, set in serve()) ─────
+let _db: ReturnType<typeof createClient> | null = null;
+const db = () => {
+  if (!_db) _db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  return _db;
+};
 
 // ─── Helpers ──────────────────────────────────
 type Btn = { text: string; callback_data?: string; url?: string };
@@ -2920,7 +2924,8 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     const { data: result } = await db().rpc("validate_platform_subscription_promo", { p_code: code, p_telegram_id: chatId });
     const r = result as any;
     if (!r || !r.valid) return tg.send(chatId, `❌ ${r?.error || "Промокод не найден"}`, ikb([[btn("🔄 Попробовать другой", "p:sub_promo")], [btn("◀️ Назад", "p:sub")]]));
-    const SUBSCRIPTION_PRICE = 9;
+    const priceInfo = await getSubscriptionPrice(chatId);
+    const SUBSCRIPTION_PRICE = priceInfo.price;
     const discountAmount = r.discount_type === "percent" ? Math.min(SUBSCRIPTION_PRICE, SUBSCRIPTION_PRICE * r.discount_value / 100) : Math.min(SUBSCRIPTION_PRICE, Number(r.discount_value));
     const finalAmount = Math.max(0, SUBSCRIPTION_PRICE - discountAmount);
     await setSession(chatId, "sub_promo_applied", { promo_code: r.code, promo_id: r.id, discount_amount: discountAmount });
@@ -2932,9 +2937,22 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
 // MAIN SERVE
 // ═══════════════════════════════════════════════
 serve(async (req) => {
+  // Reset singleton db client for each request
+  _db = null;
+
   if (req.method === "GET") return setupWebhook();
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*" } });
+  }
+
+  // ─── Webhook secret verification ────────
+  const webhookSecret = Deno.env.get("TELEGRAM_WEBHOOK_SECRET");
+  if (webhookSecret) {
+    const headerSecret = req.headers.get("x-telegram-bot-api-secret-token");
+    if (headerSecret !== webhookSecret) {
+      console.warn("Webhook secret mismatch — rejecting request");
+      return new Response("Unauthorized", { status: 401 });
+    }
   }
 
   try {
