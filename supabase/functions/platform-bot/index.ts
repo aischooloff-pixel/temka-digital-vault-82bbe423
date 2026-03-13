@@ -36,6 +36,10 @@ const TG = (token: string) => {
       call("getChatMember", { chat_id: chatId, user_id: userId }),
     deleteMessage: (chatId: number, msgId: number) =>
       call("deleteMessage", { chat_id: chatId, message_id: msgId }).catch(() => {}),
+    sendPhoto: (chatId: number, photo: string, caption?: string, markup?: unknown) =>
+      call("sendPhoto", { chat_id: chatId, photo, ...(caption ? { caption, parse_mode: "HTML" } : {}), ...(markup ? { reply_markup: markup } : {}) }),
+    sendVideo: (chatId: number, video: string, caption?: string, markup?: unknown) =>
+      call("sendVideo", { chat_id: chatId, video, ...(caption ? { caption, parse_mode: "HTML" } : {}), ...(markup ? { reply_markup: markup } : {}) }),
   };
 };
 
@@ -204,14 +208,36 @@ async function upsertUser(from: { id: number; first_name: string; last_name?: st
 }
 
 // ─── Bottom panel (keyboard) ──────────────────
-const bottomPanel = () => ({ keyboard: [[{ text: "👤 Профиль" }, { text: "🆘 Поддержка" }, { text: "🏪 Мои магазины" }]], resize_keyboard: true, is_persistent: true });
+const bottomPanel = () => ({ keyboard: [[{ text: "👤 Профиль" }, { text: "🆘 Поддержка" }], [{ text: "🏪 Создать магазин" }]], resize_keyboard: true, is_persistent: true });
+
+// ─── Welcome message from DB ─────────────────
+async function getWelcomeConfig(): Promise<{ text: string; media_type?: string; media_url?: string }> {
+  const { data: rows } = await db().from("shop_settings").select("key, value").in("key", ["platform_welcome_text", "platform_welcome_media_type", "platform_welcome_media_url"]);
+  const map: Record<string, string> = {};
+  for (const r of rows || []) map[r.key] = r.value;
+  return {
+    text: map["platform_welcome_text"] || "",
+    media_type: map["platform_welcome_media_type"] || undefined,
+    media_url: map["platform_welcome_media_url"] || undefined,
+  };
+}
 
 // ═══════════════════════════════════════════════
 // WELCOME / START
 // ═══════════════════════════════════════════════
 async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName: string) {
-  const text = `👋 Привет, <b>${esc(firstName)}</b>!\nДобро пожаловать в <b>${PLATFORM_NAME}</b>\n\nСоздай свой Telegram магазин\nс автовыдачей за 5 минут.\n\n— Никакого кода и хостинга\n— Автовыдача товаров 24/7\n— Приём крипты через CryptoBot\n— Полная настройка под себя`;
-  await tg.send(chatId, text, { ...ikb([[btn("🏪 Создать магазин", "p:create"), btn("📖 Как это работает", "p:howitworks")], [btn("👤 Мой профиль", "p:profile")]]) });
+  const config = await getWelcomeConfig();
+  const defaultText = `👋 Привет, <b>${esc(firstName)}</b>!\nДобро пожаловать в <b>${PLATFORM_NAME}</b>\n\nСоздай свой Telegram магазин\nс автовыдачей за 5 минут.\n\n— Никакого кода и хостинга\n— Автовыдача товаров 24/7\n— Приём крипты через CryptoBot\n— Полная настройка под себя`;
+  const welcomeText = config.text ? config.text.replace(/\{name\}/g, esc(firstName)) : defaultText;
+  const kb = { ...ikb([[btn("🏪 Создать магазин", "p:create"), btn("📖 Как это работает", "p:howitworks")], [btn("👤 Мой профиль", "p:profile")], [btn("🏪 Мои магазины", "p:myshops:0")]]) };
+
+  if (config.media_type === "photo" && config.media_url) {
+    await tg.sendPhoto(chatId, config.media_url, welcomeText, kb);
+  } else if (config.media_type === "video" && config.media_url) {
+    await tg.sendVideo(chatId, config.media_url, welcomeText, kb);
+  } else {
+    await tg.send(chatId, welcomeText, kb);
+  }
   await tg.send(chatId, "⬇️ Используй меню внизу для навигации", bottomPanel());
 }
 
@@ -247,8 +273,8 @@ async function myShops(tg: ReturnType<typeof TG>, chatId: number, msgId?: number
   if (!user) return;
   const { data: shops } = await db().from("shops").select("*").eq("owner_id", user.id).order("created_at");
   if (!shops?.length) {
-    const text = "🏪 <b>Мои магазины</b>\n\nУ тебя пока нет магазинов.";
-    const kb = ikb([[btn("➕ Создать магазин", "p:create")], [btn("◀️ Назад", "p:home")]]);
+    const text = "🏪 <b>Мои магазины</b>\n\n📭 У тебя пока нет магазинов.\n\nСоздай свой первый Telegram магазин\nс автовыдачей за несколько минут!";
+    const kb = ikb([[btn("🏪 Создать первый магазин", "p:create")], [btn("📖 Как это работает", "p:howitworks")], [btn("◀️ Назад", "p:home")]]);
     return msgId ? tg.edit(chatId, msgId, text, kb) : tg.send(chatId, text, kb);
   }
   const perPage = 5;
@@ -1349,7 +1375,7 @@ async function admSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: num
     `${opText}\n` +
     `📝 <b>shop_settings:</b>\n${settingsText}`;
   return tg.edit(chatId, msgId, text, ikb([
-    [btn("📢 Настройки ОП", "adm:platop")],
+    [btn("👋 Приветствие", "adm:welcmgr"), btn("📢 Настройки ОП", "adm:platop")],
     [btn("✏️ Изменить setting", "adm:setedit")],
     [btn("◀️ Меню", "adm:home")],
   ]));
@@ -1750,7 +1776,60 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
     return tg.edit(chatId, msgId, "✅ ОП платформы очищена. Подписка на канал больше не требуется.", ikb([[btn("◀️ Настройки ОП", "adm:platop")], [btn("◀️ Настройки", "adm:settings")]]));
   }
 
-  // ─── Admins ───────────────────────────────
+  // ─── Welcome message management ───────────
+  if (cmd === "welcmgr") {
+    const config = await getWelcomeConfig();
+    const hasCustom = !!config.text;
+    const mediaLabel = config.media_type === "photo" ? "📷 Фото" : config.media_type === "video" ? "🎬 Видео" : "❌ Нет";
+    let text = `👋 <b>Управление приветствием</b>\n\n`;
+    text += `Статус: ${hasCustom ? "✅ Пользовательское" : "📝 По умолчанию"}\n`;
+    text += `Медиа: ${mediaLabel}\n`;
+    if (config.text) text += `\n<b>Текст:</b>\n${config.text.slice(0, 300)}${config.text.length > 300 ? "…" : ""}`;
+    return tg.edit(chatId, msgId, text, ikb([
+      [btn("✏️ Задать текст", "adm:welc_settext")],
+      [btn("📷 Фото", "adm:welc_setmedia:photo"), btn("🎬 Видео", "adm:welc_setmedia:video")],
+      [btn("🗑 Убрать медиа", "adm:welc_clearmedia")],
+      [btn("👁 Предпросмотр", "adm:welc_preview")],
+      [btn("🗑 Сбросить к дефолту", "adm:welc_reset")],
+      [btn("◀️ Назад", "adm:settings")],
+    ]));
+  }
+  if (cmd === "welc_settext") {
+    await setSession(chatId, "adm_welc_set_text", {});
+    return tg.edit(chatId, msgId, `✏️ <b>Введите текст приветствия</b>\n\nПоддерживается HTML:\n<code>&lt;b&gt;жирный&lt;/b&gt;</code>\n<code>&lt;i&gt;курсив&lt;/i&gt;</code>\n<code>&lt;u&gt;подчёркнутый&lt;/u&gt;</code>\n<code>&lt;a href="url"&gt;ссылка&lt;/a&gt;</code>\n<code>&lt;code&gt;код&lt;/code&gt;</code>\n\nПлейсхолдер: <code>{name}</code> — имя пользователя`, ikb([[btn("❌ Отмена", "adm:welcmgr")]]));
+  }
+  if (cmd === "welc_setmedia") {
+    const mediaType = parts[2]; // photo or video
+    await setSession(chatId, "adm_welc_set_media", { media_type: mediaType });
+    const typeLabel = mediaType === "photo" ? "фото" : "видео";
+    return tg.edit(chatId, msgId, `📎 Отправьте ${typeLabel} или введите URL/file_id:`, ikb([[btn("❌ Отмена", "adm:welcmgr")]]));
+  }
+  if (cmd === "welc_clearmedia") {
+    await db().from("shop_settings").delete().eq("key", "platform_welcome_media_type");
+    await db().from("shop_settings").delete().eq("key", "platform_welcome_media_url");
+    await admLog(adminTgId, "clear_welcome_media", "settings", "welcome");
+    return tg.edit(chatId, msgId, "✅ Медиа убрано.", ikb([[btn("◀️ Назад", "adm:welcmgr")]]));
+  }
+  if (cmd === "welc_preview") {
+    const config = await getWelcomeConfig();
+    const previewText = config.text ? config.text.replace(/\{name\}/g, "Тест") : `👋 Привет, <b>Тест</b>!\nДобро пожаловать в <b>${PLATFORM_NAME}</b>\n\n(дефолтное сообщение)`;
+    if (config.media_type === "photo" && config.media_url) {
+      await tg.sendPhoto(chatId, config.media_url, previewText);
+    } else if (config.media_type === "video" && config.media_url) {
+      await tg.sendVideo(chatId, config.media_url, previewText);
+    } else {
+      await tg.send(chatId, `👁 <b>Предпросмотр:</b>\n\n${previewText}`);
+    }
+    return;
+  }
+  if (cmd === "welc_reset") {
+    await db().from("shop_settings").delete().eq("key", "platform_welcome_text");
+    await db().from("shop_settings").delete().eq("key", "platform_welcome_media_type");
+    await db().from("shop_settings").delete().eq("key", "platform_welcome_media_url");
+    await admLog(adminTgId, "reset_welcome", "settings", "welcome");
+    return tg.edit(chatId, msgId, "✅ Приветствие сброшено к дефолту.", ikb([[btn("◀️ Назад", "adm:welcmgr")]]));
+  }
+
   if (cmd === "admins") return admAdminsList(tg, chatId, msgId);
   if (cmd === "addadmin") { await setSession(chatId, "adm_add_admin", {}); return tg.edit(chatId, msgId, "👮 Введите Telegram ID нового администратора:", ikb([[btn("❌ Отмена", "adm:admins")]])); }
   if (cmd === "rmadmin") {
@@ -1934,6 +2013,37 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     await db().from("shop_settings").upsert({ key: "platform_channel_link", value: link, updated_at: new Date().toISOString() }, { onConflict: "key" });
     await admLog(chatId, "set_platform_op_link", "settings", "platform_channel_link", { link });
     return tg.send(chatId, `✅ Ссылка на канал ОП установлена:\n${esc(link)}`, ikb([[btn("◀️ Настройки ОП", "adm:platop")]]));
+  }
+
+  // ─── Welcome: set text ────────────────────
+  if (state === "adm_welc_set_text") {
+    await clearSession(chatId);
+    // Validate HTML by trying to send a test (Telegram will reject bad HTML)
+    const testResult = await fetch(`https://api.telegram.org/bot${Deno.env.get("PLATFORM_BOT_TOKEN")}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: val.replace(/\{name\}/g, "Тест"), parse_mode: "HTML" }),
+    }).then(r => r.json());
+    if (!testResult.ok) {
+      return tg.send(chatId, `❌ <b>Ошибка HTML</b>\n\nTelegram не принял ваш текст:\n<code>${esc(testResult.description || "unknown error")}</code>\n\nПроверьте теги и попробуйте снова.`, ikb([[btn("✏️ Попробовать снова", "adm:welc_settext")], [btn("◀️ Назад", "adm:welcmgr")]]));
+    }
+    // Delete test message
+    if (testResult.result?.message_id) await tg.deleteMessage(chatId, testResult.result.message_id);
+    await db().from("shop_settings").upsert({ key: "platform_welcome_text", value: val, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    await admLog(chatId, "set_welcome_text", "settings", "welcome");
+    return tg.send(chatId, `✅ Текст приветствия сохранён!`, ikb([[btn("👁 Предпросмотр", "adm:welc_preview")], [btn("◀️ Назад", "adm:welcmgr")]]));
+  }
+
+  // ─── Welcome: set media ───────────────────
+  if (state === "adm_welc_set_media") {
+    const mediaType = sData.media_type as string;
+    await clearSession(chatId);
+    // val could be a URL or file_id
+    const mediaUrl = val.trim();
+    await db().from("shop_settings").upsert({ key: "platform_welcome_media_type", value: mediaType, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    await db().from("shop_settings").upsert({ key: "platform_welcome_media_url", value: mediaUrl, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    await admLog(chatId, "set_welcome_media", "settings", "welcome", { media_type: mediaType });
+    return tg.send(chatId, `✅ Медиа (${mediaType}) сохранено!`, ikb([[btn("👁 Предпросмотр", "adm:welc_preview")], [btn("◀️ Назад", "adm:welcmgr")]]));
   }
 
   if (state === "adm_add_admin") {
@@ -2160,6 +2270,34 @@ serve(async (req) => {
         if (!(await enforceSubscription(tg, chatId, from.first_name))) return new Response("ok");
         await myShops(tg, chatId);
         return new Response("ok");
+      }
+      if (text === "🏪 Создать магазин") {
+        if (!(await enforceSubscription(tg, chatId, from.first_name))) return new Response("ok");
+        // Start create shop wizard via same logic as callback p:create
+        await clearSession(chatId);
+        const resp = await tg.send(chatId, "⏳");
+        const mid = resp?.result?.message_id;
+        if (mid) await wizardStep(tg, chatId, 1, {}, mid);
+        return new Response("ok");
+      }
+
+      // ─── Photo/Video message (for media FSM) ─
+      const photo = msg.photo;
+      const video = msg.video;
+      if (photo || video) {
+        const session = await getSession(chatId);
+        if (session?.state === "adm_welc_set_media") {
+          const sData = session.data as Record<string, unknown>;
+          const mediaType = sData.media_type as string;
+          await clearSession(chatId);
+          let fileId = "";
+          if (photo) fileId = photo[photo.length - 1].file_id;
+          if (video) fileId = video.file_id;
+          await db().from("shop_settings").upsert({ key: "platform_welcome_media_type", value: mediaType, updated_at: new Date().toISOString() }, { onConflict: "key" });
+          await db().from("shop_settings").upsert({ key: "platform_welcome_media_url", value: fileId, updated_at: new Date().toISOString() }, { onConflict: "key" });
+          await tg.send(chatId, `✅ Медиа (${mediaType}) сохранено!`, ikb([[btn("👁 Предпросмотр", "adm:welc_preview")], [btn("◀️ Назад", "adm:welcmgr")]]));
+          return new Response("ok");
+        }
       }
 
       // ─── FSM handler ──────────────────────
