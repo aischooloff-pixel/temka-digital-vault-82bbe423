@@ -1448,8 +1448,30 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
   }
   if (cmd === "opsetc") {
     const shopId = parts[2];
-    await setSession(chatId, "adm_op_channel", { shopId });
-    return tg.edit(chatId, msgId, `📢 Введите ID канала и ссылку через пробел:\n\n<code>@channel_name https://t.me/channel_name</code>\n\nИли только ID: <code>@channel_name</code>`, ikb([[btn("🗑 Очистить", `adm:opclear:${shopId}`), btn("❌ Отмена", `adm:scard:${shopId}`)]]));
+    const { data: s } = await db().from("shops").select("required_channel_id, required_channel_link, is_subscription_required, name").eq("id", shopId).single();
+    const chId = s?.required_channel_id || "—";
+    const chLink = s?.required_channel_link || "—";
+    const opStatus = s?.is_subscription_required ? "✅ Включена" : "❌ Выключена";
+    const text = `📢 <b>Настройки ОП</b>\n🏪 ${esc(s?.name || "")}\n\n` +
+      `Статус: ${opStatus}\n` +
+      `ID канала: <code>${esc(chId)}</code>\n` +
+      `Ссылка: ${chLink === "—" ? "—" : esc(chLink)}`;
+    return tg.edit(chatId, msgId, text, ikb([
+      [btn(s?.is_subscription_required ? "❌ Выкл ОП" : "✅ Вкл ОП", `adm:optoggle:${shopId}`)],
+      [btn("✏️ ID канала", `adm:opsetid:${shopId}`), btn("🔗 Ссылка", `adm:opsetlink:${shopId}`)],
+      [btn("🗑 Очистить всё", `adm:opclear:${shopId}`)],
+      [btn("◀️ К магазину", `adm:scard:${shopId}`)],
+    ]));
+  }
+  if (cmd === "opsetid") {
+    const shopId = parts[2];
+    await setSession(chatId, "adm_op_set_id", { shopId });
+    return tg.edit(chatId, msgId, `📢 Введите ID канала:\n\n<code>@channel_name</code> или <code>-100xxxxxxxxxx</code>`, ikb([[btn("❌ Отмена", `adm:opsetc:${shopId}`)]]));
+  }
+  if (cmd === "opsetlink") {
+    const shopId = parts[2];
+    await setSession(chatId, "adm_op_set_link", { shopId });
+    return tg.edit(chatId, msgId, `🔗 Введите ссылку на канал:\n\n<code>https://t.me/channel_name</code>`, ikb([[btn("❌ Отмена", `adm:opsetc:${shopId}`)]]));
   }
   if (cmd === "opclear") {
     const shopId = parts[2];
