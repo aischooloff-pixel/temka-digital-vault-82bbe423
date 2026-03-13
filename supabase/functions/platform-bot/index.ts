@@ -820,8 +820,11 @@ async function deleteShopExecute(tg: ReturnType<typeof TG>, chatId: number, msgI
   await db().from("shop_balance_history").delete().eq("shop_id", shopId);
   await db().from("shop_customers").delete().eq("shop_id", shopId);
   await db().from("shops").delete().eq("id", shopId);
-  return tg.edit(chatId, msgId, "✅ Магазин удалён.", ikb([[btn("◀️ К магазинам", "p:myshops:0")]]));
-}
+  await tg.edit(chatId, msgId, "✅ Магазин удалён.", ikb([[btn("◀️ К магазинам", "p:myshops:0")]]));
+  // Update bottom panel to show "Создать магазин"
+  const stillHasShop = await userHasShop(chatId);
+  await tg.send(chatId, "📋 Клавиатура обновлена:", bottomPanel(stillHasShop));
+  return;
 
 function howToAddProducts(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string) {
   const text = `📦 <b>Как добавить товары</b>\n\n1. Перейди в ⚙️ <b>Настройки</b> магазина\n2. Управление товарами будет доступно через бот продавца\n3. Загрузи инвентарь — каждая строка = 1 единица товара\n\n💡 Товары появятся в твоём магазине автоматически!`;
