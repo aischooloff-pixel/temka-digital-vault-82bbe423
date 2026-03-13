@@ -36,6 +36,10 @@ const TG = (token: string) => {
       call("getChatMember", { chat_id: chatId, user_id: userId }),
     deleteMessage: (chatId: number, msgId: number) =>
       call("deleteMessage", { chat_id: chatId, message_id: msgId }).catch(() => {}),
+    sendPhoto: (chatId: number, photo: string, caption?: string, markup?: unknown) =>
+      call("sendPhoto", { chat_id: chatId, photo, ...(caption ? { caption, parse_mode: "HTML" } : {}), ...(markup ? { reply_markup: markup } : {}) }),
+    sendVideo: (chatId: number, video: string, caption?: string, markup?: unknown) =>
+      call("sendVideo", { chat_id: chatId, video, ...(caption ? { caption, parse_mode: "HTML" } : {}), ...(markup ? { reply_markup: markup } : {}) }),
   };
 };
 
