@@ -1424,7 +1424,12 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
     const tgId = parseInt(parts[2]);
     const { data: up } = await db().from("user_profiles").select("is_blocked").eq("telegram_id", tgId).maybeSingle();
     const newBlocked = !(up?.is_blocked);
-    await db().from("user_profiles").update({ is_blocked: newBlocked, updated_at: new Date().toISOString() }).eq("telegram_id", tgId);
+    if (up) {
+      await db().from("user_profiles").update({ is_blocked: newBlocked, updated_at: new Date().toISOString() }).eq("telegram_id", tgId);
+    } else {
+      // Create profile row if it doesn't exist (platform user without legacy profile)
+      await db().from("user_profiles").insert({ telegram_id: tgId, is_blocked: newBlocked });
+    }
     await admLog(adminTgId, newBlocked ? "block_user" : "unblock_user", "user", String(tgId));
     return admUserCard(tg, chatId, msgId, tgId);
   }
