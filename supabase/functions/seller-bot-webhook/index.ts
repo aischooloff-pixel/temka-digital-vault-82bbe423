@@ -1299,6 +1299,9 @@ serve(async (req) => {
       }
     }
 
+    // Parse body once upfront
+    const body = await req.json();
+
     // Load shop and decrypt bot token
     const { data: shop } = await supabase().from("shops").select("id, name, slug, bot_token_encrypted, welcome_message, support_link, status, owner_id, is_subscription_required, required_channel_id, required_channel_link").eq("id", shopId).single();
     if (!shop) {
@@ -1313,7 +1316,6 @@ serve(async (req) => {
           try {
             const { data: rawToken } = await supabase().rpc("decrypt_token", { p_encrypted: shop.bot_token_encrypted, p_key: encKey });
             if (rawToken) {
-              const body = await req.json();
               const chatId = body.message?.chat?.id || body.callback_query?.message?.chat?.id || body.callback_query?.from?.id;
               if (chatId) {
                 await fetch(`https://api.telegram.org/bot${rawToken}/sendMessage`, {
@@ -1346,7 +1348,6 @@ serve(async (req) => {
     }
 
     const tg = TG(botToken);
-    const body = await req.json();
     const msg = body.message;
     const cb = body.callback_query;
 
