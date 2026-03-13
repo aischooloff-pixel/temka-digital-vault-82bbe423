@@ -128,10 +128,22 @@ async function clearSession(tgId: number) {
   await db().from("platform_sessions").delete().eq("telegram_id", tgId);
 }
 
+// ─── Platform OP channel resolution (DB → ENV fallback) ───
+async function getPlatformChannelIds(): Promise<string[]> {
+  // Try DB first (shop_settings key = 'platform_channel_id')
+  const { data } = await db().from("shop_settings").select("value").eq("key", "platform_channel_id").single();
+  const raw = data?.value || Deno.env.get("PLATFORM_CHANNEL_ID") || "";
+  return raw.split(",").map(s => s.trim()).filter(Boolean);
+}
+
+async function getPlatformChannelLink(): Promise<string | null> {
+  const { data } = await db().from("shop_settings").select("value").eq("key", "platform_channel_link").single();
+  return data?.value || null;
+}
+
 // ─── Channel subscription check ───────────────
 async function checkAllChannels(tg: ReturnType<typeof TG>, userId: number): Promise<boolean> {
-  const raw = Deno.env.get("PLATFORM_CHANNEL_ID") || "";
-  const channels = raw.split(",").map(s => s.trim()).filter(Boolean);
+  const channels = await getPlatformChannelIds();
   if (!channels.length) return true;
   for (const ch of channels) {
     try {
@@ -143,17 +155,17 @@ async function checkAllChannels(tg: ReturnType<typeof TG>, userId: number): Prom
   return true;
 }
 
-function getChannelLinks(): { id: string; link: string }[] {
-  const raw = Deno.env.get("PLATFORM_CHANNEL_ID") || "";
-  return raw.split(",").map(s => s.trim()).filter(Boolean).map(ch => {
-    const link = ch.startsWith("@") ? `https://t.me/${ch.slice(1)}` : ch.startsWith("-100") ? `https://t.me/c/${ch.slice(4)}` : `https://t.me/${ch}`;
-    return { id: ch, link };
+async function getChannelLinks(): Promise<{ id: string; link: string }[]> {
+  const channels = await getPlatformChannelIds();
+  const customLink = await getPlatformChannelLink();
+  return channels.map((ch, i) => {
+    const autoLink = ch.startsWith("@") ? `https://t.me/${ch.slice(1)}` : ch.startsWith("-100") ? `https://t.me/c/${ch.slice(4)}` : `https://t.me/${ch}`;
+    return { id: ch, link: (i === 0 && customLink) ? customLink : autoLink };
   });
 }
 
-function hasChannelRequirement(): boolean {
-  const raw = Deno.env.get("PLATFORM_CHANNEL_ID") || "";
-  return raw.split(",").map(s => s.trim()).filter(Boolean).length > 0;
+async function hasChannelRequirement(): Promise<boolean> {
+  return (await getPlatformChannelIds()).length > 0;
 }
 
 function channelButtons(): Btn[][] {
