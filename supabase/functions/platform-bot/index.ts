@@ -812,7 +812,18 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
   if (cmd === "shop") return shopView(tg, chatId, msgId, parts[2]);
   if (cmd === "settings") return shopSettings(tg, chatId, msgId, parts[2]);
   if (cmd === "stats") return shopStats(tg, chatId, msgId, parts[2]);
-  if (cmd === "create") return wizardStep(tg, chatId, 1, {}, msgId);
+  if (cmd === "create") {
+    // 1 shop limit check
+    const hasShop = await userHasShop(chatId);
+    if (hasShop) {
+      const { data: pu } = await db().from("platform_users").select("id").eq("telegram_id", chatId).maybeSingle();
+      const { data: existingShop } = await db().from("shops").select("id, name").eq("owner_id", pu?.id || "").maybeSingle();
+      if (existingShop) {
+        return tg.edit(chatId, msgId, `ℹ️ У вас уже есть магазин <b>${esc(existingShop.name)}</b>.\n\nНа одного пользователя — 1 магазин.`, ikb([[btn("🏪 Открыть магазин", `p:shop:${existingShop.id}`)], [btn("◀️ Назад", "p:home")]]));
+      }
+    }
+    return wizardStep(tg, chatId, 1, {}, msgId);
+  }
   if (cmd === "wcancel") {
     await clearSession(chatId);
     const config = await getWelcomeConfig();
