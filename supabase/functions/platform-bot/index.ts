@@ -793,8 +793,8 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
   // Update bottom panel to show "Мой магазин" instead of "Создать магазин"
   await tg.send(chatId, "📋 Клавиатура обновлена:", bottomPanel(true));
   return;
+}
 
-// ═══════════════════════════════════════════════
 // DELETE SHOP
 // ═══════════════════════════════════════════════
 async function deleteShopConfirm(tg: ReturnType<typeof TG>, chatId: number, msgId: number, shopId: string) {
