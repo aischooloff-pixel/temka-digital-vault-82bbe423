@@ -1321,32 +1321,35 @@ async function admLogsList(tg: ReturnType<typeof TG>, chatId: number, msgId: num
 // ─── SETTINGS ─────────────────────────────────
 async function admSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
   const { data: settings } = await db().from("shop_settings").select("*").order("key");
+  // Filter out platform OP keys from general settings display
+  const platformKeys = ["platform_channel_id", "platform_channel_link", "platform_op_enabled"];
+  const generalSettings = (settings || []).filter(s => !platformKeys.includes(s.key));
   let settingsText = "";
-  for (const s of settings || []) settingsText += `• <code>${esc(s.key)}</code> = ${esc(s.value.slice(0, 50))}\n`;
+  for (const s of generalSettings) settingsText += `• <code>${esc(s.key)}</code> = ${esc(s.value.slice(0, 50))}\n`;
   if (!settingsText) settingsText = "Нет настроек.\n";
 
-  // Platform OP info
-  const platformChannelId = Deno.env.get("PLATFORM_CHANNEL_ID") || "—";
+  // Platform OP info from DB (with ENV fallback)
+  const channels = await getPlatformChannelIds();
+  const channelLink = await getPlatformChannelLink();
+  const opEnabledSetting = (settings || []).find(s => s.key === "platform_op_enabled");
+  const opEnabled = opEnabledSetting ? opEnabledSetting.value === "true" : channels.length > 0;
   const { count: opShops } = await db().from("shops").select("id", { count: "exact", head: true }).eq("is_subscription_required", true);
-  const { data: opShopList } = await db().from("shops").select("id, name, required_channel_id, required_channel_link").eq("is_subscription_required", true).limit(10);
-  let opText = `📢 <b>ОП (обязательная подписка):</b>\n`;
-  opText += `Platform Channel ID: <code>${esc(platformChannelId)}</code>\n`;
+
+  let opText = `📢 <b>ОП платформы (обязательная подписка):</b>\n`;
+  opText += `Статус: ${opEnabled && channels.length > 0 ? "✅ Включена" : "❌ Выключена"}\n`;
+  opText += `ID каналов: ${channels.length ? `<code>${esc(channels.join(", "))}</code>` : "— не задан"}\n`;
+  opText += `Ссылка: ${channelLink ? esc(channelLink) : "— авто"}\n`;
   opText += `Магазинов с ОП: ${opShops || 0}\n`;
-  if (opShopList?.length) {
-    for (const s of opShopList) {
-      opText += `  • ${esc(s.name)}: ${s.required_channel_id || "канал не указан"}${s.required_channel_link ? ` (${esc(s.required_channel_link)})` : ""}\n`;
-    }
-  }
 
   const text =
     `⚙️ <b>Системные настройки</b>\n\n` +
     `🏷 Платформа: <b>${PLATFORM_NAME}</b>\n` +
     `🌐 WEBAPP: <code>${WEBAPP_DOMAIN}</code>\n` +
-    `🔗 Поддержка: ${SUPPORT_LINK}\n` +
-    `📢 Platform Channel: <code>${esc(platformChannelId)}</code>\n\n` +
+    `🔗 Поддержка: ${SUPPORT_LINK}\n\n` +
     `${opText}\n` +
     `📝 <b>shop_settings:</b>\n${settingsText}`;
   return tg.edit(chatId, msgId, text, ikb([
+    [btn("📢 Настройки ОП", "adm:platop")],
     [btn("✏️ Изменить setting", "adm:setedit")],
     [btn("◀️ Меню", "adm:home")],
   ]));
