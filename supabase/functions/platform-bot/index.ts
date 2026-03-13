@@ -1719,6 +1719,37 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
   if (cmd === "settings") return admSettings(tg, chatId, msgId);
   if (cmd === "setedit") { await setSession(chatId, "adm_edit_setting", {}); return tg.edit(chatId, msgId, "✏️ Введите в формате:\n<code>ключ = значение</code>\n\nНапример: <code>support_username = @support</code>", ikb([[btn("❌ Отмена", "adm:settings")]])); }
 
+  // ─── Platform OP management ───────────────
+  if (cmd === "platop") {
+    const channels = await getPlatformChannelIds();
+    const channelLink = await getPlatformChannelLink();
+    const opEnabled = channels.length > 0;
+    const text = `📢 <b>Настройки ОП платформы</b>\n\n` +
+      `Статус: ${opEnabled ? "✅ Активна" : "❌ Не активна"}\n` +
+      `ID каналов: ${channels.length ? `<code>${esc(channels.join(", "))}</code>` : "— не задан"}\n` +
+      `Ссылка: ${channelLink ? esc(channelLink) : "— авто"}`;
+    return tg.edit(chatId, msgId, text, ikb([
+      [btn("✏️ Задать ID канала", "adm:platop_setid")],
+      [btn("🔗 Задать ссылку", "adm:platop_setlink")],
+      [btn("🗑 Очистить ОП", "adm:platop_clear")],
+      [btn("◀️ Назад", "adm:settings")],
+    ]));
+  }
+  if (cmd === "platop_setid") {
+    await setSession(chatId, "adm_platop_set_id", {});
+    return tg.edit(chatId, msgId, `📢 Введите ID канала для ОП платформы:\n\n<code>@channel_name</code> или <code>-100xxxxxxxxxx</code>\n\nМожно указать несколько через запятую.`, ikb([[btn("❌ Отмена", "adm:platop")]]));
+  }
+  if (cmd === "platop_setlink") {
+    await setSession(chatId, "adm_platop_set_link", {});
+    return tg.edit(chatId, msgId, `🔗 Введите ссылку на канал:\n\n<code>https://t.me/channel_name</code>`, ikb([[btn("❌ Отмена", "adm:platop")]]));
+  }
+  if (cmd === "platop_clear") {
+    await db().from("shop_settings").delete().eq("key", "platform_channel_id");
+    await db().from("shop_settings").delete().eq("key", "platform_channel_link");
+    await admLog(adminTgId, "clear_platform_op", "settings", "platform_op");
+    return tg.edit(chatId, msgId, "✅ ОП платформы очищена. Подписка на канал больше не требуется.", ikb([[btn("◀️ Настройки ОП", "adm:platop")], [btn("◀️ Настройки", "adm:settings")]]));
+  }
+
   // ─── Admins ───────────────────────────────
   if (cmd === "admins") return admAdminsList(tg, chatId, msgId);
   if (cmd === "addadmin") { await setSession(chatId, "adm_add_admin", {}); return tg.edit(chatId, msgId, "👮 Введите Telegram ID нового администратора:", ikb([[btn("❌ Отмена", "adm:admins")]])); }
