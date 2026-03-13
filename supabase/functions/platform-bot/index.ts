@@ -1017,6 +1017,13 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
   const parts = data.split(":");
   const cmd = parts[1];
 
+  let wizardSession: Awaited<ReturnType<typeof getSession>> = null;
+  if (WIZARD_CALLBACK_COMMANDS.has(cmd)) {
+    wizardSession = await getSession(chatId);
+    const validWizardCallback = await validateWizardCallback(tg, chatId, msgId, cmd, parts, wizardSession);
+    if (!validWizardCallback) return;
+  }
+
   // ─── Channel check ────────────────────────
   if (cmd === "checksub") {
     const ok = await checkAllChannels(tg, chatId);
@@ -1061,13 +1068,13 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
 
   // Wizard color selection
   if (cmd === "wcolor") {
-    const session = await getSession(chatId);
-    if (!session) return;
+    const session = wizardSession!;
     const sData = { ...(session.data || {}) } as Record<string, unknown>;
     const colorKey = parts[2];
     if (colorKey === "custom") {
-      await setSession(chatId, "wiz_2_custom", sData);
-      return tg.edit(chatId, msgId, "🎨 Введи HEX цвет, например: <code>#FF5500</code>", ikb([[btn("◀️ Назад", "p:wback:2")]]));
+      const res = await tg.edit(chatId, msgId, "🎨 Введи HEX цвет, например: <code>#FF5500</code>", ikb([[btn("◀️ Назад", "p:wback:2")]]));
+      await persistWizardSession(chatId, "wiz_2_custom", sData, msgId);
+      return res;
     }
     sData.color = COLORS[colorKey] || "#2B7FFF";
     return wizardStep(tg, chatId, 3, sData, msgId);
@@ -1075,31 +1082,17 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
 
   // Wizard back
   if (cmd === "wback") {
-    const session = await getSession(chatId);
-    const sData = session?.data ? { ...session.data } as Record<string, unknown> : {};
+    const session = wizardSession!;
+    const sData = { ...(session.data || {}) } as Record<string, unknown>;
     const step = parseInt(parts[2]) || 1;
     return wizardStep(tg, chatId, step, sData, msgId);
   }
 
   // Confirm creation → show legal agreement
   if (cmd === "confirm_create") {
-    const session = await getSession(chatId);
-    if (!session) return tg.edit(chatId, msgId, "❌ Сессия истекла", ikb([[btn("◀️ Меню", "p:home")]]));
-
-    await setSession(chatId, "wiz_legal", session.data as Record<string, unknown>);
-
-    const text =
-      `📋 <b>Перед созданием магазина</b>\n\n` +
-      `Ознакомьтесь с документами платформы, нажав на ссылки ниже.\n\n` +
-      `Нажимая «Я подтверждаю», вы соглашаетесь с условиями использования, политикой конфиденциальности и отказом от ответственности.`;
-
-    return tg.edit(chatId, msgId, text, ikb([
-      [urlBtn("Условия использования", `${WEBAPP_DOMAIN}/platform/terms`)],
-      [urlBtn("Политика конфиденциальности", `${WEBAPP_DOMAIN}/platform/privacy`)],
-      [urlBtn("Отказ от ответственности", `${WEBAPP_DOMAIN}/platform/disclaimer`)],
-      [btn("✅ Я подтверждаю", "p:accept_terms")],
-      [btn("❌ Отмена", "p:home")],
-    ]));
+    const session = wizardSession!;
+    const sData = { ...(session.data || {}) } as Record<string, unknown>;
+    return showLegalAgreement(tg, chatId, sData, msgId);
   }
 
   // Accept terms → actually create shop
