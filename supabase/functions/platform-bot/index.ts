@@ -979,6 +979,7 @@ async function admShopCard(tg: ReturnType<typeof TG>, chatId: number, msgId: num
     [btn("👥 Клиенты", `adm:scusts:${shopId}:0`), btn("🎟 Промо", `adm:spromo:${shopId}:0`)],
     [btn("⭐ Отзывы", `adm:srevs:${shopId}:0`), btn("📋 Логи", `adm:slogs:${shopId}:0`)],
     [btn(shop.status === "active" ? "⏸ Пауза" : "▶️ Активировать", `adm:stoggle:${shopId}`)],
+    [btn("📢 ОП: " + (shop.is_subscription_required ? "✅" : "❌"), `adm:optoggle:${shopId}`), btn("📢 Канал ОП", `adm:opsetc:${shopId}`)],
     [btn("🗑 Удалить", `adm:sdel:${shopId}`), btn("🔗 Storefront", `adm:slink:${shopId}`)],
     [btn("◀️ Назад", "adm:shops:0")],
   ];
