@@ -378,7 +378,10 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
   }
   const text = `💳 <b>Подписка</b>\n\n📊 Статус: <b>${subMap[user.subscription_status] || user.subscription_status}</b>${daysLeft}\n\n💰 Стоимость: <b>$9/мес</b>\n\nВключает:\n• Неограниченное кол-во магазинов\n• Приём платежей через CryptoBot\n• Собственный Telegram-бот\n• Авто-доставка цифровых товаров`;
   const rows: Btn[][] = [];
-  if (user.subscription_status !== "active") rows.push([btn("💳 Оплатить $9", "p:pay_sub")]);
+  if (user.subscription_status !== "active") {
+    rows.push([btn("💳 Оплатить $9", "p:pay_sub")]);
+    rows.push([btn("🎫 У меня есть промокод", "p:sub_promo")]);
+  }
   rows.push([btn("◀️ Назад", "p:home")]);
   return tg.edit(chatId, msgId, text, ikb(rows));
 }
