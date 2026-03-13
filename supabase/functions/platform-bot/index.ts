@@ -1350,8 +1350,8 @@ async function admLogsList(tg: ReturnType<typeof TG>, chatId: number, msgId: num
 // ─── SETTINGS ─────────────────────────────────
 async function admSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
   const { data: settings } = await db().from("shop_settings").select("*").order("key");
-  // Filter out platform OP keys from general settings display
-  const platformKeys = ["platform_channel_id", "platform_channel_link", "platform_op_enabled"];
+  // Filter out platform-managed keys from general settings display
+  const platformKeys = ["platform_channel_id", "platform_channel_link", "platform_op_enabled", "platform_welcome_text", "platform_welcome_media_type", "platform_welcome_media_url"];
   const generalSettings = (settings || []).filter(s => !platformKeys.includes(s.key));
   let settingsText = "";
   for (const s of generalSettings) settingsText += `• <code>${esc(s.key)}</code> = ${esc(s.value.slice(0, 50))}\n`;
