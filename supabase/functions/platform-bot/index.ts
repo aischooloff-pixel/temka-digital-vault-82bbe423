@@ -1375,7 +1375,7 @@ async function admSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: num
     `${opText}\n` +
     `📝 <b>shop_settings:</b>\n${settingsText}`;
   return tg.edit(chatId, msgId, text, ikb([
-    [btn("📢 Настройки ОП", "adm:platop")],
+    [btn("👋 Приветствие", "adm:welcmgr"), btn("📢 Настройки ОП", "adm:platop")],
     [btn("✏️ Изменить setting", "adm:setedit")],
     [btn("◀️ Меню", "adm:home")],
   ]));
