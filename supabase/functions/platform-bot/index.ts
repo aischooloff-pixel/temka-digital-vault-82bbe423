@@ -2956,6 +2956,19 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     return tg.send(chatId, `✅ Канал ОП установлен: <code>${esc(channelId)}</code>`, ikb([[btn("◀️ К магазину", `adm:scard:${shopId}`)]]));
   }
 
+  // ─── Set support link ─────────────────────
+  if (state === "adm_set_support") {
+    await clearSession(chatId);
+    let link = val.trim();
+    // Auto-prefix https if user provides just @username or t.me/...
+    if (link.startsWith("@")) link = `https://t.me/${link.slice(1)}`;
+    else if (link.startsWith("t.me/")) link = `https://${link}`;
+    else if (!link.startsWith("http://") && !link.startsWith("https://")) link = `https://${link}`;
+    await db().from("shop_settings").upsert({ key: "platform_support_link", value: link, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    await admLog(chatId, "set_support_link", "settings", "platform_support_link", { link });
+    return tg.send(chatId, `✅ Ссылка на поддержку обновлена:\n${esc(link)}`, ikb([[btn("◀️ Настройки", "adm:settings")]]));
+  }
+
   // ─── User: enter subscription promo code ──
   if (state === "sub_enter_promo") {
     await clearSession(chatId);
