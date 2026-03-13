@@ -1529,7 +1529,7 @@ serve(async (req) => {
 
     // ─── /cancel ────────────────────────────
     if (text === "/cancel") {
-      await clearSession(chatId);
+      await clearSession(chatId, shopId);
       if (owner) {
         await tg.send(chatId, "❌ Отменено.", ikb([[btn("◀️ Меню", "s:m")]]));
       }
