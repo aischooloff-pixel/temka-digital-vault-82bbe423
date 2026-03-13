@@ -1063,6 +1063,8 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
   if (cmd === "stats") return shopStats(tg, chatId, msgId, parts[2]);
 
   // ─── Create shop wizard ───────────────────
+  if (cmd === "create") {
+    return wizardStep(tg, chatId, 1, {}, msgId);
   }
 
   if (cmd === "wcancel") {
@@ -1075,9 +1077,9 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
       [btn("👤 Мой профиль", "p:profile")],
       [btn("🏪 Мои магазины", "p:myshops:0")],
     ]));
+  }
 
   // Wizard color selection
-  if (cmd === "wcolor") {
     const session = wizardSession!;
     const sData = { ...(session.data || {}) } as Record<string, unknown>;
     const colorKey = parts[2];
