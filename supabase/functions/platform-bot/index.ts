@@ -2714,13 +2714,27 @@ serve(async (req) => {
         await myShops(tg, chatId);
         return new Response("ok");
       }
-      if (text === "🏪 Создать магазин") {
+      if (text === "🏪 Создать магазин" || text === "🏪 Мой магазин") {
         if (!(await enforceSubscription(tg, chatId, from.first_name))) return new Response("ok");
-        // Start create shop wizard via same logic as callback p:create
-        await clearSession(chatId);
-        const resp = await tg.send(chatId, "⏳");
-        const mid = resp?.result?.message_id;
-        if (mid) await wizardStep(tg, chatId, 1, {}, mid);
+        const hasShop = await userHasShop(chatId);
+        if (hasShop) {
+          // Show existing shop
+          const { data: pu } = await db().from("platform_users").select("id").eq("telegram_id", chatId).maybeSingle();
+          if (pu) {
+            const { data: shop } = await db().from("shops").select("id").eq("owner_id", pu.id).maybeSingle();
+            if (shop) {
+              const resp = await tg.send(chatId, "⏳");
+              const mid = resp?.result?.message_id;
+              if (mid) return shopView(tg, chatId, mid, shop.id);
+            }
+          }
+          await myShops(tg, chatId);
+        } else {
+          await clearSession(chatId);
+          const resp = await tg.send(chatId, "⏳");
+          const mid = resp?.result?.message_id;
+          if (mid) await wizardStep(tg, chatId, 1, {}, mid);
+        }
         return new Response("ok");
       }
 
