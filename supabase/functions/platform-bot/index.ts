@@ -1767,8 +1767,44 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
     } catch (e) { return tg.edit(chatId, msgId, `❌ ${(e as Error).message}`, ikb([[btn("◀️ Назад", `adm:bcard:${shopId}`)]])); }
   }
 
-  // ─── Promocodes ───────────────────────────
+  // ─── Promocodes (goods) ────────────────────
   if (cmd === "promo") return admPromoList(tg, chatId, msgId, parts[2] || "platform", parseInt(parts[3]) || 0);
+
+  // ─── Subscription Promos ──────────────────
+  if (cmd === "subpromo") return admSubPromoList(tg, chatId, msgId, parseInt(parts[2]) || 0);
+  if (cmd === "spcard") return admSubPromoCard(tg, chatId, msgId, parts[2]);
+  if (cmd === "spusage") return admSubPromoUsages(tg, chatId, msgId, parts[2], parseInt(parts[3]) || 0);
+  if (cmd === "spcreate") {
+    await setSession(chatId, "adm_sp_create", { step: "code" });
+    return tg.edit(chatId, msgId, `🎫 <b>Создание промокода подписки</b>\n\nВведите код промокода (латиница, цифры):`, ikb([[btn("❌ Отмена", "adm:subpromo:0")]]));
+  }
+  if (cmd === "sptoggle") {
+    const promoId = parts[2];
+    const { data: pr } = await db().from("platform_subscription_promos").select("is_active, code").eq("id", promoId).single();
+    if (!pr) return;
+    const newActive = !pr.is_active;
+    await db().from("platform_subscription_promos").update({ is_active: newActive, updated_at: new Date().toISOString() }).eq("id", promoId);
+    await admLog(adminTgId, newActive ? "activate_sub_promo" : "deactivate_sub_promo", "sub_promo", promoId, { code: pr.code });
+    return admSubPromoCard(tg, chatId, msgId, promoId);
+  }
+  if (cmd === "spdelete") {
+    const promoId = parts[2];
+    return tg.edit(chatId, msgId, `⚠️ <b>Удалить промокод подписки?</b>\n\nЭто необратимо. Все данные использований будут потеряны.`, ikb([
+      [btn("✅ Да, удалить", `adm:spdelconfirm:${promoId}`), btn("❌ Отмена", `adm:spcard:${promoId}`)],
+    ]));
+  }
+  if (cmd === "spdelconfirm") {
+    const promoId = parts[2];
+    const { data: pr } = await db().from("platform_subscription_promos").select("code").eq("id", promoId).maybeSingle();
+    await db().from("platform_subscription_promos").delete().eq("id", promoId);
+    await admLog(adminTgId, "delete_sub_promo", "sub_promo", promoId, { code: pr?.code });
+    return tg.edit(chatId, msgId, `✅ Промокод удалён.`, ikb([[btn("◀️ К промокодам", "adm:subpromo:0")]]));
+  }
+  if (cmd === "spnote") {
+    const promoId = parts[2];
+    await setSession(chatId, "adm_sp_note", { promoId });
+    return tg.edit(chatId, msgId, `📝 Введите заметку для промокода:`, ikb([[btn("❌ Отмена", `adm:spcard:${promoId}`)]]));
+  }
 
   // ─── Reviews ──────────────────────────────
   if (cmd === "reviews") return admReviewsList(tg, chatId, msgId, parts[2] || "shop", parseInt(parts[3]) || 0);
