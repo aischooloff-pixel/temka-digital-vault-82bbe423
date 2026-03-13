@@ -286,7 +286,14 @@ async function upsertUser(from: { id: number; first_name: string; last_name?: st
 }
 
 // ─── Bottom panel (keyboard) ──────────────────
-const bottomPanel = () => ({ keyboard: [[{ text: "👤 Профиль" }, { text: "🆘 Поддержка" }], [{ text: "🏪 Создать магазин" }]], resize_keyboard: true, is_persistent: true });
+const bottomPanel = (hasShop: boolean) => ({ keyboard: [[{ text: "👤 Профиль" }, { text: "🆘 Поддержка" }], [{ text: hasShop ? "🏪 Мой магазин" : "🏪 Создать магазин" }]], resize_keyboard: true, is_persistent: true });
+
+async function userHasShop(telegramId: number): Promise<boolean> {
+  const { data: user } = await db().from("platform_users").select("id").eq("telegram_id", telegramId).maybeSingle();
+  if (!user) return false;
+  const { count } = await db().from("shops").select("id", { count: "exact", head: true }).eq("owner_id", user.id);
+  return (count || 0) > 0;
+}
 
 // ─── Welcome message from DB ─────────────────
 async function getWelcomeConfig(): Promise<{ text: string; media_type?: string; media_url?: string }> {
