@@ -726,6 +726,30 @@ export type Database = {
           },
         ]
       }
+      seller_sessions: {
+        Row: {
+          data: Json | null
+          shop_id: string
+          state: string
+          telegram_id: number
+          updated_at: string
+        }
+        Insert: {
+          data?: Json | null
+          shop_id: string
+          state?: string
+          telegram_id: number
+          updated_at?: string
+        }
+        Update: {
+          data?: Json | null
+          shop_id?: string
+          state?: string
+          telegram_id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       shop_admin_logs: {
         Row: {
           action: string
