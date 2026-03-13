@@ -1936,6 +1936,7 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     return tg.send(chatId, `✅ Ссылка на канал ОП установлена:\n${esc(link)}`, ikb([[btn("◀️ Настройки ОП", "adm:platop")]]));
   }
 
+  if (state === "adm_add_admin") {
     await clearSession(chatId);
     const tgId = parseInt(val);
     if (!tgId || isNaN(tgId)) return tg.send(chatId, "❌ Введите числовой Telegram ID.", ikb([[btn("◀️ Назад", "adm:admins")]]));
