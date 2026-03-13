@@ -334,9 +334,11 @@ async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName:
   const kb = { ...ikb(await welcomeButtons(chatId)) };
 
   if (config.media_type === "photo" && config.media_url) {
-    await tg.sendPhoto(chatId, config.media_url, welcomeText, kb);
+    await tg.sendPhoto(chatId, config.media_url, welcomeText);
+    await tg.send(chatId, "⬇️ Выбери действие:", kb);
   } else if (config.media_type === "video" && config.media_url) {
-    await tg.sendVideo(chatId, config.media_url, welcomeText, kb);
+    await tg.sendVideo(chatId, config.media_url, welcomeText);
+    await tg.send(chatId, "⬇️ Выбери действие:", kb);
   } else {
     await tg.send(chatId, welcomeText, kb);
   }
