@@ -282,28 +282,31 @@ const Account = () => {
 
   return (
     <div className="container-main mx-auto px-4 py-4 sm:py-6">
-      {/* Telegram Profile */}
+      {/* Profile Header */}
       <div className="bg-card border border-border/50 rounded-xl p-4">
         <div className="flex items-center gap-3">
           {user?.photoUrl ? (
-            <img src={user.photoUrl} alt={displayName} className="w-12 h-12 rounded-full object-cover" />
+            <img src={user.photoUrl} alt={displayName} className="w-10 h-10 rounded-full object-cover" />
           ) : (
-            <div className="w-12 h-12 rounded-full bg-primary/20 text-primary flex items-center justify-center text-lg font-bold font-display">{avatar}</div>
+            <div className="w-10 h-10 rounded-full bg-primary/20 text-primary flex items-center justify-center text-base font-bold font-display">{avatar}</div>
           )}
           <div className="flex-1 min-w-0">
-            <h2 className="font-display font-semibold text-base truncate">{displayName}</h2>
+            <h2 className="font-display font-semibold text-sm truncate">{displayName}</h2>
             {username && <p className="text-xs text-muted-foreground">{username}</p>}
-            {user?.id && <p className="text-[10px] text-muted-foreground/60">ID: {user.id}</p>}
           </div>
           {user?.isPremium && (
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-gold/30 bg-gold/10 text-gold">⭐ Premium</span>
           )}
         </div>
-        <div className="mt-3 px-3 py-1.5 bg-primary/5 border border-primary/20 rounded-lg">
-          <p className="text-[10px] text-primary flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3" /> {isInTelegram ? 'Аккаунт подключён через Telegram' : 'Откройте в Telegram для полного доступа'}
-          </p>
-        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full mt-3 text-xs"
+          onClick={() => {/* TODO: link to web profile page */}}
+        >
+          Открыть профиль
+          <ChevronRight className="w-3.5 h-3.5 ml-auto" />
+        </Button>
       </div>
 
       {/* Balance */}
