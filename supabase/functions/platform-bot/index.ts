@@ -598,7 +598,7 @@ async function wizardStep(tg: ReturnType<typeof TG>, chatId: number, step: numbe
   let text = "";
   let kb: Btn[][] = [];
   let nextState = "wiz_1";
-  const cancelRow = [btn("❌ Отмена", "p:home")];
+  const cancelRow = [btn("❌ Отмена", "p:wcancel")];
 
   switch (step) {
     case 1:
