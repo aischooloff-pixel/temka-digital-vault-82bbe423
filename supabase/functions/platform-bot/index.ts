@@ -2003,6 +2003,11 @@ serve(async (req) => {
         const subscribed = await enforceSubscription(tg, chatId, from.first_name);
         if (!subscribed) return new Response("ok");
         await upsertUser(from);
+        // Blocked user check after upsert (so profile exists)
+        if (await isUserBlocked(from.id)) {
+          await tg.send(chatId, "🚫 Ваш аккаунт заблокирован. Обратитесь в поддержку.");
+          return new Response("ok");
+        }
         await sendWelcome(tg, chatId, from.first_name || "друг");
         return new Response("ok");
       }
@@ -2012,6 +2017,12 @@ serve(async (req) => {
         const resp = await tg.send(chatId, "⏳");
         const mid = resp?.result?.message_id;
         if (mid) await howItWorks(tg, chatId, mid);
+        return new Response("ok");
+      }
+
+      // ─── Blocked user guard for all other text ─
+      if (text !== "🆘 Поддержка" && await isUserBlocked(from.id)) {
+        await tg.send(chatId, "🚫 Ваш аккаунт заблокирован. Обратитесь в поддержку.");
         return new Response("ok");
       }
 
