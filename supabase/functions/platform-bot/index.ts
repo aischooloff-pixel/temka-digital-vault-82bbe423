@@ -351,7 +351,7 @@ async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName:
 // ═══════════════════════════════════════════════
 function howItWorks(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
   const text = `📖 <b>Как это работает?</b>\n\n1️⃣ <b>Создай магазин</b> — пройди простой онбординг из 7 шагов\n\n2️⃣ <b>Добавь товары</b> — загрузи инвентарь прямо в бота\n\n3️⃣ <b>Подключи оплату</b> — CryptoBot принимает крипту автоматически\n\n4️⃣ <b>Поделись ссылкой</b> — клиенты покупают через твоего бота\n\n5️⃣ <b>Автовыдача 24/7</b> — товар доставляется мгновенно после оплаты\n\n💰 Стоимость: от <b>$${EARLY_BIRD_PRICE}/мес</b> — 1 магазин на пользователя\n🆓 7 дней бесплатного пробного периода`;
-  return tg.edit(chatId, msgId, text, ikb([[btn("🏪 Создать магазин", "p:create")], [btn("◀️ Назад", "p:home")]]));
+  return tg.edit(chatId, msgId, text, ikb([[urlBtn("📚 Подробная информация", `${WEBAPP_DOMAIN}/about`)], [btn("🏪 Создать магазин", "p:create")], [btn("◀️ Назад", "p:home")]]));
 }
 
 // ═══════════════════════════════════════════════
