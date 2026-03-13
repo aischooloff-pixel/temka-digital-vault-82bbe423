@@ -168,15 +168,15 @@ async function hasChannelRequirement(): Promise<boolean> {
   return (await getPlatformChannelIds()).length > 0;
 }
 
-function channelButtons(): Btn[][] {
-  const channels = getChannelLinks();
+async function channelButtons(): Promise<Btn[][]> {
+  const channels = await getChannelLinks();
   if (!channels.length) return [];
   const row: Btn[] = channels.map((ch, i) => urlBtn(`📢 ${channels.length > 1 ? `Канал ${i + 1}` : "Подписаться"}`, ch.link));
   return [row, [btn("✅ Проверить подписку", "p:checksub")]];
 }
 
 async function showSubscribeGate(tg: ReturnType<typeof TG>, chatId: number, firstName?: string): Promise<void> {
-  const channels = getChannelLinks();
+  const channels = await getChannelLinks();
   const channelList = channels.length > 1 ? channels.map((ch, i) => `  ${i + 1}. ${ch.id}`).join("\n") : "";
   const text = `🔒 <b>Подписка на канал обязательна</b>\n\nДля использования <b>${PLATFORM_NAME}</b> необходимо подписаться на ${channels.length > 1 ? "наши каналы" : "наш канал"}.\n` +
     (channelList ? `\n${channelList}\n` : "") + `\nПосле подписки нажми кнопку «✅ Проверить подписку».`;
@@ -187,7 +187,7 @@ async function showSubscribeGate(tg: ReturnType<typeof TG>, chatId: number, firs
 }
 
 async function enforceSubscription(tg: ReturnType<typeof TG>, chatId: number, firstName?: string): Promise<boolean> {
-  if (!hasChannelRequirement()) return true;
+  if (!(await hasChannelRequirement())) return true;
   const subscribed = await checkAllChannels(tg, chatId);
   if (subscribed) return true;
   await showSubscribeGate(tg, chatId, firstName);
