@@ -926,7 +926,12 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
     }
     if (finalAmount === 0) {
       const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-      await db().from("platform_users").update({ subscription_status: "active", subscription_expires_at: expiresAt, updated_at: new Date().toISOString() }).eq("telegram_id", telegramId);
+      await db().from("platform_users").update({
+        subscription_status: "active", subscription_expires_at: expiresAt,
+        billing_price_usd: SUBSCRIPTION_PRICE, pricing_tier: priceInfo.tier,
+        first_paid_at: new Date().toISOString(), reminder_sent_at: null, expiry_notified_at: null,
+        updated_at: new Date().toISOString(),
+      }).eq("telegram_id", telegramId);
       await clearSession(chatId);
       return tg.edit(chatId, msgId, `✅ <b>Подписка активирована!</b>\n\n🎫 Промокод: <code>${esc(promoCode || "")}</code>\n💰 Скидка: $${discountAmount.toFixed(2)}\n\n✅ Подписка до ${new Date(expiresAt).toLocaleDateString("ru")}`, ikb([[btn("◀️ В меню", "p:home")]]));
     }
