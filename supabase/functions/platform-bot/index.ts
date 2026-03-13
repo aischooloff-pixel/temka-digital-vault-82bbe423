@@ -586,7 +586,7 @@ async function wizardStep(tg: ReturnType<typeof TG>, chatId: number, step: numbe
     case 4: text = `📝 <b>Шаг 4 из 7</b>\n\nВведи описание витрины\n<i>(подзаголовок под заголовком)</i>\n\nНапример: <i>Проверенные аккаунты и скрипты.\nМгновенная доставка.</i>`; kb = [[btn("◀️ Назад", "p:wback:3")], cancelRow]; nextState = "wiz_4"; break;
     case 5: text = `👋 <b>Шаг 5 из 7</b>\n\nВведи приветственное сообщение для покупателей`; kb = [[btn("◀️ Назад", "p:wback:4")], cancelRow]; nextState = "wiz_5"; break;
     case 6: text = `🔗 <b>Шаг 6 из 7</b>\n\nВведи ссылку на поддержку\n\nНапример: <i>https://t.me/nickname</i>`; kb = [[btn("◀️ Назад", "p:wback:5")], cancelRow]; nextState = "wiz_6"; break;
-    case 7: text = `🤖 <b>Шаг 7 из 7</b>\n\nВведи API токен своего Telegram бота\n\nКак получить:\n1. Открой @BotFather\n2. Напиши /newbot\n3. Следуй инструкции\n4. Скопируй токен`; kb = [[urlBtn("📖 Подробная инструкция", "https://core.telegram.org/bots/tutorial")], [btn("◀️ Назад", "p:wback:6")], cancelRow]; nextState = "wiz_7"; break;
+    case 7: text = `🤖 <b>Шаг 7 из 7</b>\n\nВведи API токен своего Telegram бота\n\nКак получить:\n1. Открой @BotFather\n2. Напиши /newbot\n3. Следуй инструкции\n4. Скопируй токен`; kb = [[urlBtn("📖 Подробная инструкция", "https://timeweb.com/ru/community/articles/token-bota-telegram-kak-sdelat-gde-vzyat-i-kuda-vstavlyat?ysclid=mmpciarkmm977762080")], [btn("◀️ Назад", "p:wback:6")], cancelRow]; nextState = "wiz_7"; break;
   }
   if (msgId) { const res = await tg.edit(chatId, msgId, text, ikb(kb)); await persistWizardSession(chatId, nextState, sData, msgId); return res; }
   const res = await tg.send(chatId, text, ikb(kb));
