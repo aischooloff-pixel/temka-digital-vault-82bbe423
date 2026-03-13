@@ -2232,9 +2232,8 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
       if (existing) return tg.send(chatId, `❌ Промокод <code>${esc(code)}</code> уже существует. Введите другой:`);
       await setSession(chatId, "adm_sp_create", { ...sData, code, step: "discount_type" });
       return tg.send(chatId, `Код: <code>${esc(code)}</code>\n\nВыберите тип скидки:`, ikb([
-        [btn("📊 Процент", "adm:noop"), btn("💵 Фиксированная", "adm:noop")],
+        [btn("📊 Процент", "adm:spdt:percent"), btn("💵 Фиксированная", "adm:spdt:fixed")],
       ]));
-      // Since we can't use callbacks mid-FSM easily, let's ask as text
     }
     if (step === "discount_type") {
       const dt = val.toLowerCase();
