@@ -226,9 +226,21 @@ async function connectBotToken(rawToken: string, shopId: string): Promise<{ ok: 
 }
 
 // ─── Session FSM ──────────────────────────────
+const WIZARD_SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
 async function getSession(tgId: number) {
   const { data } = await db().from("platform_sessions").select("*").eq("telegram_id", tgId).maybeSingle();
-  return data as { telegram_id: number; state: string; data: Record<string, unknown> } | null;
+  if (!data) return null;
+  // TTL: auto-clear stale wizard sessions
+  const session = data as { telegram_id: number; state: string; data: Record<string, unknown>; updated_at: string };
+  if (session.state.startsWith("wiz_")) {
+    const updatedAt = new Date(session.updated_at || 0).getTime();
+    if (Date.now() - updatedAt > WIZARD_SESSION_TTL_MS) {
+      await db().from("platform_sessions").delete().eq("telegram_id", tgId);
+      return null;
+    }
+  }
+  return session;
 }
 async function setSession(tgId: number, state: string, data: Record<string, unknown> = {}) {
   await db().from("platform_sessions").upsert({ telegram_id: tgId, state, data, updated_at: new Date().toISOString() }, { onConflict: "telegram_id" });
