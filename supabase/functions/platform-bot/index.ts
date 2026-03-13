@@ -1444,7 +1444,21 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
     const newVal = !s.is_subscription_required;
     await db().from("shops").update({ is_subscription_required: newVal, updated_at: new Date().toISOString() }).eq("id", shopId);
     await admLog(adminTgId, newVal ? "enable_op" : "disable_op", "shop", shopId);
-    return admShopCard(tg, chatId, msgId, shopId);
+    // Re-render OP settings screen
+    const { data: updated } = await db().from("shops").select("required_channel_id, required_channel_link, is_subscription_required, name").eq("id", shopId).single();
+    const chId = updated?.required_channel_id || "—";
+    const chLink = updated?.required_channel_link || "—";
+    const opStatus = updated?.is_subscription_required ? "✅ Включена" : "❌ Выключена";
+    const text = `📢 <b>Настройки ОП</b>\n🏪 ${esc(updated?.name || "")}\n\n` +
+      `Статус: ${opStatus}\n` +
+      `ID канала: <code>${esc(chId)}</code>\n` +
+      `Ссылка: ${chLink === "—" ? "—" : esc(chLink)}`;
+    return tg.edit(chatId, msgId, text, ikb([
+      [btn(updated?.is_subscription_required ? "❌ Выкл ОП" : "✅ Вкл ОП", `adm:optoggle:${shopId}`)],
+      [btn("✏️ ID канала", `adm:opsetid:${shopId}`), btn("🔗 Ссылка", `adm:opsetlink:${shopId}`)],
+      [btn("🗑 Очистить всё", `adm:opclear:${shopId}`)],
+      [btn("◀️ К магазину", `adm:scard:${shopId}`)],
+    ]));
   }
   if (cmd === "opsetc") {
     const shopId = parts[2];
