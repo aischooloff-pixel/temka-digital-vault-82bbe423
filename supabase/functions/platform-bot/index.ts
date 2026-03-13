@@ -208,14 +208,36 @@ async function upsertUser(from: { id: number; first_name: string; last_name?: st
 }
 
 // ─── Bottom panel (keyboard) ──────────────────
-const bottomPanel = () => ({ keyboard: [[{ text: "👤 Профиль" }, { text: "🆘 Поддержка" }, { text: "🏪 Мои магазины" }]], resize_keyboard: true, is_persistent: true });
+const bottomPanel = () => ({ keyboard: [[{ text: "👤 Профиль" }, { text: "🆘 Поддержка" }], [{ text: "🏪 Создать магазин" }]], resize_keyboard: true, is_persistent: true });
+
+// ─── Welcome message from DB ─────────────────
+async function getWelcomeConfig(): Promise<{ text: string; media_type?: string; media_url?: string }> {
+  const { data: rows } = await db().from("shop_settings").select("key, value").in("key", ["platform_welcome_text", "platform_welcome_media_type", "platform_welcome_media_url"]);
+  const map: Record<string, string> = {};
+  for (const r of rows || []) map[r.key] = r.value;
+  return {
+    text: map["platform_welcome_text"] || "",
+    media_type: map["platform_welcome_media_type"] || undefined,
+    media_url: map["platform_welcome_media_url"] || undefined,
+  };
+}
 
 // ═══════════════════════════════════════════════
 // WELCOME / START
 // ═══════════════════════════════════════════════
 async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName: string) {
-  const text = `👋 Привет, <b>${esc(firstName)}</b>!\nДобро пожаловать в <b>${PLATFORM_NAME}</b>\n\nСоздай свой Telegram магазин\nс автовыдачей за 5 минут.\n\n— Никакого кода и хостинга\n— Автовыдача товаров 24/7\n— Приём крипты через CryptoBot\n— Полная настройка под себя`;
-  await tg.send(chatId, text, { ...ikb([[btn("🏪 Создать магазин", "p:create"), btn("📖 Как это работает", "p:howitworks")], [btn("👤 Мой профиль", "p:profile")]]) });
+  const config = await getWelcomeConfig();
+  const defaultText = `👋 Привет, <b>${esc(firstName)}</b>!\nДобро пожаловать в <b>${PLATFORM_NAME}</b>\n\nСоздай свой Telegram магазин\nс автовыдачей за 5 минут.\n\n— Никакого кода и хостинга\n— Автовыдача товаров 24/7\n— Приём крипты через CryptoBot\n— Полная настройка под себя`;
+  const welcomeText = config.text ? config.text.replace(/\{name\}/g, esc(firstName)) : defaultText;
+  const kb = { ...ikb([[btn("🏪 Создать магазин", "p:create"), btn("📖 Как это работает", "p:howitworks")], [btn("👤 Мой профиль", "p:profile")], [btn("🏪 Мои магазины", "p:myshops:0")]]) };
+
+  if (config.media_type === "photo" && config.media_url) {
+    await tg.sendPhoto(chatId, config.media_url, welcomeText, kb);
+  } else if (config.media_type === "video" && config.media_url) {
+    await tg.sendVideo(chatId, config.media_url, welcomeText, kb);
+  } else {
+    await tg.send(chatId, welcomeText, kb);
+  }
   await tg.send(chatId, "⬇️ Используй меню внизу для навигации", bottomPanel());
 }
 
