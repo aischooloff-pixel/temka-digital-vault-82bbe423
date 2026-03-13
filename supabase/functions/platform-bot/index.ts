@@ -367,7 +367,6 @@ async function welcomeButtons(chatId: number): Promise<Btn[][]> {
   return [
     [btn("🏪 Создать магазин", "p:create"), btn("📖 Как это работает", "p:howitworks")],
     [btn("👤 Мой профиль", "p:profile")],
-    [btn("🏪 Мои магазины", "p:myshops:0")],
   ];
 }
 
