@@ -1080,6 +1080,7 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
   }
 
   // Wizard color selection
+  if (cmd === "wcolor") {
     const session = wizardSession!;
     const sData = { ...(session.data || {}) } as Record<string, unknown>;
     const colorKey = parts[2];
