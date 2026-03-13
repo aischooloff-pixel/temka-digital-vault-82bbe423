@@ -1422,39 +1422,40 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
   if (cmd === "ssearch") { await setSession(chatId, "adm_search_shop", {}); return tg.edit(chatId, msgId, "🔍 Введите название, slug, TG ID владельца или @bot_username:", ikb([[btn("❌ Отмена", "adm:shops:0")]])); }
   if (cmd === "stoggle") {
     const shopId = parts[2];
-    const { data: s } = await db().from("shops").select("status").eq("id", shopId).single();
-    const newStatus = s?.status === "active" ? "paused" : "active";
-    await db().from("shops").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", shopId);
-    await admLog(adminTgId, `shop_${newStatus}`, "shop", shopId);
-    return admShopCard(tg, chatId, msgId, shopId);
+    // Ask for comment before toggling
+    const { data: s } = await db().from("shops").select("status, name").eq("id", shopId).single();
+    if (!s) return;
+    const newStatus = s.status === "active" ? "paused" : "active";
+    const actionLabel = newStatus === "paused" ? "приостановить" : "активировать";
+    await setSession(chatId, "adm_toggle_comment", { shopId, newStatus, shopName: s.name });
+    return tg.edit(chatId, msgId, `📝 Укажите причину, чтобы <b>${actionLabel}</b> магазин «${esc(s.name)}»:\n\n(или отправьте <code>-</code> без комментария)`, ikb([[btn("❌ Отмена", `adm:scard:${shopId}`)]]));
   }
   if (cmd === "sdel") {
     const shopId = parts[2];
     const { data: s } = await db().from("shops").select("name").eq("id", shopId).single();
-    return tg.edit(chatId, msgId, `🗑 <b>Удалить магазин</b> «${esc(s?.name || "")}»?\n\n⚠️ Это необратимо!`, ikb([[btn("🗑 Да, удалить", `adm:sdelconfirm:${shopId}`), btn("❌ Нет", `adm:scard:${shopId}`)]]));
+    await setSession(chatId, "adm_delete_comment", { shopId, shopName: s?.name || "" });
+    return tg.edit(chatId, msgId, `🗑 <b>Удалить магазин</b> «${esc(s?.name || "")}»?\n\n⚠️ Это необратимо!\n\n📝 Укажите причину удаления:`, ikb([[btn("❌ Отмена", `adm:scard:${shopId}`)]]));
   }
-  if (cmd === "sdelconfirm") {
+  // OP toggle
+  if (cmd === "optoggle") {
     const shopId = parts[2];
-    await admLog(adminTgId, "delete_shop", "shop", shopId);
-    // Reuse existing delete logic
-    const { data: shop } = await db().from("shops").select("bot_token_encrypted, name").eq("id", shopId).single();
-    if (shop?.bot_token_encrypted) {
-      const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
-      if (encKey) { try { const { data: rawToken } = await db().rpc("decrypt_token", { p_encrypted: shop.bot_token_encrypted, p_key: encKey }); if (rawToken) await removeSellerWebhook(rawToken); } catch {} }
-    }
-    const { data: products } = await db().from("shop_products").select("id").eq("shop_id", shopId);
-    const prodIds = products?.map(p => p.id) || [];
-    if (prodIds.length) { await db().from("shop_inventory").delete().in("product_id", prodIds); await db().from("shop_order_items").delete().in("product_id", prodIds); }
-    await db().from("shop_reviews").delete().eq("shop_id", shopId);
-    await db().from("shop_promocodes").delete().eq("shop_id", shopId);
-    await db().from("shop_admin_logs").delete().eq("shop_id", shopId);
-    await db().from("shop_products").delete().eq("shop_id", shopId);
-    await db().from("shop_orders").delete().eq("shop_id", shopId);
-    await db().from("shop_categories").delete().eq("shop_id", shopId);
-    await db().from("shop_balance_history").delete().eq("shop_id", shopId);
-    await db().from("shop_customers").delete().eq("shop_id", shopId);
-    await db().from("shops").delete().eq("id", shopId);
-    return tg.edit(chatId, msgId, "✅ Магазин удалён.", ikb([[btn("◀️ К магазинам", "adm:shops:0")]]));
+    const { data: s } = await db().from("shops").select("is_subscription_required, name").eq("id", shopId).single();
+    if (!s) return;
+    const newVal = !s.is_subscription_required;
+    await db().from("shops").update({ is_subscription_required: newVal, updated_at: new Date().toISOString() }).eq("id", shopId);
+    await admLog(adminTgId, newVal ? "enable_op" : "disable_op", "shop", shopId);
+    return admShopCard(tg, chatId, msgId, shopId);
+  }
+  if (cmd === "opsetc") {
+    const shopId = parts[2];
+    await setSession(chatId, "adm_op_channel", { shopId });
+    return tg.edit(chatId, msgId, `📢 Введите ID канала и ссылку через пробел:\n\n<code>@channel_name https://t.me/channel_name</code>\n\nИли только ID: <code>@channel_name</code>`, ikb([[btn("🗑 Очистить", `adm:opclear:${shopId}`), btn("❌ Отмена", `adm:scard:${shopId}`)]]));
+  }
+  if (cmd === "opclear") {
+    const shopId = parts[2];
+    await db().from("shops").update({ required_channel_id: null, required_channel_link: null, updated_at: new Date().toISOString() }).eq("id", shopId);
+    await admLog(adminTgId, "clear_op_channel", "shop", shopId);
+    return admShopCard(tg, chatId, msgId, shopId);
   }
   if (cmd === "slink") {
     const shopId = parts[2];
