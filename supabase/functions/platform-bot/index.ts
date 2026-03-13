@@ -699,7 +699,7 @@ async function showConfirmation(tg: ReturnType<typeof TG>, chatId: number, sData
     : ikb([
         [btn("🔄 Ввести токен заново", "p:wback:7")],
         [btn("✅ Создать без бота", "p:confirm_create")],
-        [btn("❌ Отмена", "p:home")],
+        [btn("❌ Отмена", "p:wcancel")],
       ]);
 
   if (msgId) {
