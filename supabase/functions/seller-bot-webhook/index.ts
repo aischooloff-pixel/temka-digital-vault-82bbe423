@@ -69,22 +69,24 @@ async function logAction(shopId: string, adminTgId: number, action: string, enti
   });
 }
 
-// ─── Session FSM (shop-isolated via composite key hack) ───
+// ─── Session FSM (fully isolated via seller_sessions with composite PK) ───
 async function getSession(tgId: number, shopId: string) {
-  const { data } = await supabase().from("platform_sessions").select("*").eq("telegram_id", tgId).maybeSingle();
+  const { data } = await supabase().from("seller_sessions").select("*").eq("telegram_id", tgId).eq("shop_id", shopId).maybeSingle();
   if (!data) return null;
-  const d = data.data as Record<string, unknown> | null;
-  if (d && d._shop_id === shopId) return data as { telegram_id: number; state: string; data: Record<string, unknown> };
-  return null;
+  return data as { telegram_id: number; shop_id: string; state: string; data: Record<string, unknown> };
 }
 async function setSession(tgId: number, state: string, shopId: string, data: Record<string, unknown> = {}) {
-  await supabase().from("platform_sessions").upsert(
-    { telegram_id: tgId, state, data: { ...data, _shop_id: shopId }, updated_at: new Date().toISOString() },
-    { onConflict: "telegram_id" },
+  await supabase().from("seller_sessions").upsert(
+    { telegram_id: tgId, shop_id: shopId, state, data, updated_at: new Date().toISOString() },
+    { onConflict: "telegram_id,shop_id" },
   );
 }
-async function clearSession(tgId: number) {
-  await supabase().from("platform_sessions").delete().eq("telegram_id", tgId);
+async function clearSession(tgId: number, shopId?: string) {
+  if (shopId) {
+    await supabase().from("seller_sessions").delete().eq("telegram_id", tgId).eq("shop_id", shopId);
+  } else {
+    await supabase().from("seller_sessions").delete().eq("telegram_id", tgId);
+  }
 }
 
 // ─── Check if user is shop owner ─────────────
