@@ -1068,19 +1068,34 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
     if (!validWizardCallback) return;
   }
 
-  // ─── Channel check ────────────────────────
+  // ─── Channel check callback ───────────────
   if (cmd === "checksub") {
     const ok = await checkAllChannels(tg, chatId);
     if (!ok) {
+      const channels = getChannelLinks();
+      const rows: Btn[][] = [];
+      for (const ch of channels) {
+        rows.push([urlBtn(`📢 ${channels.length > 1 ? ch.id : "Подписаться на канал"}`, ch.link)]);
+      }
+      rows.push([btn("✅ Проверить подписку", "p:checksub")]);
       return tg.edit(chatId, msgId,
-        "❌ Ты ещё не подписался на все каналы.\nПодпишись и нажми кнопку снова.",
-        ikb([...channelButtons()]),
+        "❌ <b>Подписка не найдена</b>\n\nПодпишись на канал и нажми «Проверить подписку» снова.",
+        ikb(rows),
       );
     }
     await upsertUser(from);
     await clearSession(chatId);
     await tg.deleteMessage(chatId, msgId);
     return sendWelcome(tg, chatId, from.first_name || "друг");
+  }
+
+  // ─── Subscribe gate for all other callbacks ───
+  if (cmd !== "noop" && hasChannelRequirement()) {
+    const subscribed = await checkAllChannels(tg, chatId);
+    if (!subscribed) {
+      await showSubscribeGate(tg, chatId, from.first_name);
+      return;
+    }
   }
 
   // ─── Home ─────────────────────────────────
