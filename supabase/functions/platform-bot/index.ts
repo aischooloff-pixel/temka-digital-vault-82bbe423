@@ -398,7 +398,8 @@ async function myShops(tg: ReturnType<typeof TG>, chatId: number, msgId?: number
     if (p < totalP - 1) nav.push(btn("▶️", `p:myshops:${p + 1}`));
     rows.push(nav);
   }
-  rows.push([btn("➕ Создать магазин", "p:create")]);
+  // Only show create if user has no shops (1 shop limit)
+  if (!shops.length) rows.push([btn("➕ Создать магазин", "p:create")]);
   rows.push([btn("◀️ Назад", "p:home")]);
   return msgId ? tg.edit(chatId, msgId, text, ikb(rows)) : tg.send(chatId, text, ikb(rows));
 }
