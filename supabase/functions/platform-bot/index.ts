@@ -474,16 +474,29 @@ async function shopStats(tg: ReturnType<typeof TG>, chatId: number, msgId: numbe
 async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
   const { data: user } = await db().from("platform_users").select("*").eq("telegram_id", chatId).maybeSingle();
   if (!user) return;
-  const subMap: Record<string, string> = { active: "✅ Активна", trial: "🆓 Пробный", expired: "❌ Истекла" };
-  let daysLeft = "";
+  const priceInfo = await getSubscriptionPrice(chatId);
+  const status = subStatusLabel(user.subscription_status);
+  let daysLeftText = "";
+  let trialInfo = "";
   if (user.subscription_expires_at) {
-    const diff = Math.ceil((new Date(user.subscription_expires_at).getTime() - Date.now()) / 86400000);
-    daysLeft = diff > 0 ? `\n⏳ Осталось: <b>${diff}</b> дней` : "";
+    const dLeft = subscriptionDaysLeft(user.subscription_expires_at);
+    if (dLeft > 0) {
+      daysLeftText = `\n⏳ Осталось: <b>${dLeft}</b> ${dLeft === 1 ? "день" : dLeft < 5 ? "дня" : "дней"}`;
+      daysLeftText += `\n📅 До: ${new Date(user.subscription_expires_at).toLocaleDateString("ru")}`;
+    } else {
+      daysLeftText = `\n📅 Истекла: ${new Date(user.subscription_expires_at).toLocaleDateString("ru")}`;
+    }
   }
-  const text = `💳 <b>Подписка</b>\n\n📊 Статус: <b>${subMap[user.subscription_status] || user.subscription_status}</b>${daysLeft}\n\n💰 Стоимость: <b>$9/мес</b>\n\nВключает:\n• Неограниченное кол-во магазинов\n• Приём платежей через CryptoBot\n• Собственный Telegram-бот\n• Авто-доставка цифровых товаров`;
+  if (user.subscription_status === "trial") {
+    trialInfo = `\n\n🆓 <b>Пробный период</b>\nВам доступны ${TRIAL_DAYS} дней бесплатного использования.\nПосле окончания необходимо оформить подписку.`;
+  }
+  if (user.subscription_status === "expired") {
+    trialInfo = `\n\n⚠️ <b>Подписка истекла</b>\nМагазины приостановлены. Продлите подписку для возобновления.`;
+  }
+  const text = `💳 <b>Подписка</b>\n\n📊 Статус: <b>${status}</b>${daysLeftText}${trialInfo}\n\n💰 Ваша цена: <b>$${priceInfo.price}/мес</b> ${priceInfo.tier === "early_3" ? "🎉 Early Bird" : ""}\n\nВключает:\n• 1 магазин\n• Приём платежей через CryptoBot\n• Собственный Telegram-бот\n• Авто-доставка цифровых товаров\n• ${TRIAL_DAYS} дней бесплатного пробного периода`;
   const rows: Btn[][] = [];
   if (user.subscription_status !== "active") {
-    rows.push([btn("💳 Оплатить $9", "p:pay_sub")]);
+    rows.push([btn(`💳 Оплатить $${priceInfo.price}`, "p:pay_sub")]);
     rows.push([btn("🎫 У меня есть промокод", "p:sub_promo")]);
   }
   rows.push([btn("◀️ Назад", "p:home")]);
