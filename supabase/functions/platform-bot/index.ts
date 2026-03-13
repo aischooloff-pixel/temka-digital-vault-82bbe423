@@ -683,7 +683,7 @@ async function showConfirmation(tg: ReturnType<typeof TG>, chatId: number, sData
   const kb = botValidation.ok
     ? ikb([[btn("✅ Всё верно", "p:confirm_create"), btn("✏️ Изменить", "p:wback:1")], [btn("❌ Отмена", "p:wcancel")]])
     : ikb([[btn("🔄 Другой токен", "p:wback:7"), btn("✏️ Изменить", "p:wback:1")], [btn("❌ Отмена", "p:wcancel")]]);
-  if (msgId) { const res = await tg.edit(chatId, msgId, text, kb); await persistWizardSession(chatId, "wiz_confirm", sData, msgId); return res; }
+  if (msgId) { const res = await tg.edit(chatId, msgId, text, kb); await persistWizardSession(chatId, "wiz_confirm", sData, resolveWizardMessageId(msgId, res)); return res; }
   const res = await tg.send(chatId, text, kb);
   await persistWizardSession(chatId, "wiz_confirm", sData, res?.result?.message_id);
   return res;
