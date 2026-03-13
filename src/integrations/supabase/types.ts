@@ -433,44 +433,65 @@ export type Database = {
       }
       platform_users: {
         Row: {
+          billing_price_usd: number | null
           created_at: string
+          expiry_notified_at: string | null
           first_name: string
+          first_paid_at: string | null
+          has_used_trial: boolean
           id: string
           is_premium: boolean
           language_code: string | null
           last_name: string | null
           photo_url: string | null
+          pricing_tier: string | null
+          reminder_sent_at: string | null
           subscription_expires_at: string | null
           subscription_status: string
           telegram_id: number
+          trial_started_at: string | null
           updated_at: string
           username: string | null
         }
         Insert: {
+          billing_price_usd?: number | null
           created_at?: string
+          expiry_notified_at?: string | null
           first_name?: string
+          first_paid_at?: string | null
+          has_used_trial?: boolean
           id?: string
           is_premium?: boolean
           language_code?: string | null
           last_name?: string | null
           photo_url?: string | null
+          pricing_tier?: string | null
+          reminder_sent_at?: string | null
           subscription_expires_at?: string | null
           subscription_status?: string
           telegram_id: number
+          trial_started_at?: string | null
           updated_at?: string
           username?: string | null
         }
         Update: {
+          billing_price_usd?: number | null
           created_at?: string
+          expiry_notified_at?: string | null
           first_name?: string
+          first_paid_at?: string | null
+          has_used_trial?: boolean
           id?: string
           is_premium?: boolean
           language_code?: string | null
           last_name?: string | null
           photo_url?: string | null
+          pricing_tier?: string | null
+          reminder_sent_at?: string | null
           subscription_expires_at?: string | null
           subscription_status?: string
           telegram_id?: number
+          trial_started_at?: string | null
           updated_at?: string
           username?: string | null
         }
