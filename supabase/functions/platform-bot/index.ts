@@ -1407,6 +1407,83 @@ async function admSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: num
   ]));
 }
 
+// ─── SUBSCRIPTION PROMOS (platform-level) ─────
+async function admSubPromoList(tg: ReturnType<typeof TG>, chatId: number, msgId: number, page: number) {
+  const perPage = 5;
+  const { count } = await db().from("platform_subscription_promos").select("id", { count: "exact", head: true });
+  const total = count || 0;
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+  const p = Math.min(Math.max(0, page), totalPages - 1);
+  const { data: promos } = await db().from("platform_subscription_promos").select("*").order("created_at", { ascending: false }).range(p * perPage, (p + 1) * perPage - 1);
+  let text = `🎫 <b>Промокоды подписки</b> (${total})\n\n`;
+  const rows: Btn[][] = [];
+  for (const pr of promos || []) {
+    const active = pr.is_active ? "✅" : "❌";
+    const discountLabel = pr.discount_type === "percent" ? `${pr.discount_value}%` : `$${pr.discount_value}`;
+    text += `${active} <code>${pr.code}</code> — ${discountLabel} (${pr.used_count}/${pr.max_uses || "∞"})${pr.note ? ` 📝` : ""}\n`;
+    rows.push([btn(`${active} ${pr.code}`, `adm:spcard:${pr.id}`)]);
+  }
+  if (!promos?.length) text += "Нет промокодов.\n";
+  if (totalPages > 1) {
+    const nav: Btn[] = [];
+    if (p > 0) nav.push(btn("◀️", `adm:subpromo:${p - 1}`));
+    nav.push(btn(`${p + 1}/${totalPages}`, "adm:noop"));
+    if (p < totalPages - 1) nav.push(btn("▶️", `adm:subpromo:${p + 1}`));
+    rows.push(nav);
+  }
+  rows.push([btn("➕ Создать", "adm:spcreate")]);
+  rows.push([btn("◀️ Меню", "adm:home")]);
+  return tg.edit(chatId, msgId, text, ikb(rows));
+}
+
+async function admSubPromoCard(tg: ReturnType<typeof TG>, chatId: number, msgId: number, promoId: string) {
+  const { data: pr } = await db().from("platform_subscription_promos").select("*").eq("id", promoId).single();
+  if (!pr) return tg.edit(chatId, msgId, "❌ Не найден.", ikb([[btn("◀️ Назад", "adm:subpromo:0")]]));
+  const discountLabel = pr.discount_type === "percent" ? `${pr.discount_value}%` : `$${Number(pr.discount_value).toFixed(2)}`;
+  const { count: usageCount } = await db().from("platform_promo_usages").select("id", { count: "exact", head: true }).eq("promo_id", promoId);
+  const text =
+    `🎫 <b>Промокод: ${esc(pr.code)}</b>\n\n` +
+    `Статус: ${pr.is_active ? "✅ Активен" : "❌ Неактивен"}\n` +
+    `Скидка: <b>${discountLabel}</b> (${pr.discount_type})\n` +
+    `Лимит: ${pr.max_uses || "∞"} (использовано: ${pr.used_count})\n` +
+    `На пользователя: ${pr.max_uses_per_user || "∞"}\n` +
+    `Действует: ${pr.valid_from ? new Date(pr.valid_from).toLocaleDateString("ru") : "—"} → ${pr.valid_until ? new Date(pr.valid_until).toLocaleDateString("ru") : "—"}\n` +
+    `Создал: <code>${pr.created_by}</code>\n` +
+    `Всего использований: ${usageCount || 0}\n` +
+    (pr.note ? `\n📝 <i>${esc(pr.note)}</i>\n` : "") +
+    `\nСоздан: ${new Date(pr.created_at).toLocaleString("ru")}`;
+  return tg.edit(chatId, msgId, text, ikb([
+    [btn(pr.is_active ? "❌ Деактивировать" : "✅ Активировать", `adm:sptoggle:${promoId}`)],
+    [btn("📊 Использования", `adm:spusage:${promoId}:0`)],
+    [btn("✏️ Заметка", `adm:spnote:${promoId}`), btn("🗑 Удалить", `adm:spdelete:${promoId}`)],
+    [btn("◀️ Назад", "adm:subpromo:0")],
+  ]));
+}
+
+async function admSubPromoUsages(tg: ReturnType<typeof TG>, chatId: number, msgId: number, promoId: string, page: number) {
+  const perPage = 10;
+  const { count } = await db().from("platform_promo_usages").select("id", { count: "exact", head: true }).eq("promo_id", promoId);
+  const total = count || 0;
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+  const p = Math.min(Math.max(0, page), totalPages - 1);
+  const { data: usages } = await db().from("platform_promo_usages").select("*").eq("promo_id", promoId).order("created_at", { ascending: false }).range(p * perPage, (p + 1) * perPage - 1);
+  let text = `📊 <b>Использования промокода</b> (${total})\n\n`;
+  for (const u of usages || []) {
+    text += `• TG <code>${u.telegram_id}</code> — скидка $${Number(u.discount_amount).toFixed(2)} — ${new Date(u.created_at).toLocaleString("ru")}\n`;
+  }
+  if (!usages?.length) text += "Нет использований.\n";
+  const rows: Btn[][] = [];
+  if (totalPages > 1) {
+    const nav: Btn[] = [];
+    if (p > 0) nav.push(btn("◀️", `adm:spusage:${promoId}:${p - 1}`));
+    nav.push(btn(`${p + 1}/${totalPages}`, "adm:noop"));
+    if (p < totalPages - 1) nav.push(btn("▶️", `adm:spusage:${promoId}:${p + 1}`));
+    rows.push(nav);
+  }
+  rows.push([btn("◀️ К промокоду", `adm:spcard:${promoId}`)]);
+  return tg.edit(chatId, msgId, text, ikb(rows));
+}
+
 // ─── ADMINS ───────────────────────────────────
 async function admAdminsList(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
   const { data: admins } = await db().from("platform_admins").select("*").order("created_at");
