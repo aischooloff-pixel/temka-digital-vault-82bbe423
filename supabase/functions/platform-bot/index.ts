@@ -725,7 +725,7 @@ async function showLegalAgreement(tg: ReturnType<typeof TG>, chatId: number, sDa
     [urlBtn("Политика конфиденциальности", `${WEBAPP_DOMAIN}/platform/privacy`)],
     [urlBtn("Отказ от ответственности", `${WEBAPP_DOMAIN}/platform/disclaimer`)],
     [btn("✅ Я подтверждаю", "p:accept_terms")],
-    [btn("❌ Отмена", "p:home")],
+    [btn("❌ Отмена", "p:wcancel")],
   ]));
 
   await persistWizardSession(chatId, "wiz_legal", sData, msgId);
