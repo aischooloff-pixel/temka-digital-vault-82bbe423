@@ -445,32 +445,17 @@ async function showProfile(tg: ReturnType<typeof TG>, chatId: number, msgId?: nu
 async function myShops(tg: ReturnType<typeof TG>, chatId: number, msgId?: number, page = 0) {
   const { data: user } = await db().from("platform_users").select("id").eq("telegram_id", chatId).maybeSingle();
   if (!user) return;
-  const { data: shops } = await db().from("shops").select("*").eq("owner_id", user.id).order("created_at");
-  if (!shops?.length) {
-    const text = "🏪 <b>Мои магазины</b>\n\n📭 У тебя пока нет магазинов.\n\nСоздай свой первый Telegram магазин\nс автовыдачей за несколько минут!";
-    const kb = ikb([[btn("🏪 Создать первый магазин", "p:create")], [btn("📖 Как это работает", "p:howitworks")], [btn("◀️ Назад", "p:home")]]);
+  const { data: shop } = await db().from("shops").select("*").eq("owner_id", user.id).maybeSingle();
+  if (!shop) {
+    const text = "🏪 <b>Мой магазин</b>\n\n📭 У тебя пока нет магазина.\n\nСоздай свой первый Telegram магазин\nс автовыдачей за несколько минут!";
+    const kb = ikb([[btn("🏪 Создать магазин", "p:create")], [btn("📖 Как это работает", "p:howitworks")], [btn("◀️ Назад", "p:home")]]);
     return msgId ? tg.edit(chatId, msgId, text, kb) : tg.send(chatId, text, kb);
   }
-  const perPage = 5;
-  const totalP = Math.ceil(shops.length / perPage);
-  const p = Math.min(Math.max(0, page), totalP - 1);
-  const slice = shops.slice(p * perPage, (p + 1) * perPage);
-  let text = `🏪 <b>Мои магазины</b> (${shops.length})\n\n`;
-  const rows: Btn[][] = slice.map(s => {
-    const dot = s.status === "active" ? "🟢" : "🔴";
-    return [btn(`${dot} ${s.name}`, `p:shop:${s.id}`)];
-  });
-  if (totalP > 1) {
-    const nav: Btn[] = [];
-    if (p > 0) nav.push(btn("◀️", `p:myshops:${p - 1}`));
-    nav.push(btn(`${p + 1}/${totalP}`, "p:noop"));
-    if (p < totalP - 1) nav.push(btn("▶️", `p:myshops:${p + 1}`));
-    rows.push(nav);
-  }
-  // Only show create if user has no shops (1 shop limit)
-  if (!shops.length) rows.push([btn("➕ Создать магазин", "p:create")]);
-  rows.push([btn("◀️ Назад", "p:home")]);
-  return msgId ? tg.edit(chatId, msgId, text, ikb(rows)) : tg.send(chatId, text, ikb(rows));
+  // Single shop — redirect to shop view
+  if (msgId) return shopView(tg, chatId, msgId, shop.id);
+  const resp = await tg.send(chatId, "⏳");
+  const mid = resp?.result?.message_id;
+  if (mid) return shopView(tg, chatId, mid, shop.id);
 }
 
 // ═══════════════════════════════════════════════
