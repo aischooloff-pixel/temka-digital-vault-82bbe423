@@ -372,6 +372,7 @@ async function welcomeButtons(chatId: number): Promise<Btn[][]> {
 }
 
 async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName: string) {
+  const hasShop = await userHasShop(chatId);
   const config = await getWelcomeConfig();
   const defaultText = `👋 Привет, <b>${esc(firstName)}</b>!\nДобро пожаловать в <b>${PLATFORM_NAME}</b>\n\nСоздай свой Telegram магазин\nс автовыдачей за 5 минут.\n\n— Никакого кода и хостинга\n— Автовыдача товаров 24/7\n— Приём крипты через CryptoBot\n— Полная настройка под себя`;
   const welcomeText = config.text ? config.text.replace(/\{name\}/g, esc(firstName)) : defaultText;
@@ -384,6 +385,8 @@ async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName:
   } else {
     await tg.send(chatId, welcomeText, kb);
   }
+  // Send/update persistent bottom panel keyboard
+  await tg.send(chatId, "📋 Используйте кнопки ниже для навигации:", bottomPanel(hasShop));
   // Check subscription reminders in background
   await sendTrialReminder(chatId);
   await checkAndEnforceSubscription(chatId);
