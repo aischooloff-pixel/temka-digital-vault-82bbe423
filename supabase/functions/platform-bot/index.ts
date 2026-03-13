@@ -344,11 +344,28 @@ async function showProfile(tg: ReturnType<typeof TG>, chatId: number, msgId?: nu
   const { data: user } = await db().from("platform_users").select("*").eq("telegram_id", chatId).maybeSingle();
   if (!user) return;
   const { count: shopCount } = await db().from("shops").select("id", { count: "exact", head: true }).eq("owner_id", user.id);
-  const subMap: Record<string, string> = { active: "Активна", trial: "Пробный", expired: "Истекла", cancelled: "Отменена" };
-  const subStatus = subMap[user.subscription_status] || user.subscription_status;
-  const text = `👤 <b>${esc(user.first_name)}${user.last_name ? " " + esc(user.last_name) : ""}</b>\n\nМагазинов: <b>${shopCount || 0}</b>\nПодписка: <b>${subStatus}</b>`;
+  const subLabel = subStatusLabel(user.subscription_status);
+  const priceInfo = await getSubscriptionPrice(chatId);
+  let subExtra = "";
+  if (user.subscription_expires_at) {
+    const daysLeft = subscriptionDaysLeft(user.subscription_expires_at);
+    if (daysLeft > 0) {
+      subExtra = `\n⏳ Осталось: <b>${daysLeft}</b> ${daysLeft === 1 ? "день" : daysLeft < 5 ? "дня" : "дней"}`;
+      subExtra += `\n📅 До: ${new Date(user.subscription_expires_at).toLocaleDateString("ru")}`;
+    } else {
+      subExtra = `\n📅 Истекла: ${new Date(user.subscription_expires_at).toLocaleDateString("ru")}`;
+    }
+  }
+  if (user.subscription_status === "trial") {
+    subExtra += `\n\n🆓 <i>Пробный период — ${TRIAL_DAYS} дней после создания магазина.</i>`;
+    subExtra += `\n<i>После окончания потребуется подписка $${priceInfo.price}/мес.</i>`;
+  }
+  const text = `👤 <b>${esc(user.first_name)}${user.last_name ? " " + esc(user.last_name) : ""}</b>\n\nМагазинов: <b>${shopCount || 0}</b>\nПодписка: <b>${subLabel}</b>${subExtra}\n💰 Ваша цена: <b>$${priceInfo.price}/мес</b> (${priceInfo.tier === "early_3" ? "early bird 🎉" : "стандарт"})`;
   const profileUrl = `${WEBAPP_DOMAIN}/account`;
   const kb = ikb([[urlBtn("Открыть профиль", profileUrl)], [btn("Мои магазины", "p:myshops:0")], [btn("Подписка", "p:sub")], [btn("◀️ Назад", "p:home")]]);
+  if (msgId) return tg.edit(chatId, msgId, text, kb);
+  return tg.send(chatId, text, kb);
+}
   if (msgId) return tg.edit(chatId, msgId, text, kb);
   return tg.send(chatId, text, kb);
 }
