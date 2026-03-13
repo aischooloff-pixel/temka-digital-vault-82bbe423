@@ -2046,6 +2046,7 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     return tg.send(chatId, `✅ Медиа (${mediaType}) сохранено!`, ikb([[btn("👁 Предпросмотр", "adm:welc_preview")], [btn("◀️ Назад", "adm:welcmgr")]]));
   }
 
+  if (state === "adm_add_admin") {
     await clearSession(chatId);
     const tgId = parseInt(val);
     if (!tgId || isNaN(tgId)) return tg.send(chatId, "❌ Введите числовой Telegram ID.", ikb([[btn("◀️ Назад", "adm:admins")]]));
