@@ -2015,7 +2015,37 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     return tg.send(chatId, `✅ Ссылка на канал ОП установлена:\n${esc(link)}`, ikb([[btn("◀️ Настройки ОП", "adm:platop")]]));
   }
 
-  if (state === "adm_add_admin") {
+  // ─── Welcome: set text ────────────────────
+  if (state === "adm_welc_set_text") {
+    await clearSession(chatId);
+    // Validate HTML by trying to send a test (Telegram will reject bad HTML)
+    const testResult = await fetch(`https://api.telegram.org/bot${Deno.env.get("PLATFORM_BOT_TOKEN")}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: val.replace(/\{name\}/g, "Тест"), parse_mode: "HTML" }),
+    }).then(r => r.json());
+    if (!testResult.ok) {
+      return tg.send(chatId, `❌ <b>Ошибка HTML</b>\n\nTelegram не принял ваш текст:\n<code>${esc(testResult.description || "unknown error")}</code>\n\nПроверьте теги и попробуйте снова.`, ikb([[btn("✏️ Попробовать снова", "adm:welc_settext")], [btn("◀️ Назад", "adm:welcmgr")]]));
+    }
+    // Delete test message
+    if (testResult.result?.message_id) await tg.deleteMessage(chatId, testResult.result.message_id);
+    await db().from("shop_settings").upsert({ key: "platform_welcome_text", value: val, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    await admLog(chatId, "set_welcome_text", "settings", "welcome");
+    return tg.send(chatId, `✅ Текст приветствия сохранён!`, ikb([[btn("👁 Предпросмотр", "adm:welc_preview")], [btn("◀️ Назад", "adm:welcmgr")]]));
+  }
+
+  // ─── Welcome: set media ───────────────────
+  if (state === "adm_welc_set_media") {
+    const mediaType = sData.media_type as string;
+    await clearSession(chatId);
+    // val could be a URL or file_id
+    const mediaUrl = val.trim();
+    await db().from("shop_settings").upsert({ key: "platform_welcome_media_type", value: mediaType, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    await db().from("shop_settings").upsert({ key: "platform_welcome_media_url", value: mediaUrl, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    await admLog(chatId, "set_welcome_media", "settings", "welcome", { media_type: mediaType });
+    return tg.send(chatId, `✅ Медиа (${mediaType}) сохранено!`, ikb([[btn("👁 Предпросмотр", "adm:welc_preview")], [btn("◀️ Назад", "adm:welcmgr")]]));
+  }
+
     await clearSession(chatId);
     const tgId = parseInt(val);
     if (!tgId || isNaN(tgId)) return tg.send(chatId, "❌ Введите числовой Telegram ID.", ikb([[btn("◀️ Назад", "adm:admins")]]));
