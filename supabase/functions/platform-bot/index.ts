@@ -741,19 +741,106 @@ async function admLog(adminTgId: number, action: string, entityType?: string, en
   });
 }
 
+// ─── Blocked User Check ──────────────────────
+async function isUserBlocked(telegramId: number): Promise<boolean> {
+  const { data } = await db().from("user_profiles").select("is_blocked").eq("telegram_id", telegramId).maybeSingle();
+  return data?.is_blocked === true;
+}
+
 // ─── ADM Main Menu ────────────────────────────
 async function admHome(tg: ReturnType<typeof TG>, chatId: number, msgId?: number) {
   const text = `🛡 <b>Super Admin Panel</b>\n\nВыберите раздел:`;
   const kb = ikb([
-    [btn("👥 Пользователи", "adm:users:0"), btn("🏪 Магазины", "adm:shops:0")],
-    [btn("💳 Подписки/платежи", "adm:finance:sub:0"), btn("🧾 Заказы", "adm:orders:all:0")],
-    [btn("🤖 Боты/webhook", "adm:bots:0"), btn("🎟 Промокоды", "adm:promo:platform:0")],
-    [btn("⭐ Отзывы", "adm:reviews:all:0"), btn("📢 Рассылки", "adm:broadcast")],
-    [btn("🚨 Риски/блокировки", "adm:risks"), btn("📋 Логи", "adm:logs:0")],
-    [btn("⚙️ Настройки", "adm:settings"), btn("👮 Администраторы", "adm:admins")],
+    [btn("📊 Статистика", "adm:stats"), btn("👥 Пользователи", "adm:users:0")],
+    [btn("🏪 Магазины", "adm:shops:0"), btn("💳 Подписки/платежи", "adm:finance:sub:0")],
+    [btn("🧾 Заказы", "adm:orders:all:0"), btn("🤖 Боты/webhook", "adm:bots:0")],
+    [btn("🎟 Промокоды", "adm:promo:platform:0"), btn("⭐ Отзывы", "adm:reviews:shop:0")],
+    [btn("📢 Рассылки", "adm:broadcast"), btn("🚨 Риски/блокировки", "adm:risks")],
+    [btn("📋 Логи", "adm:logs:0"), btn("⚙️ Настройки", "adm:settings")],
+    [btn("👮 Администраторы", "adm:admins")],
   ]);
   if (msgId) return tg.edit(chatId, msgId, text, kb);
   return tg.send(chatId, text, kb);
+}
+
+// ─── PLATFORM STATS DASHBOARD ────────────────
+async function admStats(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
+  const [
+    { count: totalUsers },
+    { count: totalShops },
+    { count: activeShops },
+    { count: pausedShops },
+    { data: allShops },
+    { count: connectedBots },
+    { count: activeWebhooks },
+    { count: opEnabled },
+    { count: totalCustomers },
+    { count: totalShopOrders },
+    { data: paidOrders },
+    { count: subPayments },
+    { count: invoiceCount },
+    { count: rateLimits },
+    { count: blockedUsers },
+  ] = await Promise.all([
+    db().from("platform_users").select("id", { count: "exact", head: true }),
+    db().from("shops").select("id", { count: "exact", head: true }),
+    db().from("shops").select("id", { count: "exact", head: true }).eq("status", "active"),
+    db().from("shops").select("id", { count: "exact", head: true }).eq("status", "paused"),
+    db().from("shops").select("owner_id"),
+    db().from("shops").select("id", { count: "exact", head: true }).not("bot_token_encrypted", "is", null),
+    db().from("shops").select("id", { count: "exact", head: true }).eq("webhook_status", "active"),
+    db().from("shops").select("id", { count: "exact", head: true }).eq("is_subscription_required", true),
+    db().from("shop_customers").select("id", { count: "exact", head: true }),
+    db().from("shop_orders").select("id", { count: "exact", head: true }),
+    db().from("shop_orders").select("total_amount, shop_id").eq("payment_status", "paid"),
+    db().from("subscription_payments").select("id", { count: "exact", head: true }),
+    db().from("processed_invoices").select("invoice_id", { count: "exact", head: true }),
+    db().from("rate_limits").select("id", { count: "exact", head: true }),
+    db().from("user_profiles").select("id", { count: "exact", head: true }).eq("is_blocked", true),
+  ]);
+
+  const uniqueOwners = new Set(allShops?.map(s => s.owner_id) || []).size;
+  const totalRevenue = paidOrders?.reduce((s, o) => s + Number(o.total_amount), 0) || 0;
+
+  // Top 5 shops by revenue
+  const shopRevMap: Record<string, number> = {};
+  for (const o of paidOrders || []) {
+    shopRevMap[o.shop_id] = (shopRevMap[o.shop_id] || 0) + Number(o.total_amount);
+  }
+  const topShopIds = Object.entries(shopRevMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  let topShopsText = "";
+  if (topShopIds.length) {
+    const { data: topShops } = await db().from("shops").select("id, name").in("id", topShopIds.map(s => s[0]));
+    const nameMap: Record<string, string> = {};
+    for (const s of topShops || []) nameMap[s.id] = s.name;
+    for (let i = 0; i < topShopIds.length; i++) {
+      topShopsText += `  ${i + 1}. ${esc(nameMap[topShopIds[i][0]] || "?")} — $${topShopIds[i][1].toFixed(2)}\n`;
+    }
+  } else {
+    topShopsText = "  Нет данных\n";
+  }
+
+  const text =
+    `📊 <b>Статистика платформы</b>\n\n` +
+    `👥 Пользователей: <b>${totalUsers || 0}</b>\n` +
+    `🏪 Магазинов: <b>${totalShops || 0}</b> (🟢 ${activeShops || 0} / 🔴 ${pausedShops || 0})\n` +
+    `👤 Уникальных владельцев: <b>${uniqueOwners}</b>\n\n` +
+    `🤖 Подключённых ботов: ${connectedBots || 0}\n` +
+    `🔗 Активных webhook: ${activeWebhooks || 0}\n` +
+    `📢 ОП включена: ${opEnabled || 0}\n\n` +
+    `👥 Tenant клиентов: ${totalCustomers || 0}\n` +
+    `🛍 Tenant заказов: ${totalShopOrders || 0}\n` +
+    `💵 Tenant выручка: <b>$${totalRevenue.toFixed(2)}</b>\n\n` +
+    `💳 Подписок: ${subPayments || 0}\n` +
+    `🧾 Инвойсов: ${invoiceCount || 0}\n` +
+    `⏱ Rate limits: ${rateLimits || 0}\n` +
+    `🚫 Заблокированных: ${blockedUsers || 0}\n\n` +
+    `🏆 <b>Топ магазинов по выручке:</b>\n${topShopsText}`;
+
+  return tg.edit(chatId, msgId, text, ikb([
+    [btn("🔄 Обновить", "adm:stats")],
+    [btn("◀️ Меню", "adm:home")],
+  ]));
 }
 
 // ─── USERS ────────────────────────────────────
