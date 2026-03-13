@@ -615,8 +615,14 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
   const finalizingData = trackWizardMessage(sData, msgId);
   await setSession(chatId, "wiz_finalizing", finalizingData);
   await tg.edit(chatId, msgId, "⏳ Создаю магазин...");
-  const { data: user } = await db().from("platform_users").select("id").eq("telegram_id", chatId).maybeSingle();
+  const { data: user } = await db().from("platform_users").select("id, has_used_trial, subscription_status").eq("telegram_id", chatId).maybeSingle();
   if (!user) { await clearSession(chatId); return tg.edit(chatId, msgId, "❌ Ошибка: пользователь не найден.", ikb([[btn("◀️ Меню", "p:home")]])); }
+  // Double-check 1 shop limit on backend
+  const { count: existingShops } = await db().from("shops").select("id", { count: "exact", head: true }).eq("owner_id", user.id);
+  if ((existingShops || 0) > 0) {
+    await clearSession(chatId);
+    return tg.edit(chatId, msgId, "❌ У вас уже есть магазин. На одного пользователя — 1 магазин.", ikb([[btn("🏪 Мои магазины", "p:myshops:0")], [btn("◀️ Меню", "p:home")]]));
+  }
   const name = (sData.name as string) || "Мой магазин";
   const baseSlug = name.toLowerCase().replace(/[^a-zа-яё0-9]/gi, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "shop";
   let slug = baseSlug; let attempt = 0;
@@ -645,10 +651,24 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     await db().from("shops").update({ webhook_status: whResult.ok ? "active" : "failed", bot_validated_at: new Date().toISOString() }).eq("id", shop.id);
     botStatusMsg = whResult.ok ? `\n\n🤖 Бот @${botUsername} подключён и готов к работе!` : `\n\n⚠️ Бот @${botUsername} сохранён, но webhook не установлен: ${whResult.error}`;
   }
+  // ─── Activate trial if first shop and trial not used ───
+  let trialMsg = "";
+  if (!user.has_used_trial) {
+    const trialExpiresAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    await db().from("platform_users").update({
+      subscription_status: "trial", trial_started_at: new Date().toISOString(),
+      subscription_expires_at: trialExpiresAt, has_used_trial: true,
+      reminder_sent_at: null, expiry_notified_at: null, updated_at: new Date().toISOString(),
+    }).eq("telegram_id", chatId);
+    trialMsg = `\n\n🆓 <b>Пробный период активирован!</b>\n⏳ ${TRIAL_DAYS} дней бесплатного использования\n📅 До: ${new Date(trialExpiresAt).toLocaleDateString("ru")}\n\n<i>После окончания пробного периода потребуется подписка.</i>`;
+    // Send separate trial notification
+    const trialNotification = `🎉 <b>Ваш пробный период начался!</b>\n\nВам доступен бесплатный пробный период <b>${TRIAL_DAYS} дней</b> на платформе <b>${PLATFORM_NAME}</b>.\n\n📅 Дата окончания: ${new Date(trialExpiresAt).toLocaleDateString("ru")}\n\n✅ В течение пробного периода магазин работает полноценно:\n• Бот принимает заказы\n• Автовыдача активна\n• Все функции доступны\n\n⚠️ После окончания пробного периода для продолжения работы магазина потребуется оформить подписку.`;
+    await tg.send(chatId, trialNotification);
+  }
   await deactivateWizardMessages(tg, chatId, finalizingData, msgId);
   await clearSession(chatId);
   const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
-  const text = `🎉 <b>Магазин создан!</b>\n\nВот твоя ссылка:\n${esc(shopUrl)}${botStatusMsg}`;
+  const text = `🎉 <b>Магазин создан!</b>\n\nВот твоя ссылка:\n${esc(shopUrl)}${botStatusMsg}${trialMsg}`;
   return tg.edit(chatId, msgId, text, ikb([[btn("📋 Скопировать ссылку", `p:copylink:${shop.id}`)], [btn("⚙️ Настройки", `p:settings:${shop.id}`)], [btn("◀️ Меню", "p:home")]]));
 }
 
