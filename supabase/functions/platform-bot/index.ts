@@ -3030,6 +3030,13 @@ serve(async (req) => {
       }
       if (text === "🏪 Создать магазин" || text === "🏪 Мой магазин") {
         if (!(await enforceSubscription(tg, chatId, from.first_name))) return new Response("ok");
+
+        const existingSession = await getSession(chatId);
+        if (existingSession && isWizardFlowState(existingSession.state)) {
+          await reopenActiveWizard(tg, chatId, existingSession);
+          return new Response("ok");
+        }
+
         const hasShop = await userHasShop(chatId);
         if (hasShop) {
           // Show existing shop
@@ -3039,16 +3046,28 @@ serve(async (req) => {
             if (shop) {
               const resp = await tg.send(chatId, "⏳");
               const mid = resp?.result?.message_id;
-              if (mid) return shopView(tg, chatId, mid, shop.id);
+              if (mid) await shopView(tg, chatId, mid, shop.id);
+              return new Response("ok");
             }
           }
           await myShops(tg, chatId);
-        } else {
-          await clearSession(chatId);
-          const resp = await tg.send(chatId, "⏳");
-          const mid = resp?.result?.message_id;
-          if (mid) await wizardStep(tg, chatId, 1, {}, mid);
+          return new Response("ok");
         }
+
+        if (existingSession) await clearSession(chatId);
+
+        const launchToken = crypto.randomUUID();
+        await setSession(chatId, "wiz_launching", { launch_token: launchToken, started_at: new Date().toISOString() });
+
+        const launchSession = await getSession(chatId);
+        const currentLaunchToken = String((launchSession?.data as Record<string, unknown> | undefined)?.launch_token || "");
+        if (launchSession?.state !== "wiz_launching" || currentLaunchToken !== launchToken) {
+          return new Response("ok");
+        }
+
+        const resp = await tg.send(chatId, "⏳");
+        const mid = extractMessageIdFromResult(resp);
+        await wizardStep(tg, chatId, 1, {}, mid);
         return new Response("ok");
       }
 
