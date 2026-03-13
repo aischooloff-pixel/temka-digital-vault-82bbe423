@@ -296,6 +296,27 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_admins: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          telegram_id: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: string
+          telegram_id: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          telegram_id?: number
+        }
+        Relationships: []
+      }
       platform_sessions: {
         Row: {
           data: Json | null
