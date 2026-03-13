@@ -2496,6 +2496,91 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     return tg.send(chatId, text, ikb([[btn("✅ Отправить", "adm:bcastconfirm"), btn("❌ Отмена", "adm:bcastcancel")]]));
   }
 
+  // ─── Subscription management: extend ──────
+  if (state === "adm_sub_extend") {
+    const targetTgId = sData.target_tg_id as number;
+    const days = parseInt(val);
+    if (!days || days <= 0 || days > 365) return tg.send(chatId, "❌ Введите число от 1 до 365:");
+    await clearSession(chatId);
+    const { data: pu } = await db().from("platform_users").select("subscription_expires_at, subscription_status").eq("telegram_id", targetTgId).maybeSingle();
+    // Extend from current expiry or from now
+    const baseDate = (pu?.subscription_expires_at && new Date(pu.subscription_expires_at).getTime() > Date.now())
+      ? new Date(pu.subscription_expires_at) : new Date();
+    const newExpiry = new Date(baseDate.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
+    const newStatus = (pu?.subscription_status === "expired" || pu?.subscription_status === "cancelled") ? "active" : (pu?.subscription_status || "active");
+    await db().from("platform_users").update({
+      subscription_status: newStatus, subscription_expires_at: newExpiry,
+      reminder_sent_at: null, expiry_notified_at: null, updated_at: new Date().toISOString(),
+    }).eq("telegram_id", targetTgId);
+    // Re-activate shops if was expired/cancelled
+    if (pu?.subscription_status === "expired" || pu?.subscription_status === "cancelled") {
+      const { data: pu2 } = await db().from("platform_users").select("id").eq("telegram_id", targetTgId).maybeSingle();
+      if (pu2) {
+        const { data: shops } = await db().from("shops").select("id, bot_token_encrypted").eq("owner_id", pu2.id).eq("status", "paused");
+        const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
+        for (const shop of shops || []) {
+          await db().from("shops").update({ status: "active", updated_at: new Date().toISOString() }).eq("id", shop.id);
+          if (shop.bot_token_encrypted && encKey) {
+            try { const { data: rawToken } = await db().rpc("decrypt_token", { p_encrypted: shop.bot_token_encrypted, p_key: encKey }); if (rawToken) await setupSellerWebhook(rawToken, shop.id); } catch {}
+          }
+        }
+      }
+    }
+    await admLog(chatId, "extend_subscription", "user", String(targetTgId), { days, new_expires: newExpiry });
+    // Notify user
+    const token = Deno.env.get("PLATFORM_BOT_TOKEN");
+    if (token) {
+      try { await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: targetTgId, text: `✅ <b>Подписка продлена!</b>\n\nВаша подписка на <b>${PLATFORM_NAME}</b> продлена на <b>${days}</b> дней.\n\n📅 Новая дата: ${new Date(newExpiry).toLocaleDateString("ru")}`, parse_mode: "HTML" }) }); } catch {}
+    }
+    return tg.send(chatId, `✅ Подписка продлена на ${days} дн. до ${new Date(newExpiry).toLocaleDateString("ru")}`, ikb([[btn("◀️ К подписке", `adm:usub:${targetTgId}`), btn("◀️ К пользователю", `adm:ucard:${targetTgId}`)]]));
+  }
+
+  // ─── Subscription management: free period ──
+  if (state === "adm_sub_free") {
+    const targetTgId = sData.target_tg_id as number;
+    const days = parseInt(val);
+    if (!days || days <= 0 || days > 365) return tg.send(chatId, "❌ Введите число от 1 до 365:");
+    await clearSession(chatId);
+    const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+    await db().from("platform_users").update({
+      subscription_status: "active", subscription_expires_at: expiresAt,
+      reminder_sent_at: null, expiry_notified_at: null, updated_at: new Date().toISOString(),
+    }).eq("telegram_id", targetTgId);
+    // Re-activate shops
+    const { data: pu2 } = await db().from("platform_users").select("id").eq("telegram_id", targetTgId).maybeSingle();
+    if (pu2) {
+      const { data: shops } = await db().from("shops").select("id, bot_token_encrypted").eq("owner_id", pu2.id).eq("status", "paused");
+      const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
+      for (const shop of shops || []) {
+        await db().from("shops").update({ status: "active", updated_at: new Date().toISOString() }).eq("id", shop.id);
+        if (shop.bot_token_encrypted && encKey) {
+          try { const { data: rawToken } = await db().rpc("decrypt_token", { p_encrypted: shop.bot_token_encrypted, p_key: encKey }); if (rawToken) await setupSellerWebhook(rawToken, shop.id); } catch {}
+        }
+      }
+    }
+    await admLog(chatId, "grant_free_period", "user", String(targetTgId), { days, expires_at: expiresAt });
+    // Notify
+    const token = Deno.env.get("PLATFORM_BOT_TOKEN");
+    if (token) {
+      try { await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: targetTgId, text: `🎁 <b>Вам выдан бесплатный период!</b>\n\nАдминистратор <b>${PLATFORM_NAME}</b> выдал вам <b>${days}</b> дней бесплатного доступа.\n\n📅 До: ${new Date(expiresAt).toLocaleDateString("ru")}`, parse_mode: "HTML" }) }); } catch {}
+    }
+    return tg.send(chatId, `🎁 Бесплатный период ${days} дн. до ${new Date(expiresAt).toLocaleDateString("ru")}`, ikb([[btn("◀️ К подписке", `adm:usub:${targetTgId}`), btn("◀️ К пользователю", `adm:ucard:${targetTgId}`)]]));
+  }
+
+  // ─── Subscription management: set price ────
+  if (state === "adm_sub_price") {
+    const targetTgId = sData.target_tg_id as number;
+    const price = parseFloat(val);
+    if (isNaN(price) || price < 0 || price > 100) return tg.send(chatId, "❌ Введите число от 0 до 100:");
+    await clearSession(chatId);
+    const tier = price <= EARLY_BIRD_PRICE ? "early_3" : "standard_5";
+    await db().from("platform_users").update({
+      billing_price_usd: price, pricing_tier: tier, updated_at: new Date().toISOString(),
+    }).eq("telegram_id", targetTgId);
+    await admLog(chatId, "set_subscription_price", "user", String(targetTgId), { price, tier });
+    return tg.send(chatId, `✅ Цена установлена: $${price.toFixed(2)}/мес (${tier})`, ikb([[btn("◀️ К подписке", `adm:usub:${targetTgId}`), btn("◀️ К пользователю", `adm:ucard:${targetTgId}`)]]));
+  }
+
   if (state === "adm_edit_setting") {
     await clearSession(chatId);
     const match = val.match(/^(.+?)\s*=\s*(.+)$/);
