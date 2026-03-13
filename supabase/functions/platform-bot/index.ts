@@ -3064,7 +3064,8 @@ serve(async (req) => {
         return new Response("ok");
       }
       if (text === "🆘 Поддержка") {
-        await tg.send(chatId, `🆘 Свяжитесь с поддержкой:\n${SUPPORT_LINK}`, ikb([[urlBtn("🆘 Написать в поддержку", SUPPORT_LINK)]]));
+        const supportLink = await getSupportLink();
+        await tg.send(chatId, `🆘 Свяжитесь с поддержкой:\n${supportLink}`, ikb([[urlBtn("🆘 Написать в поддержку", supportLink)]]));
         return new Response("ok");
       }
       if (text === "🏪 Мои магазины") {
