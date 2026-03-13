@@ -1837,6 +1837,13 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
     await setSession(chatId, "adm_sp_create", { step: "code" });
     return tg.edit(chatId, msgId, `🎫 <b>Создание промокода подписки</b>\n\nВведите код промокода (латиница, цифры):`, ikb([[btn("❌ Отмена", "adm:subpromo:0")]]));
   }
+  if (cmd === "spdt") {
+    const discountType = parts[2] as string; // "percent" or "fixed"
+    const ses = await getSession(chatId);
+    if (ses?.state !== "adm_sp_create") return;
+    await setSession(chatId, "adm_sp_create", { ...((ses.data || {}) as any), discount_type: discountType, step: "discount_value" });
+    return tg.send(chatId, `Тип: ${discountType === "percent" ? "процент" : "фиксированная $"}\n\nВведите значение скидки (число):`);
+  }
   if (cmd === "sptoggle") {
     const promoId = parts[2];
     const { data: pr } = await db().from("platform_subscription_promos").select("is_active, code").eq("id", promoId).single();
@@ -2232,9 +2239,8 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
       if (existing) return tg.send(chatId, `❌ Промокод <code>${esc(code)}</code> уже существует. Введите другой:`);
       await setSession(chatId, "adm_sp_create", { ...sData, code, step: "discount_type" });
       return tg.send(chatId, `Код: <code>${esc(code)}</code>\n\nВыберите тип скидки:`, ikb([
-        [btn("📊 Процент", "adm:noop"), btn("💵 Фиксированная", "adm:noop")],
+        [btn("📊 Процент", "adm:spdt:percent"), btn("💵 Фиксированная", "adm:spdt:fixed")],
       ]));
-      // Since we can't use callbacks mid-FSM easily, let's ask as text
     }
     if (step === "discount_type") {
       const dt = val.toLowerCase();
