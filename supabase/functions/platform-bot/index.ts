@@ -1160,23 +1160,31 @@ async function admUserCard(tg: ReturnType<typeof TG>, chatId: number, msgId: num
   if (!pu) return tg.edit(chatId, msgId, "❌ Пользователь не найден.", ikb([[btn("◀️ Назад", "adm:users:0")]]));
   const { data: up } = await db().from("user_profiles").select("*").eq("telegram_id", tgId).maybeSingle();
   const { count: shopCount } = await db().from("shops").select("id", { count: "exact", head: true }).eq("owner_id", pu.id);
-  // Count orders across platform + all shops
   const { count: platformOrders } = await db().from("orders").select("id", { count: "exact", head: true }).eq("telegram_id", tgId);
   const { count: shopOrders } = await db().from("shop_orders").select("id", { count: "exact", head: true }).eq("buyer_telegram_id", tgId);
   const { data: shopRev } = await db().from("shop_orders").select("total_amount").eq("buyer_telegram_id", tgId).eq("payment_status", "paid");
   const { data: platRev } = await db().from("orders").select("total_amount").eq("telegram_id", tgId).eq("payment_status", "paid");
   const totalSpent = (shopRev?.reduce((s, o) => s + Number(o.total_amount), 0) || 0) + (platRev?.reduce((s, o) => s + Number(o.total_amount), 0) || 0);
   const { count: shopCustCount } = await db().from("shop_customers").select("id", { count: "exact", head: true }).eq("telegram_id", tgId);
-  const subMap: Record<string, string> = { active: "✅ Активна", trial: "🆓 Пробный", expired: "❌ Истекла" };
   const blocked = up?.is_blocked ? "🚫 ЗАБЛОКИРОВАН" : "✅ Активен";
   const name = pu.first_name + (pu.last_name ? ` ${pu.last_name}` : "");
+  // Subscription details
+  const subLabel = subStatusLabel(pu.subscription_status);
+  let subDetails = `📊 Подписка: ${subLabel}\n`;
+  if (pu.subscription_expires_at) {
+    const dLeft = subscriptionDaysLeft(pu.subscription_expires_at);
+    subDetails += `📅 До: ${new Date(pu.subscription_expires_at).toLocaleDateString("ru")}${dLeft > 0 ? ` (${dLeft} дн.)` : " (истекла)"}\n`;
+  }
+  if (pu.trial_started_at) subDetails += `🆓 Trial: ${new Date(pu.trial_started_at).toLocaleDateString("ru")} | used: ${pu.has_used_trial ? "да" : "нет"}\n`;
+  if (pu.billing_price_usd != null) subDetails += `💰 Цена: $${Number(pu.billing_price_usd).toFixed(2)}/мес (${pu.pricing_tier || "—"})\n`;
+  if (pu.first_paid_at) subDetails += `💳 Первая оплата: ${new Date(pu.first_paid_at).toLocaleDateString("ru")}\n`;
   const text =
     `👤 <b>${esc(name)}</b>\n\n` +
     `🆔 Telegram ID: <code>${tgId}</code>\n` +
     `👤 Username: ${pu.username ? `@${pu.username}` : "—"}\n` +
     `📅 Регистрация: ${new Date(pu.created_at).toLocaleDateString("ru")}\n` +
     `⭐ Premium: ${pu.is_premium ? "Да" : "Нет"}\n` +
-    `📊 Подписка: ${subMap[pu.subscription_status] || pu.subscription_status}\n` +
+    subDetails +
     `🔒 Статус: ${blocked}\n` +
     (up ? `💰 Баланс: $${Number(up.balance || 0).toFixed(2)}\n` : "") +
     (up?.internal_note ? `📝 Заметка: ${esc(up.internal_note)}\n` : "") +
@@ -1188,6 +1196,7 @@ async function admUserCard(tg: ReturnType<typeof TG>, chatId: number, msgId: num
     [btn("🏪 Магазины", `adm:ushops:${pu.id}:0`), btn("🧾 Заказы", `adm:uorders:${tgId}:0`)],
     [btn(up?.is_blocked ? "✅ Разблокировать" : "🚫 Заблокировать", `adm:ublock:${tgId}`)],
     [btn("💰 Баланс ±", `adm:ubal:${tgId}`), btn("📝 Заметка", `adm:unote:${tgId}`)],
+    [btn("💳 Подписка", `adm:usub:${tgId}`)],
     [btn("✉️ Сообщение", `adm:umsg:${tgId}`)],
     [btn("◀️ Назад", "adm:users:0")],
   ];
