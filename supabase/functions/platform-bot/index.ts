@@ -900,7 +900,8 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
   if (cmd === "delshop") return deleteShopConfirm(tg, chatId, msgId, parts[2]);
   if (cmd === "confirmdelete") return deleteShopExecute(tg, chatId, msgId, parts[2]);
   if (cmd === "pay_sub") {
-    const SUBSCRIPTION_PRICE = 9;
+    const priceInfo = await getSubscriptionPrice(chatId);
+    const SUBSCRIPTION_PRICE = priceInfo.price;
     const telegramId = chatId;
     const session = await getSession(chatId);
     const promoData = session?.state === "sub_promo_applied" ? session.data as Record<string, unknown> : null;
