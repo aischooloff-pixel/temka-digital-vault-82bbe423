@@ -822,6 +822,10 @@ async function admStats(tg: ReturnType<typeof TG>, chatId: number, msgId: number
     { count: invoiceCount },
     { count: rateLimits },
     { count: blockedUsers },
+    { count: pendingOrders },
+    { count: brokenWebhooks },
+    { count: noBotShops },
+    { count: noCryptoShops },
   ] = await Promise.all([
     db().from("platform_users").select("id", { count: "exact", head: true }),
     db().from("shops").select("id", { count: "exact", head: true }),
@@ -838,10 +842,19 @@ async function admStats(tg: ReturnType<typeof TG>, chatId: number, msgId: number
     db().from("processed_invoices").select("invoice_id", { count: "exact", head: true }),
     db().from("rate_limits").select("id", { count: "exact", head: true }),
     db().from("user_profiles").select("id", { count: "exact", head: true }).eq("is_blocked", true),
+    // Problem indicators
+    db().from("shop_orders").select("id", { count: "exact", head: true }).in("payment_status", ["unpaid", "awaiting"]),
+    db().from("shops").select("id", { count: "exact", head: true }).not("bot_token_encrypted", "is", null).neq("webhook_status", "active"),
+    db().from("shops").select("id", { count: "exact", head: true }).is("bot_token_encrypted", null).eq("status", "active"),
+    db().from("shops").select("id", { count: "exact", head: true }).is("cryptobot_token_encrypted", null).eq("status", "active"),
   ]);
 
   const uniqueOwners = new Set(allShops?.map(s => s.owner_id) || []).size;
   const totalRevenue = paidOrders?.reduce((s, o) => s + Number(o.total_amount), 0) || 0;
+
+  // Platform OP status
+  const platformChannels = await getPlatformChannelIds();
+  const platformOPStatus = platformChannels.length > 0 ? "✅" : "❌";
 
   // Top 5 shops by revenue
   const shopRevMap: Record<string, number> = {};
@@ -861,6 +874,15 @@ async function admStats(tg: ReturnType<typeof TG>, chatId: number, msgId: number
     topShopsText = "  Нет данных\n";
   }
 
+  // Problem indicators
+  const problems: string[] = [];
+  if ((brokenWebhooks || 0) > 0) problems.push(`⚠️ Broken webhook: ${brokenWebhooks}`);
+  if ((noBotShops || 0) > 0) problems.push(`⚠️ Без бота: ${noBotShops}`);
+  if ((noCryptoShops || 0) > 0) problems.push(`⚠️ Без CryptoBot: ${noCryptoShops}`);
+  if ((pendingOrders || 0) > 0) problems.push(`⏳ Ожидают оплаты: ${pendingOrders}`);
+  if ((blockedUsers || 0) > 0) problems.push(`🚫 Заблокированных: ${blockedUsers}`);
+  const problemsText = problems.length ? problems.join("\n") : "✅ Нет проблем";
+
   const text =
     `📊 <b>Статистика платформы</b>\n\n` +
     `👥 Пользователей: <b>${totalUsers || 0}</b>\n` +
@@ -868,18 +890,19 @@ async function admStats(tg: ReturnType<typeof TG>, chatId: number, msgId: number
     `👤 Уникальных владельцев: <b>${uniqueOwners}</b>\n\n` +
     `🤖 Подключённых ботов: ${connectedBots || 0}\n` +
     `🔗 Активных webhook: ${activeWebhooks || 0}\n` +
-    `📢 ОП включена: ${opEnabled || 0}\n\n` +
+    `📢 ОП магазинов: ${opEnabled || 0} | Платформа: ${platformOPStatus}\n\n` +
     `👥 Tenant клиентов: ${totalCustomers || 0}\n` +
     `🛍 Tenant заказов: ${totalShopOrders || 0}\n` +
     `💵 Tenant выручка: <b>$${totalRevenue.toFixed(2)}</b>\n\n` +
     `💳 Подписок: ${subPayments || 0}\n` +
     `🧾 Инвойсов: ${invoiceCount || 0}\n` +
-    `⏱ Rate limits: ${rateLimits || 0}\n` +
-    `🚫 Заблокированных: ${blockedUsers || 0}\n\n` +
+    `⏱ Rate limits: ${rateLimits || 0}\n\n` +
+    `🚨 <b>Проблемы:</b>\n${problemsText}\n\n` +
     `🏆 <b>Топ магазинов по выручке:</b>\n${topShopsText}`;
 
   return tg.edit(chatId, msgId, text, ikb([
     [btn("🔄 Обновить", "adm:stats")],
+    [btn("🚨 Риски", "adm:risks")],
     [btn("◀️ Меню", "adm:home")],
   ]));
 }
