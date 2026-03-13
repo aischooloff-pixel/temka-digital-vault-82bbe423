@@ -1362,14 +1362,17 @@ serve(async (req) => {
 
       // ─── Bottom panel buttons ─────────────
       if (text === "👤 Профиль") {
+        if (!(await enforceSubscription(tg, chatId, from.first_name))) return new Response("ok");
         await showProfile(tg, chatId);
         return new Response("ok");
       }
       if (text === "🆘 Поддержка") {
+        // Support is always available, no gate
         await tg.send(chatId, `🆘 Свяжитесь с поддержкой:\n${SUPPORT_LINK}`, ikb([[urlBtn("🆘 Написать в поддержку", SUPPORT_LINK)]]));
         return new Response("ok");
       }
       if (text === "🏪 Мои магазины") {
+        if (!(await enforceSubscription(tg, chatId, from.first_name))) return new Response("ok");
         await myShops(tg, chatId);
         return new Response("ok");
       }
