@@ -554,6 +554,8 @@ async function deleteShopExecute(tg: ReturnType<typeof TG>, chatId: number, msgI
   await db().from("shop_products").delete().eq("shop_id", shopId);
   await db().from("shop_orders").delete().eq("shop_id", shopId);
   await db().from("shop_categories").delete().eq("shop_id", shopId);
+  await db().from("shop_balance_history").delete().eq("shop_id", shopId);
+  await db().from("shop_customers").delete().eq("shop_id", shopId);
   await db().from("shops").delete().eq("id", shopId);
   return tg.edit(chatId, msgId, "✅ Магазин удалён.", ikb([[btn("◀️ К магазинам", "p:myshops:0")]]));
 }
@@ -820,6 +822,10 @@ async function admStats(tg: ReturnType<typeof TG>, chatId: number, msgId: number
     { count: invoiceCount },
     { count: rateLimits },
     { count: blockedUsers },
+    { count: pendingOrders },
+    { count: brokenWebhooks },
+    { count: noBotShops },
+    { count: noCryptoShops },
   ] = await Promise.all([
     db().from("platform_users").select("id", { count: "exact", head: true }),
     db().from("shops").select("id", { count: "exact", head: true }),
@@ -836,10 +842,19 @@ async function admStats(tg: ReturnType<typeof TG>, chatId: number, msgId: number
     db().from("processed_invoices").select("invoice_id", { count: "exact", head: true }),
     db().from("rate_limits").select("id", { count: "exact", head: true }),
     db().from("user_profiles").select("id", { count: "exact", head: true }).eq("is_blocked", true),
+    // Problem indicators
+    db().from("shop_orders").select("id", { count: "exact", head: true }).in("payment_status", ["unpaid", "awaiting"]),
+    db().from("shops").select("id", { count: "exact", head: true }).not("bot_token_encrypted", "is", null).neq("webhook_status", "active"),
+    db().from("shops").select("id", { count: "exact", head: true }).is("bot_token_encrypted", null).eq("status", "active"),
+    db().from("shops").select("id", { count: "exact", head: true }).is("cryptobot_token_encrypted", null).eq("status", "active"),
   ]);
 
   const uniqueOwners = new Set(allShops?.map(s => s.owner_id) || []).size;
   const totalRevenue = paidOrders?.reduce((s, o) => s + Number(o.total_amount), 0) || 0;
+
+  // Platform OP status
+  const platformChannels = await getPlatformChannelIds();
+  const platformOPStatus = platformChannels.length > 0 ? "✅" : "❌";
 
   // Top 5 shops by revenue
   const shopRevMap: Record<string, number> = {};
@@ -859,6 +874,15 @@ async function admStats(tg: ReturnType<typeof TG>, chatId: number, msgId: number
     topShopsText = "  Нет данных\n";
   }
 
+  // Problem indicators
+  const problems: string[] = [];
+  if ((brokenWebhooks || 0) > 0) problems.push(`⚠️ Broken webhook: ${brokenWebhooks}`);
+  if ((noBotShops || 0) > 0) problems.push(`⚠️ Без бота: ${noBotShops}`);
+  if ((noCryptoShops || 0) > 0) problems.push(`⚠️ Без CryptoBot: ${noCryptoShops}`);
+  if ((pendingOrders || 0) > 0) problems.push(`⏳ Ожидают оплаты: ${pendingOrders}`);
+  if ((blockedUsers || 0) > 0) problems.push(`🚫 Заблокированных: ${blockedUsers}`);
+  const problemsText = problems.length ? problems.join("\n") : "✅ Нет проблем";
+
   const text =
     `📊 <b>Статистика платформы</b>\n\n` +
     `👥 Пользователей: <b>${totalUsers || 0}</b>\n` +
@@ -866,18 +890,19 @@ async function admStats(tg: ReturnType<typeof TG>, chatId: number, msgId: number
     `👤 Уникальных владельцев: <b>${uniqueOwners}</b>\n\n` +
     `🤖 Подключённых ботов: ${connectedBots || 0}\n` +
     `🔗 Активных webhook: ${activeWebhooks || 0}\n` +
-    `📢 ОП включена: ${opEnabled || 0}\n\n` +
+    `📢 ОП магазинов: ${opEnabled || 0} | Платформа: ${platformOPStatus}\n\n` +
     `👥 Tenant клиентов: ${totalCustomers || 0}\n` +
     `🛍 Tenant заказов: ${totalShopOrders || 0}\n` +
     `💵 Tenant выручка: <b>$${totalRevenue.toFixed(2)}</b>\n\n` +
     `💳 Подписок: ${subPayments || 0}\n` +
     `🧾 Инвойсов: ${invoiceCount || 0}\n` +
-    `⏱ Rate limits: ${rateLimits || 0}\n` +
-    `🚫 Заблокированных: ${blockedUsers || 0}\n\n` +
+    `⏱ Rate limits: ${rateLimits || 0}\n\n` +
+    `🚨 <b>Проблемы:</b>\n${problemsText}\n\n` +
     `🏆 <b>Топ магазинов по выручке:</b>\n${topShopsText}`;
 
   return tg.edit(chatId, msgId, text, ikb([
     [btn("🔄 Обновить", "adm:stats")],
+    [btn("🚨 Риски", "adm:risks")],
     [btn("◀️ Меню", "adm:home")],
   ]));
 }
@@ -1348,8 +1373,8 @@ async function admLogsList(tg: ReturnType<typeof TG>, chatId: number, msgId: num
 // ─── SETTINGS ─────────────────────────────────
 async function admSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
   const { data: settings } = await db().from("shop_settings").select("*").order("key");
-  // Filter out platform OP keys from general settings display
-  const platformKeys = ["platform_channel_id", "platform_channel_link", "platform_op_enabled"];
+  // Filter out platform-managed keys from general settings display
+  const platformKeys = ["platform_channel_id", "platform_channel_link", "platform_op_enabled", "platform_welcome_text", "platform_welcome_media_type", "platform_welcome_media_url"];
   const generalSettings = (settings || []).filter(s => !platformKeys.includes(s.key));
   let settingsText = "";
   for (const s of generalSettings) settingsText += `• <code>${esc(s.key)}</code> = ${esc(s.value.slice(0, 50))}\n`;
@@ -1424,7 +1449,12 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
     const tgId = parseInt(parts[2]);
     const { data: up } = await db().from("user_profiles").select("is_blocked").eq("telegram_id", tgId).maybeSingle();
     const newBlocked = !(up?.is_blocked);
-    await db().from("user_profiles").update({ is_blocked: newBlocked, updated_at: new Date().toISOString() }).eq("telegram_id", tgId);
+    if (up) {
+      await db().from("user_profiles").update({ is_blocked: newBlocked, updated_at: new Date().toISOString() }).eq("telegram_id", tgId);
+    } else {
+      // Create profile row if it doesn't exist (platform user without legacy profile)
+      await db().from("user_profiles").insert({ telegram_id: tgId, is_blocked: newBlocked });
+    }
     await admLog(adminTgId, newBlocked ? "block_user" : "unblock_user", "user", String(tgId));
     return admUserCard(tg, chatId, msgId, tgId);
   }
@@ -1434,7 +1464,7 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
   if (cmd === "ushops") {
     const userId = parts[2]; const page = parseInt(parts[3]) || 0;
     const { data: shops } = await db().from("shops").select("*").eq("owner_id", userId).order("created_at");
-    if (!shops?.length) return tg.edit(chatId, msgId, "🏪 Нет магазинов у пользователя.", ikb([[btn("◀️ Назад", "adm:users:0")]]));
+    if (!shops?.length) return tg.edit(chatId, msgId, "🏪 Нет магазинов у пользователя.", ikb([[btn("◀️ Назад", `adm:ucard:${(await db().from("platform_users").select("telegram_id").eq("id", userId).maybeSingle()).data?.telegram_id || 0}`)]]));
     let text = `🏪 <b>Магазины пользователя</b> (${shops.length})\n\n`;
     const rows: Btn[][] = [];
     for (const s of shops) {
@@ -1442,7 +1472,9 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
       text += `${dot} ${esc(s.name)}\n`;
       rows.push([btn(`${dot} ${s.name}`, `adm:scard:${s.id}`)]);
     }
-    rows.push([btn("◀️ Назад", "adm:users:0")]);
+    // Back to user card, not user list
+    const { data: ownerUser } = await db().from("platform_users").select("telegram_id").eq("id", userId).maybeSingle();
+    rows.push([btn("◀️ К пользователю", `adm:ucard:${ownerUser?.telegram_id || 0}`)]);
     return tg.edit(chatId, msgId, text, ikb(rows));
   }
   if (cmd === "uorders") {
