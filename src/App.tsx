@@ -105,9 +105,6 @@ const App = () => (
                 <Route path="/privacy" element={<Legal />} />
                 <Route path="/refund" element={<Legal />} />
               <Route path="/disclaimer" element={<Legal />} />
-              <Route path="/platform/terms" element={<PlatformTerms />} />
-              <Route path="/platform/privacy" element={<PlatformPrivacy />} />
-              <Route path="/platform/disclaimer" element={<PlatformDisclaimer />} />
               <Route path="/delivery" element={<Delivery />} />
                 <Route path="/guarantees" element={<Guarantees />} />
                 <Route path="*" element={<NotFound />} />
