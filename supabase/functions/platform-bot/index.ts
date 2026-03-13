@@ -741,19 +741,106 @@ async function admLog(adminTgId: number, action: string, entityType?: string, en
   });
 }
 
+// ─── Blocked User Check ──────────────────────
+async function isUserBlocked(telegramId: number): Promise<boolean> {
+  const { data } = await db().from("user_profiles").select("is_blocked").eq("telegram_id", telegramId).maybeSingle();
+  return data?.is_blocked === true;
+}
+
 // ─── ADM Main Menu ────────────────────────────
 async function admHome(tg: ReturnType<typeof TG>, chatId: number, msgId?: number) {
   const text = `🛡 <b>Super Admin Panel</b>\n\nВыберите раздел:`;
   const kb = ikb([
-    [btn("👥 Пользователи", "adm:users:0"), btn("🏪 Магазины", "adm:shops:0")],
-    [btn("💳 Подписки/платежи", "adm:finance:sub:0"), btn("🧾 Заказы", "adm:orders:all:0")],
-    [btn("🤖 Боты/webhook", "adm:bots:0"), btn("🎟 Промокоды", "adm:promo:platform:0")],
-    [btn("⭐ Отзывы", "adm:reviews:all:0"), btn("📢 Рассылки", "adm:broadcast")],
-    [btn("🚨 Риски/блокировки", "adm:risks"), btn("📋 Логи", "adm:logs:0")],
-    [btn("⚙️ Настройки", "adm:settings"), btn("👮 Администраторы", "adm:admins")],
+    [btn("📊 Статистика", "adm:stats"), btn("👥 Пользователи", "adm:users:0")],
+    [btn("🏪 Магазины", "adm:shops:0"), btn("💳 Подписки/платежи", "adm:finance:sub:0")],
+    [btn("🧾 Заказы", "adm:orders:all:0"), btn("🤖 Боты/webhook", "adm:bots:0")],
+    [btn("🎟 Промокоды", "adm:promo:platform:0"), btn("⭐ Отзывы", "adm:reviews:shop:0")],
+    [btn("📢 Рассылки", "adm:broadcast"), btn("🚨 Риски/блокировки", "adm:risks")],
+    [btn("📋 Логи", "adm:logs:0"), btn("⚙️ Настройки", "adm:settings")],
+    [btn("👮 Администраторы", "adm:admins")],
   ]);
   if (msgId) return tg.edit(chatId, msgId, text, kb);
   return tg.send(chatId, text, kb);
+}
+
+// ─── PLATFORM STATS DASHBOARD ────────────────
+async function admStats(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
+  const [
+    { count: totalUsers },
+    { count: totalShops },
+    { count: activeShops },
+    { count: pausedShops },
+    { data: allShops },
+    { count: connectedBots },
+    { count: activeWebhooks },
+    { count: opEnabled },
+    { count: totalCustomers },
+    { count: totalShopOrders },
+    { data: paidOrders },
+    { count: subPayments },
+    { count: invoiceCount },
+    { count: rateLimits },
+    { count: blockedUsers },
+  ] = await Promise.all([
+    db().from("platform_users").select("id", { count: "exact", head: true }),
+    db().from("shops").select("id", { count: "exact", head: true }),
+    db().from("shops").select("id", { count: "exact", head: true }).eq("status", "active"),
+    db().from("shops").select("id", { count: "exact", head: true }).eq("status", "paused"),
+    db().from("shops").select("owner_id"),
+    db().from("shops").select("id", { count: "exact", head: true }).not("bot_token_encrypted", "is", null),
+    db().from("shops").select("id", { count: "exact", head: true }).eq("webhook_status", "active"),
+    db().from("shops").select("id", { count: "exact", head: true }).eq("is_subscription_required", true),
+    db().from("shop_customers").select("id", { count: "exact", head: true }),
+    db().from("shop_orders").select("id", { count: "exact", head: true }),
+    db().from("shop_orders").select("total_amount, shop_id").eq("payment_status", "paid"),
+    db().from("subscription_payments").select("id", { count: "exact", head: true }),
+    db().from("processed_invoices").select("invoice_id", { count: "exact", head: true }),
+    db().from("rate_limits").select("id", { count: "exact", head: true }),
+    db().from("user_profiles").select("id", { count: "exact", head: true }).eq("is_blocked", true),
+  ]);
+
+  const uniqueOwners = new Set(allShops?.map(s => s.owner_id) || []).size;
+  const totalRevenue = paidOrders?.reduce((s, o) => s + Number(o.total_amount), 0) || 0;
+
+  // Top 5 shops by revenue
+  const shopRevMap: Record<string, number> = {};
+  for (const o of paidOrders || []) {
+    shopRevMap[o.shop_id] = (shopRevMap[o.shop_id] || 0) + Number(o.total_amount);
+  }
+  const topShopIds = Object.entries(shopRevMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  let topShopsText = "";
+  if (topShopIds.length) {
+    const { data: topShops } = await db().from("shops").select("id, name").in("id", topShopIds.map(s => s[0]));
+    const nameMap: Record<string, string> = {};
+    for (const s of topShops || []) nameMap[s.id] = s.name;
+    for (let i = 0; i < topShopIds.length; i++) {
+      topShopsText += `  ${i + 1}. ${esc(nameMap[topShopIds[i][0]] || "?")} — $${topShopIds[i][1].toFixed(2)}\n`;
+    }
+  } else {
+    topShopsText = "  Нет данных\n";
+  }
+
+  const text =
+    `📊 <b>Статистика платформы</b>\n\n` +
+    `👥 Пользователей: <b>${totalUsers || 0}</b>\n` +
+    `🏪 Магазинов: <b>${totalShops || 0}</b> (🟢 ${activeShops || 0} / 🔴 ${pausedShops || 0})\n` +
+    `👤 Уникальных владельцев: <b>${uniqueOwners}</b>\n\n` +
+    `🤖 Подключённых ботов: ${connectedBots || 0}\n` +
+    `🔗 Активных webhook: ${activeWebhooks || 0}\n` +
+    `📢 ОП включена: ${opEnabled || 0}\n\n` +
+    `👥 Tenant клиентов: ${totalCustomers || 0}\n` +
+    `🛍 Tenant заказов: ${totalShopOrders || 0}\n` +
+    `💵 Tenant выручка: <b>$${totalRevenue.toFixed(2)}</b>\n\n` +
+    `💳 Подписок: ${subPayments || 0}\n` +
+    `🧾 Инвойсов: ${invoiceCount || 0}\n` +
+    `⏱ Rate limits: ${rateLimits || 0}\n` +
+    `🚫 Заблокированных: ${blockedUsers || 0}\n\n` +
+    `🏆 <b>Топ магазинов по выручке:</b>\n${topShopsText}`;
+
+  return tg.edit(chatId, msgId, text, ikb([
+    [btn("🔄 Обновить", "adm:stats")],
+    [btn("◀️ Меню", "adm:home")],
+  ]));
 }
 
 // ─── USERS ────────────────────────────────────
@@ -892,6 +979,7 @@ async function admShopCard(tg: ReturnType<typeof TG>, chatId: number, msgId: num
     [btn("👥 Клиенты", `adm:scusts:${shopId}:0`), btn("🎟 Промо", `adm:spromo:${shopId}:0`)],
     [btn("⭐ Отзывы", `adm:srevs:${shopId}:0`), btn("📋 Логи", `adm:slogs:${shopId}:0`)],
     [btn(shop.status === "active" ? "⏸ Пауза" : "▶️ Активировать", `adm:stoggle:${shopId}`)],
+    [btn("📢 ОП: " + (shop.is_subscription_required ? "✅" : "❌"), `adm:optoggle:${shopId}`), btn("📢 Канал ОП", `adm:opsetc:${shopId}`)],
     [btn("🗑 Удалить", `adm:sdel:${shopId}`), btn("🔗 Storefront", `adm:slink:${shopId}`)],
     [btn("◀️ Назад", "adm:shops:0")],
   ];
@@ -1167,8 +1255,10 @@ async function admReviewsList(tg: ReturnType<typeof TG>, chatId: number, msgId: 
 // ─── BROADCAST ────────────────────────────────
 async function admBroadcastMenu(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
   const { count: allUsers } = await db().from("platform_users").select("id", { count: "exact", head: true });
-  const { count: shopOwners } = await db().from("shops").select("owner_id", { count: "exact", head: true });
-  const text = `📢 <b>Рассылки</b>\n\n👥 Всего пользователей: ${allUsers || 0}\n🏪 Владельцев магазинов: ${shopOwners || 0}\n\nВыберите аудиторию:`;
+  // Count unique shop owners, not shops
+  const { data: ownerData } = await db().from("shops").select("owner_id");
+  const uniqueOwners = new Set(ownerData?.map(s => s.owner_id) || []).size;
+  const text = `📢 <b>Рассылки</b>\n\n👥 Всего пользователей: ${allUsers || 0}\n🏪 Владельцев магазинов: ${uniqueOwners}\n\nВыберите аудиторию:`;
   return tg.edit(chatId, msgId, text, ikb([
     [btn("👥 Всем пользователям", "adm:bcast:all")],
     [btn("🏪 Владельцам магазинов", "adm:bcast:owners")],
@@ -1222,12 +1312,27 @@ async function admSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: num
   let settingsText = "";
   for (const s of settings || []) settingsText += `• <code>${esc(s.key)}</code> = ${esc(s.value.slice(0, 50))}\n`;
   if (!settingsText) settingsText = "Нет настроек.\n";
+
+  // Platform OP info
+  const platformChannelId = Deno.env.get("PLATFORM_CHANNEL_ID") || "—";
+  const { count: opShops } = await db().from("shops").select("id", { count: "exact", head: true }).eq("is_subscription_required", true);
+  const { data: opShopList } = await db().from("shops").select("id, name, required_channel_id, required_channel_link").eq("is_subscription_required", true).limit(10);
+  let opText = `📢 <b>ОП (обязательная подписка):</b>\n`;
+  opText += `Platform Channel ID: <code>${esc(platformChannelId)}</code>\n`;
+  opText += `Магазинов с ОП: ${opShops || 0}\n`;
+  if (opShopList?.length) {
+    for (const s of opShopList) {
+      opText += `  • ${esc(s.name)}: ${s.required_channel_id || "канал не указан"}${s.required_channel_link ? ` (${esc(s.required_channel_link)})` : ""}\n`;
+    }
+  }
+
   const text =
     `⚙️ <b>Системные настройки</b>\n\n` +
     `🏷 Платформа: <b>${PLATFORM_NAME}</b>\n` +
     `🌐 WEBAPP: <code>${WEBAPP_DOMAIN}</code>\n` +
     `🔗 Поддержка: ${SUPPORT_LINK}\n` +
-    `📢 Каналы: ${Deno.env.get("PLATFORM_CHANNEL_ID") || "—"}\n\n` +
+    `📢 Platform Channel: <code>${esc(platformChannelId)}</code>\n\n` +
+    `${opText}\n` +
     `📝 <b>shop_settings:</b>\n${settingsText}`;
   return tg.edit(chatId, msgId, text, ikb([
     [btn("✏️ Изменить setting", "adm:setedit")],
@@ -1267,6 +1372,7 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
 
   if (cmd === "home") return admHome(tg, chatId, msgId);
   if (cmd === "noop") return;
+  if (cmd === "stats") return admStats(tg, chatId, msgId);
 
   // ─── Users ────────────────────────────────
   if (cmd === "users") return admUsersList(tg, chatId, msgId, parseInt(parts[2]) || 0);
@@ -1316,39 +1422,40 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
   if (cmd === "ssearch") { await setSession(chatId, "adm_search_shop", {}); return tg.edit(chatId, msgId, "🔍 Введите название, slug, TG ID владельца или @bot_username:", ikb([[btn("❌ Отмена", "adm:shops:0")]])); }
   if (cmd === "stoggle") {
     const shopId = parts[2];
-    const { data: s } = await db().from("shops").select("status").eq("id", shopId).single();
-    const newStatus = s?.status === "active" ? "paused" : "active";
-    await db().from("shops").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", shopId);
-    await admLog(adminTgId, `shop_${newStatus}`, "shop", shopId);
-    return admShopCard(tg, chatId, msgId, shopId);
+    // Ask for comment before toggling
+    const { data: s } = await db().from("shops").select("status, name").eq("id", shopId).single();
+    if (!s) return;
+    const newStatus = s.status === "active" ? "paused" : "active";
+    const actionLabel = newStatus === "paused" ? "приостановить" : "активировать";
+    await setSession(chatId, "adm_toggle_comment", { shopId, newStatus, shopName: s.name });
+    return tg.edit(chatId, msgId, `📝 Укажите причину, чтобы <b>${actionLabel}</b> магазин «${esc(s.name)}»:\n\n(или отправьте <code>-</code> без комментария)`, ikb([[btn("❌ Отмена", `adm:scard:${shopId}`)]]));
   }
   if (cmd === "sdel") {
     const shopId = parts[2];
     const { data: s } = await db().from("shops").select("name").eq("id", shopId).single();
-    return tg.edit(chatId, msgId, `🗑 <b>Удалить магазин</b> «${esc(s?.name || "")}»?\n\n⚠️ Это необратимо!`, ikb([[btn("🗑 Да, удалить", `adm:sdelconfirm:${shopId}`), btn("❌ Нет", `adm:scard:${shopId}`)]]));
+    await setSession(chatId, "adm_delete_comment", { shopId, shopName: s?.name || "" });
+    return tg.edit(chatId, msgId, `🗑 <b>Удалить магазин</b> «${esc(s?.name || "")}»?\n\n⚠️ Это необратимо!\n\n📝 Укажите причину удаления:`, ikb([[btn("❌ Отмена", `adm:scard:${shopId}`)]]));
   }
-  if (cmd === "sdelconfirm") {
+  // OP toggle
+  if (cmd === "optoggle") {
     const shopId = parts[2];
-    await admLog(adminTgId, "delete_shop", "shop", shopId);
-    // Reuse existing delete logic
-    const { data: shop } = await db().from("shops").select("bot_token_encrypted, name").eq("id", shopId).single();
-    if (shop?.bot_token_encrypted) {
-      const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
-      if (encKey) { try { const { data: rawToken } = await db().rpc("decrypt_token", { p_encrypted: shop.bot_token_encrypted, p_key: encKey }); if (rawToken) await removeSellerWebhook(rawToken); } catch {} }
-    }
-    const { data: products } = await db().from("shop_products").select("id").eq("shop_id", shopId);
-    const prodIds = products?.map(p => p.id) || [];
-    if (prodIds.length) { await db().from("shop_inventory").delete().in("product_id", prodIds); await db().from("shop_order_items").delete().in("product_id", prodIds); }
-    await db().from("shop_reviews").delete().eq("shop_id", shopId);
-    await db().from("shop_promocodes").delete().eq("shop_id", shopId);
-    await db().from("shop_admin_logs").delete().eq("shop_id", shopId);
-    await db().from("shop_products").delete().eq("shop_id", shopId);
-    await db().from("shop_orders").delete().eq("shop_id", shopId);
-    await db().from("shop_categories").delete().eq("shop_id", shopId);
-    await db().from("shop_balance_history").delete().eq("shop_id", shopId);
-    await db().from("shop_customers").delete().eq("shop_id", shopId);
-    await db().from("shops").delete().eq("id", shopId);
-    return tg.edit(chatId, msgId, "✅ Магазин удалён.", ikb([[btn("◀️ К магазинам", "adm:shops:0")]]));
+    const { data: s } = await db().from("shops").select("is_subscription_required, name").eq("id", shopId).single();
+    if (!s) return;
+    const newVal = !s.is_subscription_required;
+    await db().from("shops").update({ is_subscription_required: newVal, updated_at: new Date().toISOString() }).eq("id", shopId);
+    await admLog(adminTgId, newVal ? "enable_op" : "disable_op", "shop", shopId);
+    return admShopCard(tg, chatId, msgId, shopId);
+  }
+  if (cmd === "opsetc") {
+    const shopId = parts[2];
+    await setSession(chatId, "adm_op_channel", { shopId });
+    return tg.edit(chatId, msgId, `📢 Введите ID канала и ссылку через пробел:\n\n<code>@channel_name https://t.me/channel_name</code>\n\nИли только ID: <code>@channel_name</code>`, ikb([[btn("🗑 Очистить", `adm:opclear:${shopId}`), btn("❌ Отмена", `adm:scard:${shopId}`)]]));
+  }
+  if (cmd === "opclear") {
+    const shopId = parts[2];
+    await db().from("shops").update({ required_channel_id: null, required_channel_link: null, updated_at: new Date().toISOString() }).eq("id", shopId);
+    await admLog(adminTgId, "clear_op_channel", "shop", shopId);
+    return admShopCard(tg, chatId, msgId, shopId);
   }
   if (cmd === "slink") {
     const shopId = parts[2];
@@ -1477,14 +1584,14 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
   if (cmd === "promo") return admPromoList(tg, chatId, msgId, parts[2] || "platform", parseInt(parts[3]) || 0);
 
   // ─── Reviews ──────────────────────────────
-  if (cmd === "reviews") return admReviewsList(tg, chatId, msgId, parts[2] || "all", parseInt(parts[3]) || 0);
+  if (cmd === "reviews") return admReviewsList(tg, chatId, msgId, parts[2] || "shop", parseInt(parts[3]) || 0);
   if (cmd === "rapprove" || cmd === "rreject" || cmd === "rdelete") {
     const type = parts[2]; const reviewId = parts[3];
     const table = type === "P" ? "reviews" : "shop_reviews";
     if (cmd === "rdelete") { await db().from(table).delete().eq("id", reviewId); await admLog(adminTgId, "delete_review", table, reviewId); }
     else { const newStatus = cmd === "rapprove" ? "approved" : "rejected"; await db().from(table).update({ moderation_status: newStatus }).eq("id", reviewId); await admLog(adminTgId, `${newStatus}_review`, table, reviewId); }
-    // Re-render
-    return admReviewsList(tg, chatId, msgId, "all", 0);
+    // Re-render in shop mode by default
+    return admReviewsList(tg, chatId, msgId, "shop", 0);
   }
 
   // ─── Broadcast ────────────────────────────
@@ -1742,6 +1849,96 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     await admLog(chatId, "add_admin", "admin", String(tgId));
     return tg.send(chatId, `✅ Админ ${tgId} добавлен.`, ikb([[btn("◀️ К администраторам", "adm:admins")]]));
   }
+
+  // ─── Toggle shop status (with comment) ────
+  if (state === "adm_toggle_comment") {
+    const shopId = sData.shopId as string;
+    const newStatus = sData.newStatus as string;
+    const shopName = sData.shopName as string;
+    const comment = val === "-" ? "" : val;
+    await clearSession(chatId);
+
+    await db().from("shops").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", shopId);
+    await admLog(chatId, `shop_${newStatus}`, "shop", shopId, { comment });
+
+    // Notify shop owner
+    const { data: shop } = await db().from("shops").select("owner_id").eq("id", shopId).single();
+    if (shop) {
+      const { data: owner } = await db().from("platform_users").select("telegram_id").eq("id", shop.owner_id).maybeSingle();
+      if (owner) {
+        const token = Deno.env.get("PLATFORM_BOT_TOKEN")!;
+        const statusLabel = newStatus === "paused" ? "⚠️ приостановлен" : "✅ активирован";
+        let msg = `${newStatus === "paused" ? "⚠️" : "✅"} Ваш магазин «<b>${esc(shopName)}</b>» был ${statusLabel} администратором платформы.`;
+        if (comment) msg += `\n\n📝 <b>Причина:</b> ${esc(comment)}`;
+        if (newStatus === "paused") msg += `\n\nЕсли у вас есть вопросы, обратитесь в поддержку.`;
+        try { await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: owner.telegram_id, text: msg, parse_mode: "HTML" }) }); } catch {}
+      }
+    }
+
+    const resp = await tg.send(chatId, `✅ Магазин «${esc(shopName)}» ${newStatus === "paused" ? "приостановлен" : "активирован"}.${comment ? ` Причина: ${esc(comment)}` : ""}`, ikb([[btn("◀️ К магазину", `adm:scard:${shopId}`)]]));
+    return;
+  }
+
+  // ─── Delete shop (with comment) ───────────
+  if (state === "adm_delete_comment") {
+    const shopId = sData.shopId as string;
+    const shopName = sData.shopName as string;
+    const comment = val === "-" ? "" : val;
+    await clearSession(chatId);
+
+    await admLog(chatId, "delete_shop", "shop", shopId, { comment, shop_name: shopName });
+
+    // Get owner info before deletion
+    const { data: shop } = await db().from("shops").select("bot_token_encrypted, owner_id").eq("id", shopId).single();
+    let ownerTgId: number | null = null;
+    if (shop) {
+      const { data: owner } = await db().from("platform_users").select("telegram_id").eq("id", shop.owner_id).maybeSingle();
+      ownerTgId = owner?.telegram_id || null;
+
+      // Cleanup webhook
+      if (shop.bot_token_encrypted) {
+        const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
+        if (encKey) { try { const { data: rawToken } = await db().rpc("decrypt_token", { p_encrypted: shop.bot_token_encrypted, p_key: encKey }); if (rawToken) await removeSellerWebhook(rawToken); } catch {} }
+      }
+    }
+
+    // Delete all related data
+    const { data: products } = await db().from("shop_products").select("id").eq("shop_id", shopId);
+    const prodIds = products?.map(p => p.id) || [];
+    if (prodIds.length) { await db().from("shop_inventory").delete().in("product_id", prodIds); await db().from("shop_order_items").delete().in("product_id", prodIds); }
+    await db().from("shop_reviews").delete().eq("shop_id", shopId);
+    await db().from("shop_promocodes").delete().eq("shop_id", shopId);
+    await db().from("shop_admin_logs").delete().eq("shop_id", shopId);
+    await db().from("shop_products").delete().eq("shop_id", shopId);
+    await db().from("shop_orders").delete().eq("shop_id", shopId);
+    await db().from("shop_categories").delete().eq("shop_id", shopId);
+    await db().from("shop_balance_history").delete().eq("shop_id", shopId);
+    await db().from("shop_customers").delete().eq("shop_id", shopId);
+    await db().from("shops").delete().eq("id", shopId);
+
+    // Notify owner
+    if (ownerTgId) {
+      const token = Deno.env.get("PLATFORM_BOT_TOKEN")!;
+      let msg = `❌ Ваш магазин «<b>${esc(shopName)}</b>» был удалён администратором платформы.`;
+      if (comment) msg += `\n\n📝 <b>Причина:</b> ${esc(comment)}`;
+      msg += `\n\nЕсли у вас есть вопросы, обратитесь в поддержку.`;
+      try { await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: ownerTgId, text: msg, parse_mode: "HTML" }) }); } catch {}
+    }
+
+    return tg.send(chatId, `✅ Магазин «${esc(shopName)}» удалён.${comment ? ` Причина: ${esc(comment)}` : ""}`, ikb([[btn("◀️ К магазинам", "adm:shops:0")]]));
+  }
+
+  // ─── Set OP channel ───────────────────────
+  if (state === "adm_op_channel") {
+    const shopId = sData.shopId as string;
+    await clearSession(chatId);
+    const parts = val.split(/\s+/);
+    const channelId = parts[0];
+    const channelLink = parts[1] || null;
+    await db().from("shops").update({ required_channel_id: channelId, required_channel_link: channelLink, updated_at: new Date().toISOString() }).eq("id", shopId);
+    await admLog(chatId, "set_op_channel", "shop", shopId, { channel_id: channelId, channel_link: channelLink });
+    return tg.send(chatId, `✅ Канал ОП установлен: <code>${esc(channelId)}</code>`, ikb([[btn("◀️ К магазину", `adm:scard:${shopId}`)]]));
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -1771,6 +1968,11 @@ serve(async (req) => {
         if (data.startsWith("adm:")) {
           await handleAdmCallback(tg, chatId, msgId, data, cb.id, cb.from.id);
         } else if (data.startsWith("p:")) {
+          // Blocked user guard for platform callbacks (except subscription check)
+          if (data !== "p:checksub" && await isUserBlocked(cb.from.id)) {
+            await tg.answer(cb.id, "🚫 Ваш аккаунт заблокирован.");
+            return new Response("ok");
+          }
           await handleCallback(tg, chatId, msgId, data, cb.id, cb.from);
         }
       }
@@ -1801,6 +2003,11 @@ serve(async (req) => {
         const subscribed = await enforceSubscription(tg, chatId, from.first_name);
         if (!subscribed) return new Response("ok");
         await upsertUser(from);
+        // Blocked user check after upsert (so profile exists)
+        if (await isUserBlocked(from.id)) {
+          await tg.send(chatId, "🚫 Ваш аккаунт заблокирован. Обратитесь в поддержку.");
+          return new Response("ok");
+        }
         await sendWelcome(tg, chatId, from.first_name || "друг");
         return new Response("ok");
       }
@@ -1810,6 +2017,12 @@ serve(async (req) => {
         const resp = await tg.send(chatId, "⏳");
         const mid = resp?.result?.message_id;
         if (mid) await howItWorks(tg, chatId, mid);
+        return new Response("ok");
+      }
+
+      // ─── Blocked user guard for all other text ─
+      if (text !== "🆘 Поддержка" && await isUserBlocked(from.id)) {
+        await tg.send(chatId, "🚫 Ваш аккаунт заблокирован. Обратитесь в поддержку.");
         return new Response("ok");
       }
 
