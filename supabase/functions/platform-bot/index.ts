@@ -2436,6 +2436,21 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     await admLog(chatId, "set_op_channel", "shop", shopId, { channel_id: channelId, channel_link: channelLink });
     return tg.send(chatId, `✅ Канал ОП установлен: <code>${esc(channelId)}</code>`, ikb([[btn("◀️ К магазину", `adm:scard:${shopId}`)]]));
   }
+
+  // ─── User: enter subscription promo code ──
+  if (state === "sub_enter_promo") {
+    await clearSession(chatId);
+    const code = val.trim().toUpperCase();
+    if (!code) return tg.send(chatId, "❌ Введите код.", ikb([[btn("◀️ Назад", "p:sub")]]));
+    const { data: result } = await db().rpc("validate_platform_subscription_promo", { p_code: code, p_telegram_id: chatId });
+    const r = result as any;
+    if (!r || !r.valid) return tg.send(chatId, `❌ ${r?.error || "Промокод не найден"}`, ikb([[btn("🔄 Попробовать другой", "p:sub_promo")], [btn("◀️ Назад", "p:sub")]]));
+    const SUBSCRIPTION_PRICE = 9;
+    const discountAmount = r.discount_type === "percent" ? Math.min(SUBSCRIPTION_PRICE, SUBSCRIPTION_PRICE * r.discount_value / 100) : Math.min(SUBSCRIPTION_PRICE, Number(r.discount_value));
+    const finalAmount = Math.max(0, SUBSCRIPTION_PRICE - discountAmount);
+    await setSession(chatId, "sub_promo_applied", { promo_code: r.code, promo_id: r.id, discount_amount: discountAmount });
+    return tg.send(chatId, `✅ Промокод <code>${esc(r.code)}</code> применён!\n\n💰 Стоимость: $${SUBSCRIPTION_PRICE.toFixed(2)}\n🏷 Скидка: -$${discountAmount.toFixed(2)}\n💵 К оплате: <b>$${finalAmount.toFixed(2)}</b>\n\nНажмите «Оплатить» для продолжения:`, ikb([[btn(`💳 Оплатить $${finalAmount.toFixed(2)}`, "p:pay_sub")], [btn("◀️ Без промокода", "p:sub")]]));
+  }
 }
 
 // ═══════════════════════════════════════════════
