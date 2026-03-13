@@ -1255,8 +1255,10 @@ async function admReviewsList(tg: ReturnType<typeof TG>, chatId: number, msgId: 
 // ─── BROADCAST ────────────────────────────────
 async function admBroadcastMenu(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
   const { count: allUsers } = await db().from("platform_users").select("id", { count: "exact", head: true });
-  const { count: shopOwners } = await db().from("shops").select("owner_id", { count: "exact", head: true });
-  const text = `📢 <b>Рассылки</b>\n\n👥 Всего пользователей: ${allUsers || 0}\n🏪 Владельцев магазинов: ${shopOwners || 0}\n\nВыберите аудиторию:`;
+  // Count unique shop owners, not shops
+  const { data: ownerData } = await db().from("shops").select("owner_id");
+  const uniqueOwners = new Set(ownerData?.map(s => s.owner_id) || []).size;
+  const text = `📢 <b>Рассылки</b>\n\n👥 Всего пользователей: ${allUsers || 0}\n🏪 Владельцев магазинов: ${uniqueOwners}\n\nВыберите аудиторию:`;
   return tg.edit(chatId, msgId, text, ikb([
     [btn("👥 Всем пользователям", "adm:bcast:all")],
     [btn("🏪 Владельцам магазинов", "adm:bcast:owners")],
