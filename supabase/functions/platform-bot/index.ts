@@ -200,20 +200,63 @@ async function checkAllChannels(tg: ReturnType<typeof TG>, userId: number): Prom
       const status = result?.result?.status;
       if (!["member", "administrator", "creator"].includes(status)) return false;
     } catch {
-      // skip failed checks
+      // If we can't check, fail open to avoid blocking users due to API errors
+      console.error(`Failed to check channel ${ch} for user ${userId}`);
     }
   }
   return true;
 }
 
-function channelButtons(): Btn[][] {
+function getChannelLinks(): { id: string; link: string }[] {
   const raw = Deno.env.get("PLATFORM_CHANNEL_ID") || "";
-  const channels = raw.split(",").map(s => s.trim()).filter(Boolean);
-  const row: Btn[] = channels.map((ch, i) => {
+  return raw.split(",").map(s => s.trim()).filter(Boolean).map(ch => {
     const link = ch.startsWith("@") ? `https://t.me/${ch.slice(1)}` : ch.startsWith("-100") ? `https://t.me/c/${ch.slice(4)}` : `https://t.me/${ch}`;
-    return urlBtn(`📢 Канал ${channels.length > 1 ? i + 1 : ""}`.trim(), link);
+    return { id: ch, link };
   });
-  return row.length ? [row, [btn("✅ Проверить подписку", "p:checksub")]] : [];
+}
+
+function hasChannelRequirement(): boolean {
+  const raw = Deno.env.get("PLATFORM_CHANNEL_ID") || "";
+  return raw.split(",").map(s => s.trim()).filter(Boolean).length > 0;
+}
+
+function channelButtons(): Btn[][] {
+  const channels = getChannelLinks();
+  if (!channels.length) return [];
+  const row: Btn[] = channels.map((ch, i) =>
+    urlBtn(`📢 ${channels.length > 1 ? `Канал ${i + 1}` : "Подписаться"}`, ch.link)
+  );
+  return [row, [btn("✅ Проверить подписку", "p:checksub")]];
+}
+
+async function showSubscribeGate(tg: ReturnType<typeof TG>, chatId: number, firstName?: string): Promise<void> {
+  const channels = getChannelLinks();
+  const channelList = channels.length > 1
+    ? channels.map((ch, i) => `  ${i + 1}. ${ch.id}`).join("\n")
+    : "";
+
+  const text =
+    `🔒 <b>Подписка на канал обязательна</b>\n\n` +
+    `Для использования <b>${PLATFORM_NAME}</b> необходимо подписаться на ${channels.length > 1 ? "наши каналы" : "наш канал"}.\n` +
+    (channelList ? `\n${channelList}\n` : "") +
+    `\nПосле подписки нажми кнопку «✅ Проверить подписку».`;
+
+  const rows: Btn[][] = [];
+  for (const ch of channels) {
+    rows.push([urlBtn(`📢 ${channels.length > 1 ? ch.id : "Подписаться на канал"}`, ch.link)]);
+  }
+  rows.push([btn("✅ Проверить подписку", "p:checksub")]);
+
+  await tg.send(chatId, text, ikb(rows));
+}
+
+// Returns true if user is subscribed (or no requirement). Returns false if gate was shown.
+async function enforceSubscription(tg: ReturnType<typeof TG>, chatId: number, firstName?: string): Promise<boolean> {
+  if (!hasChannelRequirement()) return true;
+  const subscribed = await checkAllChannels(tg, chatId);
+  if (subscribed) return true;
+  await showSubscribeGate(tg, chatId, firstName);
+  return false;
 }
 
 // ─── Upsert platform user ─────────────────────
@@ -884,6 +927,15 @@ function howToAddProducts(tg: ReturnType<typeof TG>, chatId: number, msgId: numb
 // TEXT FSM HANDLER
 // ═══════════════════════════════════════════════
 async function handleText(tg: ReturnType<typeof TG>, chatId: number, text: string, from: { id: number; first_name: string; last_name?: string; username?: string; is_premium?: boolean; language_code?: string }) {
+  // Gate: check subscription before processing any FSM input
+  if (hasChannelRequirement()) {
+    const subscribed = await checkAllChannels(tg, chatId);
+    if (!subscribed) {
+      await showSubscribeGate(tg, chatId, from.first_name);
+      return;
+    }
+  }
+
   const session = await getSession(chatId);
   if (!session) return;
 
@@ -1025,19 +1077,34 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
     if (!validWizardCallback) return;
   }
 
-  // ─── Channel check ────────────────────────
+  // ─── Channel check callback ───────────────
   if (cmd === "checksub") {
     const ok = await checkAllChannels(tg, chatId);
     if (!ok) {
+      const channels = getChannelLinks();
+      const rows: Btn[][] = [];
+      for (const ch of channels) {
+        rows.push([urlBtn(`📢 ${channels.length > 1 ? ch.id : "Подписаться на канал"}`, ch.link)]);
+      }
+      rows.push([btn("✅ Проверить подписку", "p:checksub")]);
       return tg.edit(chatId, msgId,
-        "❌ Ты ещё не подписался на все каналы.\nПодпишись и нажми кнопку снова.",
-        ikb([...channelButtons()]),
+        "❌ <b>Подписка не найдена</b>\n\nПодпишись на канал и нажми «Проверить подписку» снова.",
+        ikb(rows),
       );
     }
     await upsertUser(from);
     await clearSession(chatId);
     await tg.deleteMessage(chatId, msgId);
     return sendWelcome(tg, chatId, from.first_name || "друг");
+  }
+
+  // ─── Subscribe gate for all other callbacks ───
+  if (cmd !== "noop" && hasChannelRequirement()) {
+    const subscribed = await checkAllChannels(tg, chatId);
+    if (!subscribed) {
+      await showSubscribeGate(tg, chatId, from.first_name);
+      return;
+    }
   }
 
   // ─── Home ─────────────────────────────────
@@ -1299,8 +1366,10 @@ serve(async (req) => {
 
       // ─── /start ───────────────────────────
       if (text === "/start" || text.startsWith("/start ")) {
-        await upsertUser(from);
         await clearSession(chatId);
+        const subscribed = await enforceSubscription(tg, chatId, from.first_name);
+        if (!subscribed) return new Response("ok");
+        await upsertUser(from);
         await sendWelcome(tg, chatId, from.first_name || "друг");
         return new Response("ok");
       }
@@ -1317,14 +1386,17 @@ serve(async (req) => {
 
       // ─── Bottom panel buttons ─────────────
       if (text === "👤 Профиль") {
+        if (!(await enforceSubscription(tg, chatId, from.first_name))) return new Response("ok");
         await showProfile(tg, chatId);
         return new Response("ok");
       }
       if (text === "🆘 Поддержка") {
+        // Support is always available, no gate
         await tg.send(chatId, `🆘 Свяжитесь с поддержкой:\n${SUPPORT_LINK}`, ikb([[urlBtn("🆘 Написать в поддержку", SUPPORT_LINK)]]));
         return new Response("ok");
       }
       if (text === "🏪 Мои магазины") {
+        if (!(await enforceSubscription(tg, chatId, from.first_name))) return new Response("ok");
         await myShops(tg, chatId);
         return new Response("ok");
       }
