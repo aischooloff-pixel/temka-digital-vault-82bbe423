@@ -677,7 +677,6 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
 
   return tg.edit(chatId, msgId, text, ikb([
     [btn("📋 Скопировать ссылку", `p:copylink:${shop.id}`)],
-    [btn("📦 Как добавить товары", `p:howaddprod:${shop.id}`)],
     [btn("⚙️ Настройки", `p:settings:${shop.id}`)],
     [btn("◀️ Меню", "p:home")],
   ]));
