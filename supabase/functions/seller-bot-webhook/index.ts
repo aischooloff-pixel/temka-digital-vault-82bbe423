@@ -1429,7 +1429,7 @@ serve(async (req) => {
         await tg.send(chatId, "⛔ У вас нет доступа к админ-панели этого магазина.");
         return new Response("ok");
       }
-      await clearSession(chatId);
+      await clearSession(chatId, shopId);
       await adminHome(tg, chatId, shopId);
       return new Response("ok");
     }
