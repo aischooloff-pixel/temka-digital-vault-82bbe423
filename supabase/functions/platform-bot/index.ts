@@ -946,8 +946,29 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
     return wizardStep(tg, chatId, step, sData, msgId);
   }
 
-  // Confirm creation
+  // Confirm creation → show legal agreement
   if (cmd === "confirm_create") {
+    const session = await getSession(chatId);
+    if (!session) return tg.edit(chatId, msgId, "❌ Сессия истекла", ikb([[btn("◀️ Меню", "p:home")]]));
+
+    await setSession(chatId, "wiz_legal", session.data as Record<string, unknown>);
+
+    const text =
+      `📋 <b>Перед созданием магазина</b>\n\n` +
+      `Ознакомьтесь с документами платформы, нажав на ссылки ниже.\n\n` +
+      `Нажимая «Я подтверждаю», вы соглашаетесь с условиями использования, политикой конфиденциальности и отказом от ответственности.`;
+
+    return tg.edit(chatId, msgId, text, ikb([
+      [urlBtn("Условия использования", `${WEBAPP_DOMAIN}/platform/terms`)],
+      [urlBtn("Политика конфиденциальности", `${WEBAPP_DOMAIN}/platform/privacy`)],
+      [urlBtn("Отказ от ответственности", `${WEBAPP_DOMAIN}/platform/disclaimer`)],
+      [btn("✅ Я подтверждаю", "p:accept_terms")],
+      [btn("❌ Отмена", "p:home")],
+    ]));
+  }
+
+  // Accept terms → actually create shop
+  if (cmd === "accept_terms") {
     return finalizeShop(tg, chatId, msgId);
   }
 
