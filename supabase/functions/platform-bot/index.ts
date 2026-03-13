@@ -335,7 +335,7 @@ async function welcomeButtons(chatId: number): Promise<Btn[][]> {
     const { data: pu } = await db().from("platform_users").select("id").eq("telegram_id", chatId).maybeSingle();
     const { data: shop } = await db().from("shops").select("id, name").eq("owner_id", pu?.id || "").maybeSingle();
     return [
-      [btn(`🏪 ${shop ? shop.name : "Мой магазин"}`, `p:shop:${shop?.id || ""}`), btn("📖 Как это работает", "p:howitworks")],
+      [btn("🏪 Мой магазин", `p:shop:${shop?.id || ""}`), btn("📖 Как это работает", "p:howitworks")],
       [btn("👤 Мой профиль", "p:profile")],
     ];
   }
