@@ -56,6 +56,83 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 const PLATFORM_NAME = "ShopBot Platform";
 const WEBAPP_DOMAIN = Deno.env.get("WEBAPP_URL") || "https://temka-digital-vault.lovable.app";
 const SUPPORT_LINK = "https://t.me/support";
+const EARLY_BIRD_PRICE = 3;
+const STANDARD_PRICE = 5;
+const EARLY_BIRD_LIMIT = 10;
+const TRIAL_DAYS = 7;
+
+// ─── Subscription Helpers ─────────────────────
+async function getSubscriptionPrice(telegramId: number): Promise<{ price: number; tier: string }> {
+  const { data: user } = await db().from("platform_users").select("billing_price_usd, pricing_tier").eq("telegram_id", telegramId).maybeSingle();
+  if (user?.billing_price_usd != null && user?.pricing_tier) return { price: Number(user.billing_price_usd), tier: user.pricing_tier };
+  // Count users who have already paid
+  const { count } = await db().from("platform_users").select("id", { count: "exact", head: true }).not("first_paid_at", "is", null);
+  const paidCount = count || 0;
+  return paidCount < EARLY_BIRD_LIMIT ? { price: EARLY_BIRD_PRICE, tier: "early_3" } : { price: STANDARD_PRICE, tier: "standard_5" };
+}
+
+function subscriptionDaysLeft(expiresAt: string | null): number {
+  if (!expiresAt) return 0;
+  return Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000);
+}
+
+function subStatusLabel(status: string): string {
+  const map: Record<string, string> = { active: "✅ Активна", trial: "🆓 Пробный период", expired: "❌ Истекла", grace_period: "⚠️ Льготный период", cancelled: "🚫 Отменена", blocked: "🔒 Заблокирована" };
+  return map[status] || status;
+}
+
+async function checkAndEnforceSubscription(telegramId: number): Promise<{ status: string; expired: boolean }> {
+  const { data: user } = await db().from("platform_users").select("subscription_status, subscription_expires_at, expiry_notified_at, id").eq("telegram_id", telegramId).maybeSingle();
+  if (!user) return { status: "trial", expired: false };
+  const status = user.subscription_status;
+  if (status === "blocked" || status === "cancelled") return { status, expired: true };
+  if (!user.subscription_expires_at) return { status, expired: false };
+  const daysLeft = subscriptionDaysLeft(user.subscription_expires_at);
+  if (daysLeft <= 0 && (status === "trial" || status === "active" || status === "grace_period")) {
+    // Expire the subscription
+    await db().from("platform_users").update({ subscription_status: "expired", updated_at: new Date().toISOString() }).eq("telegram_id", telegramId);
+    // Pause all shops of this user
+    const { data: shops } = await db().from("shops").select("id, bot_token_encrypted, name").eq("owner_id", user.id).eq("status", "active");
+    const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
+    for (const shop of shops || []) {
+      await db().from("shops").update({ status: "paused", updated_at: new Date().toISOString() }).eq("id", shop.id);
+      // Deactivate seller bot webhook
+      if (shop.bot_token_encrypted && encKey) {
+        try {
+          const { data: rawToken } = await db().rpc("decrypt_token", { p_encrypted: shop.bot_token_encrypted, p_key: encKey });
+          if (rawToken) await removeSellerWebhook(rawToken);
+        } catch {}
+      }
+    }
+    // Send expiry notification (once)
+    if (!user.expiry_notified_at) {
+      const token = Deno.env.get("PLATFORM_BOT_TOKEN");
+      if (token) {
+        const shopNames = (shops || []).map(s => s.name).join(", ") || "—";
+        const msg = `❌ <b>Подписка закончилась</b>\n\nВаша подписка на <b>${PLATFORM_NAME}</b> истекла.\n\n🏪 Магазины переведены в ограниченный режим:\n${shopNames}\n\n🤖 Боты магазинов деактивированы.\n\nДля возобновления работы продлите подписку.`;
+        try { await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: telegramId, text: msg, parse_mode: "HTML" }) }); } catch {}
+      }
+      await db().from("platform_users").update({ expiry_notified_at: new Date().toISOString() }).eq("telegram_id", telegramId);
+    }
+    return { status: "expired", expired: true };
+  }
+  return { status, expired: daysLeft <= 0 };
+}
+
+async function sendTrialReminder(telegramId: number): Promise<void> {
+  const { data: user } = await db().from("platform_users").select("subscription_status, subscription_expires_at, reminder_sent_at, billing_price_usd, pricing_tier").eq("telegram_id", telegramId).maybeSingle();
+  if (!user || !user.subscription_expires_at) return;
+  if (user.reminder_sent_at) return; // already sent
+  const daysLeft = subscriptionDaysLeft(user.subscription_expires_at);
+  if (daysLeft > 7 || daysLeft <= 0) return; // only remind within 7 days
+  const priceInfo = await getSubscriptionPrice(telegramId);
+  const token = Deno.env.get("PLATFORM_BOT_TOKEN");
+  if (!token) return;
+  const statusLabel = user.subscription_status === "trial" ? "пробный период" : "подписка";
+  const msg = `⏰ <b>Напоминание</b>\n\nВаш ${statusLabel} на <b>${PLATFORM_NAME}</b> заканчивается через <b>${daysLeft}</b> ${daysLeft === 1 ? "день" : daysLeft < 5 ? "дня" : "дней"}.\n\n📅 Дата окончания: ${new Date(user.subscription_expires_at).toLocaleDateString("ru")}\n💰 Стоимость продления: <b>$${priceInfo.price}/мес</b>\n\nПосле окончания:\n• Магазины будут приостановлены\n• Боты деактивированы\n• Данные сохранятся\n\nПродлите подписку чтобы магазины продолжили работу.`;
+  try { await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: telegramId, text: msg, parse_mode: "HTML" }) }); } catch {}
+  await db().from("platform_users").update({ reminder_sent_at: new Date().toISOString() }).eq("telegram_id", telegramId);
+}
 
 // ─── Bot Token Validation ─────────────────────
 async function validateBotToken(token: string): Promise<{ ok: boolean; bot_id?: number; bot_username?: string; first_name?: string; error?: string }> {
