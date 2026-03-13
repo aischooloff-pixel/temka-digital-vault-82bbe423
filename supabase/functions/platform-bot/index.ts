@@ -292,25 +292,19 @@ async function showProfile(tg: ReturnType<typeof TG>, chatId: number, msgId?: nu
 
   const { count: shopCount } = await db().from("shops").select("id", { count: "exact", head: true }).eq("owner_id", user.id);
 
-  const subMap: Record<string, string> = { active: "✅ Активна", trial: "🆓 Пробный", expired: "❌ Истекла", cancelled: "❌ Отменена" };
-  let daysLeft = "";
-  if (user.subscription_expires_at) {
-    const diff = Math.ceil((new Date(user.subscription_expires_at).getTime() - Date.now()) / 86400000);
-    daysLeft = diff > 0 ? `\n⏳ Осталось: <b>${diff}</b> дней` : "\n⏳ Истекла";
-  }
+  const subMap: Record<string, string> = { active: "Активна", trial: "Пробный", expired: "Истекла", cancelled: "Отменена" };
+  const subStatus = subMap[user.subscription_status] || user.subscription_status;
 
   const text =
-    `👤 <b>Профиль</b>\n\n` +
-    `🆔 ID: <code>${user.telegram_id}</code>\n` +
-    `👤 Имя: <b>${esc(user.first_name)}${user.last_name ? " " + esc(user.last_name) : ""}</b>\n` +
-    `📱 Юзернейм: ${user.username ? "@" + esc(user.username) : "—"}\n` +
-    `📅 Регистрация: ${new Date(user.created_at).toLocaleDateString("ru-RU")}\n` +
-    `💳 Подписка: ${subMap[user.subscription_status] || user.subscription_status}${daysLeft}\n` +
-    `🏪 Магазинов: ${shopCount || 0}`;
+    `👤 <b>${esc(user.first_name)}${user.last_name ? " " + esc(user.last_name) : ""}</b>\n\n` +
+    `Магазинов: <b>${shopCount || 0}</b>\n` +
+    `Подписка: <b>${subStatus}</b>`;
 
+  const profileUrl = `${WEBAPP_DOMAIN}/account`;
   const kb = ikb([
-    [btn("🏪 Мои магазины", "p:myshops:0")],
-    [btn("💳 Подписка", "p:sub")],
+    [urlBtn("Открыть профиль", profileUrl)],
+    [btn("Мои магазины", "p:myshops:0")],
+    [btn("Подписка", "p:sub")],
     [btn("◀️ Назад", "p:home")],
   ]);
 
