@@ -1584,14 +1584,14 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
   if (cmd === "promo") return admPromoList(tg, chatId, msgId, parts[2] || "platform", parseInt(parts[3]) || 0);
 
   // ─── Reviews ──────────────────────────────
-  if (cmd === "reviews") return admReviewsList(tg, chatId, msgId, parts[2] || "all", parseInt(parts[3]) || 0);
+  if (cmd === "reviews") return admReviewsList(tg, chatId, msgId, parts[2] || "shop", parseInt(parts[3]) || 0);
   if (cmd === "rapprove" || cmd === "rreject" || cmd === "rdelete") {
     const type = parts[2]; const reviewId = parts[3];
     const table = type === "P" ? "reviews" : "shop_reviews";
     if (cmd === "rdelete") { await db().from(table).delete().eq("id", reviewId); await admLog(adminTgId, "delete_review", table, reviewId); }
     else { const newStatus = cmd === "rapprove" ? "approved" : "rejected"; await db().from(table).update({ moderation_status: newStatus }).eq("id", reviewId); await admLog(adminTgId, `${newStatus}_review`, table, reviewId); }
-    // Re-render
-    return admReviewsList(tg, chatId, msgId, "all", 0);
+    // Re-render in shop mode by default
+    return admReviewsList(tg, chatId, msgId, "shop", 0);
   }
 
   // ─── Broadcast ────────────────────────────
