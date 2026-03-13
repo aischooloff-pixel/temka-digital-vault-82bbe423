@@ -2162,6 +2162,67 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     return tg.send(chatId, `✅ Ссылка на канал ОП установлена:\n${esc(link)}`, ikb([[btn("◀️ Настройки ОП", "adm:platop")]]));
   }
 
+  // ─── Subscription Promo: create wizard ─────
+  if (state === "adm_sp_create") {
+    const step = sData.step as string;
+    if (step === "code") {
+      const code = val.trim().toUpperCase();
+      if (!code || !/^[A-Z0-9_-]+$/.test(code)) return tg.send(chatId, "❌ Код должен содержать только латиницу, цифры, _ и -. Попробуйте снова:");
+      // Check uniqueness
+      const { data: existing } = await db().from("platform_subscription_promos").select("id").eq("code", code).maybeSingle();
+      if (existing) return tg.send(chatId, `❌ Промокод <code>${esc(code)}</code> уже существует. Введите другой:`);
+      await setSession(chatId, "adm_sp_create", { ...sData, code, step: "discount_type" });
+      return tg.send(chatId, `Код: <code>${esc(code)}</code>\n\nВыберите тип скидки:`, ikb([
+        [btn("📊 Процент", "adm:noop"), btn("💵 Фиксированная", "adm:noop")],
+      ]));
+      // Since we can't use callbacks mid-FSM easily, let's ask as text
+    }
+    if (step === "discount_type") {
+      const dt = val.toLowerCase();
+      if (dt !== "percent" && dt !== "fixed" && dt !== "процент" && dt !== "фикс" && dt !== "%" && dt !== "$") {
+        return tg.send(chatId, `Введите тип скидки: <code>percent</code> (процент) или <code>fixed</code> (фиксированная $):`);
+      }
+      const discountType = (dt === "percent" || dt === "процент" || dt === "%") ? "percent" : "fixed";
+      await setSession(chatId, "adm_sp_create", { ...sData, discount_type: discountType, step: "discount_value" });
+      return tg.send(chatId, `Тип: ${discountType === "percent" ? "процент" : "фиксированная $"}\n\nВведите значение скидки (число):`);
+    }
+    if (step === "discount_value") {
+      const dv = parseFloat(val);
+      if (isNaN(dv) || dv <= 0) return tg.send(chatId, "❌ Введите положительное число:");
+      if (sData.discount_type === "percent" && dv > 100) return tg.send(chatId, "❌ Процент не может быть больше 100:");
+      await setSession(chatId, "adm_sp_create", { ...sData, discount_value: dv, step: "max_uses" });
+      return tg.send(chatId, `Скидка: ${dv}${sData.discount_type === "percent" ? "%" : "$"}\n\nВведите макс. число использований (или <code>0</code> = безлимит):`);
+    }
+    if (step === "max_uses") {
+      const mu = parseInt(val);
+      if (isNaN(mu) || mu < 0) return tg.send(chatId, "❌ Введите число ≥ 0:");
+      await setSession(chatId, "adm_sp_create", { ...sData, max_uses: mu || null, step: "note" });
+      return tg.send(chatId, `Лимит: ${mu || "безлимит"}\n\nВведите заметку (или <code>-</code> без заметки):`);
+    }
+    if (step === "note") {
+      const note = val === "-" ? null : val;
+      await clearSession(chatId);
+      const code = sData.code as string;
+      const { error } = await db().from("platform_subscription_promos").insert({
+        code, discount_type: sData.discount_type, discount_value: sData.discount_value,
+        max_uses: sData.max_uses || null, max_uses_per_user: 1,
+        created_by: chatId, note,
+      });
+      if (error) return tg.send(chatId, `❌ Ошибка: ${error.message}`, ikb([[btn("◀️ К промокодам", "adm:subpromo:0")]]));
+      await admLog(chatId, "create_sub_promo", "sub_promo", code, { discount_type: sData.discount_type, discount_value: sData.discount_value });
+      return tg.send(chatId, `✅ Промокод <code>${esc(code)}</code> создан!\n\n${sData.discount_type === "percent" ? `${sData.discount_value}%` : `$${sData.discount_value}`} скидка на подписку`, ikb([[btn("◀️ К промокодам", "adm:subpromo:0")]]));
+    }
+  }
+
+  // ─── Subscription Promo: note ─────────────
+  if (state === "adm_sp_note") {
+    const promoId = sData.promoId as string;
+    const note = val === "-" ? null : val;
+    await clearSession(chatId);
+    await db().from("platform_subscription_promos").update({ note, updated_at: new Date().toISOString() }).eq("id", promoId);
+    return tg.send(chatId, "✅ Заметка обновлена.", ikb([[btn("◀️ К промокоду", `adm:spcard:${promoId}`)]]));
+  }
+
   // ─── Welcome: set text ────────────────────
   if (state === "adm_welc_set_text") {
     await clearSession(chatId);
