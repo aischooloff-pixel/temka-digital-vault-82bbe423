@@ -21,6 +21,9 @@ import FAQ from "./pages/FAQ";
 import About from "./pages/About";
 import Legal from "./pages/Legal";
 import { Delivery, Guarantees } from "./pages/InfoPages";
+import PlatformTerms from "./pages/PlatformTerms";
+import PlatformPrivacy from "./pages/PlatformPrivacy";
+import PlatformDisclaimer from "./pages/PlatformDisclaimer";
 import NotFound from "./pages/NotFound";
 import { Outlet } from "react-router-dom";
 
@@ -101,8 +104,11 @@ const App = () => (
                 <Route path="/terms" element={<Legal />} />
                 <Route path="/privacy" element={<Legal />} />
                 <Route path="/refund" element={<Legal />} />
-                <Route path="/disclaimer" element={<Legal />} />
-                <Route path="/delivery" element={<Delivery />} />
+              <Route path="/disclaimer" element={<Legal />} />
+              <Route path="/platform/terms" element={<PlatformTerms />} />
+              <Route path="/platform/privacy" element={<PlatformPrivacy />} />
+              <Route path="/platform/disclaimer" element={<PlatformDisclaimer />} />
+              <Route path="/delivery" element={<Delivery />} />
                 <Route path="/guarantees" element={<Guarantees />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
