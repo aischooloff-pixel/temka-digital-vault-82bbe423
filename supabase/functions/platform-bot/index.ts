@@ -2374,6 +2374,16 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
   // ─── Settings ─────────────────────────────
   if (cmd === "settings") return admSettings(tg, chatId, msgId);
   if (cmd === "setedit") { await setSession(chatId, "adm_edit_setting", {}); return tg.edit(chatId, msgId, "✏️ Введите в формате:\n<code>ключ = значение</code>\n\nНапример: <code>support_username = @support</code>", ikb([[btn("❌ Отмена", "adm:settings")]])); }
+  if (cmd === "setsupport") {
+    const currentLink = await getSupportLink();
+    await setSession(chatId, "adm_set_support", {});
+    return tg.edit(chatId, msgId, `🔗 <b>Ссылка на поддержку</b>\n\nТекущая: ${esc(currentLink)}\n\nВведите новую ссылку на поддержку:\n\n<i>Например: https://t.me/username</i>`, ikb([[btn("🗑 Сбросить на дефолт", "adm:clearsupport")], [btn("❌ Отмена", "adm:settings")]]));
+  }
+  if (cmd === "clearsupport") {
+    await db().from("shop_settings").delete().eq("key", "platform_support_link");
+    await admLog(adminTgId, "clear_support_link", "settings", "platform_support_link");
+    return tg.edit(chatId, msgId, `✅ Ссылка на поддержку сброшена на значение по умолчанию: ${esc(SUPPORT_LINK_DEFAULT)}`, ikb([[btn("◀️ Настройки", "adm:settings")]]));
+  }
 
   // ─── Platform OP management ───────────────
   if (cmd === "platop") {
