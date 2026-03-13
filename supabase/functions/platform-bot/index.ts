@@ -1342,8 +1342,10 @@ serve(async (req) => {
 
       // ─── /start ───────────────────────────
       if (text === "/start" || text.startsWith("/start ")) {
-        await upsertUser(from);
         await clearSession(chatId);
+        const subscribed = await enforceSubscription(tg, chatId, from.first_name);
+        if (!subscribed) return new Response("ok");
+        await upsertUser(from);
         await sendWelcome(tg, chatId, from.first_name || "друг");
         return new Response("ok");
       }
