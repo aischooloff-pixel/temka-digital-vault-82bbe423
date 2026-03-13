@@ -454,7 +454,7 @@ async function shopSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
   if (shop.is_subscription_required) {
     opStatus = shop.required_channel_id ? `✅ включена (${shop.required_channel_link || shop.required_channel_id})` : "⚠️ включена, канал не указан";
   }
-  const text = `⚙️ <b>Настройки: ${esc(shop.name)}</b>\n\n📛 Название: ${esc(shop.name)}\n🎨 Цвет: ${shop.color}\n📌 Заголовок: ${shop.hero_title || "—"}\n📝 Описание: ${shop.hero_description ? esc(shop.hero_description.slice(0, 60)) + "…" : "—"}\n👋 Приветствие: ${shop.welcome_message ? esc(shop.welcome_message.slice(0, 50)) + "…" : "—"}\n🔗 Поддержка: ${shop.support_link || "—"}\n🤖 Бот: ${botStatus}\n💰 CryptoBot: ${shop.cryptobot_token_encrypted ? "✅ подключён" : "❌ не подключён"}\n📢 ОП: ${opStatus}`;
+  const text = `⚙️ <b>Настройки: ${esc(shop.name)}</b>\n\n📛 Название: ${esc(shop.name)}\n🎨 Цвет: ${shop.color}\n📌 Заголовок: ${shop.hero_title || "—"}\n📝 Описание: ${shop.hero_description ? esc(shop.hero_description.slice(0, 60)) + "…" : "—"}\n👋 Приветствие: ${shop.welcome_message ? esc(shop.welcome_message.slice(0, 50)) + "…" : "—"}\n🔗 Поддержка: ${shop.support_link || "—"}\n🤖 Бот: ${botStatus}\n💰 CryptoBot: ${shop.cryptobot_token_encrypted ? "✅ подключён" : "❌ не подключён"}\n📢 ОП: ${opStatus}\n\n⚠️ <i>Полное управление магазином (товары, заказы, клиенты) осуществляется через</i> /admin <i>в подключённом вами боте.</i>`;
   return tg.edit(chatId, msgId, text, ikb([
     [btn("✏️ Название", `p:edit:${shopId}:name`), btn("🎨 Цвет", `p:edit:${shopId}:color`)],
     [btn("📌 Заголовок витрины", `p:edit:${shopId}:hero_title`)],
