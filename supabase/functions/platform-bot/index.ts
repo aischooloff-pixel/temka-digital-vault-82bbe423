@@ -1968,6 +1968,11 @@ serve(async (req) => {
         if (data.startsWith("adm:")) {
           await handleAdmCallback(tg, chatId, msgId, data, cb.id, cb.from.id);
         } else if (data.startsWith("p:")) {
+          // Blocked user guard for platform callbacks (except subscription check)
+          if (data !== "p:checksub" && await isUserBlocked(cb.from.id)) {
+            await tg.answer(cb.id, "🚫 Ваш аккаунт заблокирован.");
+            return new Response("ok");
+          }
           await handleCallback(tg, chatId, msgId, data, cb.id, cb.from);
         }
       }
