@@ -1918,7 +1918,24 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     return tg.send(chatId, `✅ Настройка обновлена: <code>${esc(key)}</code> = ${esc(value)}`, ikb([[btn("◀️ К настройкам", "adm:settings")]]));
   }
 
-  if (state === "adm_add_admin") {
+  // ─── Platform OP: set channel ID ──────────
+  if (state === "adm_platop_set_id") {
+    await clearSession(chatId);
+    const channelId = val.trim();
+    await db().from("shop_settings").upsert({ key: "platform_channel_id", value: channelId, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    await admLog(chatId, "set_platform_op_channel", "settings", "platform_channel_id", { channel_id: channelId });
+    return tg.send(chatId, `✅ ID канала ОП платформы установлен:\n<code>${esc(channelId)}</code>`, ikb([[btn("◀️ Настройки ОП", "adm:platop")]]));
+  }
+
+  // ─── Platform OP: set channel link ────────
+  if (state === "adm_platop_set_link") {
+    await clearSession(chatId);
+    const link = val.trim();
+    await db().from("shop_settings").upsert({ key: "platform_channel_link", value: link, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    await admLog(chatId, "set_platform_op_link", "settings", "platform_channel_link", { link });
+    return tg.send(chatId, `✅ Ссылка на канал ОП установлена:\n${esc(link)}`, ikb([[btn("◀️ Настройки ОП", "adm:platop")]]));
+  }
+
     await clearSession(chatId);
     const tgId = parseInt(val);
     if (!tgId || isNaN(tgId)) return tg.send(chatId, "❌ Введите числовой Telegram ID.", ikb([[btn("◀️ Назад", "adm:admins")]]));
