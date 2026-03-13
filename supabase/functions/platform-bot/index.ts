@@ -366,9 +366,6 @@ async function showProfile(tg: ReturnType<typeof TG>, chatId: number, msgId?: nu
   if (msgId) return tg.edit(chatId, msgId, text, kb);
   return tg.send(chatId, text, kb);
 }
-  if (msgId) return tg.edit(chatId, msgId, text, kb);
-  return tg.send(chatId, text, kb);
-}
 
 // ═══════════════════════════════════════════════
 // MY SHOPS
