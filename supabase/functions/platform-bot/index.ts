@@ -128,10 +128,22 @@ async function clearSession(tgId: number) {
   await db().from("platform_sessions").delete().eq("telegram_id", tgId);
 }
 
+// ─── Platform OP channel resolution (DB → ENV fallback) ───
+async function getPlatformChannelIds(): Promise<string[]> {
+  // Try DB first (shop_settings key = 'platform_channel_id')
+  const { data } = await db().from("shop_settings").select("value").eq("key", "platform_channel_id").single();
+  const raw = data?.value || Deno.env.get("PLATFORM_CHANNEL_ID") || "";
+  return raw.split(",").map(s => s.trim()).filter(Boolean);
+}
+
+async function getPlatformChannelLink(): Promise<string | null> {
+  const { data } = await db().from("shop_settings").select("value").eq("key", "platform_channel_link").single();
+  return data?.value || null;
+}
+
 // ─── Channel subscription check ───────────────
 async function checkAllChannels(tg: ReturnType<typeof TG>, userId: number): Promise<boolean> {
-  const raw = Deno.env.get("PLATFORM_CHANNEL_ID") || "";
-  const channels = raw.split(",").map(s => s.trim()).filter(Boolean);
+  const channels = await getPlatformChannelIds();
   if (!channels.length) return true;
   for (const ch of channels) {
     try {
@@ -143,28 +155,28 @@ async function checkAllChannels(tg: ReturnType<typeof TG>, userId: number): Prom
   return true;
 }
 
-function getChannelLinks(): { id: string; link: string }[] {
-  const raw = Deno.env.get("PLATFORM_CHANNEL_ID") || "";
-  return raw.split(",").map(s => s.trim()).filter(Boolean).map(ch => {
-    const link = ch.startsWith("@") ? `https://t.me/${ch.slice(1)}` : ch.startsWith("-100") ? `https://t.me/c/${ch.slice(4)}` : `https://t.me/${ch}`;
-    return { id: ch, link };
+async function getChannelLinks(): Promise<{ id: string; link: string }[]> {
+  const channels = await getPlatformChannelIds();
+  const customLink = await getPlatformChannelLink();
+  return channels.map((ch, i) => {
+    const autoLink = ch.startsWith("@") ? `https://t.me/${ch.slice(1)}` : ch.startsWith("-100") ? `https://t.me/c/${ch.slice(4)}` : `https://t.me/${ch}`;
+    return { id: ch, link: (i === 0 && customLink) ? customLink : autoLink };
   });
 }
 
-function hasChannelRequirement(): boolean {
-  const raw = Deno.env.get("PLATFORM_CHANNEL_ID") || "";
-  return raw.split(",").map(s => s.trim()).filter(Boolean).length > 0;
+async function hasChannelRequirement(): Promise<boolean> {
+  return (await getPlatformChannelIds()).length > 0;
 }
 
-function channelButtons(): Btn[][] {
-  const channels = getChannelLinks();
+async function channelButtons(): Promise<Btn[][]> {
+  const channels = await getChannelLinks();
   if (!channels.length) return [];
   const row: Btn[] = channels.map((ch, i) => urlBtn(`📢 ${channels.length > 1 ? `Канал ${i + 1}` : "Подписаться"}`, ch.link));
   return [row, [btn("✅ Проверить подписку", "p:checksub")]];
 }
 
 async function showSubscribeGate(tg: ReturnType<typeof TG>, chatId: number, firstName?: string): Promise<void> {
-  const channels = getChannelLinks();
+  const channels = await getChannelLinks();
   const channelList = channels.length > 1 ? channels.map((ch, i) => `  ${i + 1}. ${ch.id}`).join("\n") : "";
   const text = `🔒 <b>Подписка на канал обязательна</b>\n\nДля использования <b>${PLATFORM_NAME}</b> необходимо подписаться на ${channels.length > 1 ? "наши каналы" : "наш канал"}.\n` +
     (channelList ? `\n${channelList}\n` : "") + `\nПосле подписки нажми кнопку «✅ Проверить подписку».`;
@@ -175,7 +187,7 @@ async function showSubscribeGate(tg: ReturnType<typeof TG>, chatId: number, firs
 }
 
 async function enforceSubscription(tg: ReturnType<typeof TG>, chatId: number, firstName?: string): Promise<boolean> {
-  if (!hasChannelRequirement()) return true;
+  if (!(await hasChannelRequirement())) return true;
   const subscribed = await checkAllChannels(tg, chatId);
   if (subscribed) return true;
   await showSubscribeGate(tg, chatId, firstName);
@@ -528,7 +540,7 @@ function howToAddProducts(tg: ReturnType<typeof TG>, chatId: number, msgId: numb
 // TEXT FSM HANDLER
 // ═══════════════════════════════════════════════
 async function handleText(tg: ReturnType<typeof TG>, chatId: number, text: string, from: { id: number; first_name: string; last_name?: string; username?: string; is_premium?: boolean; language_code?: string }) {
-  if (hasChannelRequirement()) {
+  if (await hasChannelRequirement()) {
     const subscribed = await checkAllChannels(tg, chatId);
     if (!subscribed) { await showSubscribeGate(tg, chatId, from.first_name); return; }
   }
@@ -606,7 +618,7 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
   if (cmd === "checksub") {
     const ok = await checkAllChannels(tg, chatId);
     if (!ok) {
-      const channels = getChannelLinks(); const rows: Btn[][] = [];
+      const channels = await getChannelLinks(); const rows: Btn[][] = [];
       for (const ch of channels) rows.push([urlBtn(`📢 ${channels.length > 1 ? ch.id : "Подписаться на канал"}`, ch.link)]);
       rows.push([btn("✅ Проверить подписку", "p:checksub")]);
       return tg.edit(chatId, msgId, "❌ <b>Подписка не найдена</b>\n\nПодпишись на канал и нажми «Проверить подписку» снова.", ikb(rows));
@@ -614,7 +626,7 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
     await upsertUser(from); await clearSession(chatId); await tg.deleteMessage(chatId, msgId);
     return sendWelcome(tg, chatId, from.first_name || "друг");
   }
-  if (cmd !== "noop" && hasChannelRequirement()) { const subscribed = await checkAllChannels(tg, chatId); if (!subscribed) { await showSubscribeGate(tg, chatId, from.first_name); return; } }
+  if (cmd !== "noop" && (await hasChannelRequirement())) { const subscribed = await checkAllChannels(tg, chatId); if (!subscribed) { await showSubscribeGate(tg, chatId, from.first_name); return; } }
   if (cmd === "home") {
     await clearSession(chatId);
     const text = `👋 <b>${esc(from.first_name || "")}</b>, ты в главном меню\n\nВыбери действие:`;
@@ -1309,32 +1321,35 @@ async function admLogsList(tg: ReturnType<typeof TG>, chatId: number, msgId: num
 // ─── SETTINGS ─────────────────────────────────
 async function admSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
   const { data: settings } = await db().from("shop_settings").select("*").order("key");
+  // Filter out platform OP keys from general settings display
+  const platformKeys = ["platform_channel_id", "platform_channel_link", "platform_op_enabled"];
+  const generalSettings = (settings || []).filter(s => !platformKeys.includes(s.key));
   let settingsText = "";
-  for (const s of settings || []) settingsText += `• <code>${esc(s.key)}</code> = ${esc(s.value.slice(0, 50))}\n`;
+  for (const s of generalSettings) settingsText += `• <code>${esc(s.key)}</code> = ${esc(s.value.slice(0, 50))}\n`;
   if (!settingsText) settingsText = "Нет настроек.\n";
 
-  // Platform OP info
-  const platformChannelId = Deno.env.get("PLATFORM_CHANNEL_ID") || "—";
+  // Platform OP info from DB (with ENV fallback)
+  const channels = await getPlatformChannelIds();
+  const channelLink = await getPlatformChannelLink();
+  const opEnabledSetting = (settings || []).find(s => s.key === "platform_op_enabled");
+  const opEnabled = opEnabledSetting ? opEnabledSetting.value === "true" : channels.length > 0;
   const { count: opShops } = await db().from("shops").select("id", { count: "exact", head: true }).eq("is_subscription_required", true);
-  const { data: opShopList } = await db().from("shops").select("id, name, required_channel_id, required_channel_link").eq("is_subscription_required", true).limit(10);
-  let opText = `📢 <b>ОП (обязательная подписка):</b>\n`;
-  opText += `Platform Channel ID: <code>${esc(platformChannelId)}</code>\n`;
+
+  let opText = `📢 <b>ОП платформы (обязательная подписка):</b>\n`;
+  opText += `Статус: ${opEnabled && channels.length > 0 ? "✅ Включена" : "❌ Выключена"}\n`;
+  opText += `ID каналов: ${channels.length ? `<code>${esc(channels.join(", "))}</code>` : "— не задан"}\n`;
+  opText += `Ссылка: ${channelLink ? esc(channelLink) : "— авто"}\n`;
   opText += `Магазинов с ОП: ${opShops || 0}\n`;
-  if (opShopList?.length) {
-    for (const s of opShopList) {
-      opText += `  • ${esc(s.name)}: ${s.required_channel_id || "канал не указан"}${s.required_channel_link ? ` (${esc(s.required_channel_link)})` : ""}\n`;
-    }
-  }
 
   const text =
     `⚙️ <b>Системные настройки</b>\n\n` +
     `🏷 Платформа: <b>${PLATFORM_NAME}</b>\n` +
     `🌐 WEBAPP: <code>${WEBAPP_DOMAIN}</code>\n` +
-    `🔗 Поддержка: ${SUPPORT_LINK}\n` +
-    `📢 Platform Channel: <code>${esc(platformChannelId)}</code>\n\n` +
+    `🔗 Поддержка: ${SUPPORT_LINK}\n\n` +
     `${opText}\n` +
     `📝 <b>shop_settings:</b>\n${settingsText}`;
   return tg.edit(chatId, msgId, text, ikb([
+    [btn("📢 Настройки ОП", "adm:platop")],
     [btn("✏️ Изменить setting", "adm:setedit")],
     [btn("◀️ Меню", "adm:home")],
   ]));
@@ -1704,6 +1719,37 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
   if (cmd === "settings") return admSettings(tg, chatId, msgId);
   if (cmd === "setedit") { await setSession(chatId, "adm_edit_setting", {}); return tg.edit(chatId, msgId, "✏️ Введите в формате:\n<code>ключ = значение</code>\n\nНапример: <code>support_username = @support</code>", ikb([[btn("❌ Отмена", "adm:settings")]])); }
 
+  // ─── Platform OP management ───────────────
+  if (cmd === "platop") {
+    const channels = await getPlatformChannelIds();
+    const channelLink = await getPlatformChannelLink();
+    const opEnabled = channels.length > 0;
+    const text = `📢 <b>Настройки ОП платформы</b>\n\n` +
+      `Статус: ${opEnabled ? "✅ Активна" : "❌ Не активна"}\n` +
+      `ID каналов: ${channels.length ? `<code>${esc(channels.join(", "))}</code>` : "— не задан"}\n` +
+      `Ссылка: ${channelLink ? esc(channelLink) : "— авто"}`;
+    return tg.edit(chatId, msgId, text, ikb([
+      [btn("✏️ Задать ID канала", "adm:platop_setid")],
+      [btn("🔗 Задать ссылку", "adm:platop_setlink")],
+      [btn("🗑 Очистить ОП", "adm:platop_clear")],
+      [btn("◀️ Назад", "adm:settings")],
+    ]));
+  }
+  if (cmd === "platop_setid") {
+    await setSession(chatId, "adm_platop_set_id", {});
+    return tg.edit(chatId, msgId, `📢 Введите ID канала для ОП платформы:\n\n<code>@channel_name</code> или <code>-100xxxxxxxxxx</code>\n\nМожно указать несколько через запятую.`, ikb([[btn("❌ Отмена", "adm:platop")]]));
+  }
+  if (cmd === "platop_setlink") {
+    await setSession(chatId, "adm_platop_set_link", {});
+    return tg.edit(chatId, msgId, `🔗 Введите ссылку на канал:\n\n<code>https://t.me/channel_name</code>`, ikb([[btn("❌ Отмена", "adm:platop")]]));
+  }
+  if (cmd === "platop_clear") {
+    await db().from("shop_settings").delete().eq("key", "platform_channel_id");
+    await db().from("shop_settings").delete().eq("key", "platform_channel_link");
+    await admLog(adminTgId, "clear_platform_op", "settings", "platform_op");
+    return tg.edit(chatId, msgId, "✅ ОП платформы очищена. Подписка на канал больше не требуется.", ikb([[btn("◀️ Настройки ОП", "adm:platop")], [btn("◀️ Настройки", "adm:settings")]]));
+  }
+
   // ─── Admins ───────────────────────────────
   if (cmd === "admins") return admAdminsList(tg, chatId, msgId);
   if (cmd === "addadmin") { await setSession(chatId, "adm_add_admin", {}); return tg.edit(chatId, msgId, "👮 Введите Telegram ID нового администратора:", ikb([[btn("❌ Отмена", "adm:admins")]])); }
@@ -1870,6 +1916,24 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     await db().from("shop_settings").upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: "key" });
     await admLog(chatId, "update_setting", "setting", key, { value });
     return tg.send(chatId, `✅ Настройка обновлена: <code>${esc(key)}</code> = ${esc(value)}`, ikb([[btn("◀️ К настройкам", "adm:settings")]]));
+  }
+
+  // ─── Platform OP: set channel ID ──────────
+  if (state === "adm_platop_set_id") {
+    await clearSession(chatId);
+    const channelId = val.trim();
+    await db().from("shop_settings").upsert({ key: "platform_channel_id", value: channelId, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    await admLog(chatId, "set_platform_op_channel", "settings", "platform_channel_id", { channel_id: channelId });
+    return tg.send(chatId, `✅ ID канала ОП платформы установлен:\n<code>${esc(channelId)}</code>`, ikb([[btn("◀️ Настройки ОП", "adm:platop")]]));
+  }
+
+  // ─── Platform OP: set channel link ────────
+  if (state === "adm_platop_set_link") {
+    await clearSession(chatId);
+    const link = val.trim();
+    await db().from("shop_settings").upsert({ key: "platform_channel_link", value: link, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    await admLog(chatId, "set_platform_op_link", "settings", "platform_channel_link", { link });
+    return tg.send(chatId, `✅ Ссылка на канал ОП установлена:\n${esc(link)}`, ikb([[btn("◀️ Настройки ОП", "adm:platop")]]));
   }
 
   if (state === "adm_add_admin") {
