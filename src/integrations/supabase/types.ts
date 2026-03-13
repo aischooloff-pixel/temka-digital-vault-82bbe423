@@ -317,6 +317,48 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_promo_usages: {
+        Row: {
+          created_at: string
+          discount_amount: number
+          id: string
+          promo_id: string
+          subscription_payment_id: string | null
+          telegram_id: number
+        }
+        Insert: {
+          created_at?: string
+          discount_amount?: number
+          id?: string
+          promo_id: string
+          subscription_payment_id?: string | null
+          telegram_id: number
+        }
+        Update: {
+          created_at?: string
+          discount_amount?: number
+          id?: string
+          promo_id?: string
+          subscription_payment_id?: string | null
+          telegram_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_promo_usages_promo_id_fkey"
+            columns: ["promo_id"]
+            isOneToOne: false
+            referencedRelation: "platform_subscription_promos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "platform_promo_usages_subscription_payment_id_fkey"
+            columns: ["subscription_payment_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_sessions: {
         Row: {
           data: Json | null
@@ -335,6 +377,57 @@ export type Database = {
           state?: string
           telegram_id?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      platform_subscription_promos: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: number
+          discount_type: string
+          discount_value: number
+          id: string
+          is_active: boolean
+          max_uses: number | null
+          max_uses_per_user: number | null
+          note: string | null
+          updated_at: string
+          used_count: number
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by: number
+          discount_type?: string
+          discount_value: number
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          max_uses_per_user?: number | null
+          note?: string | null
+          updated_at?: string
+          used_count?: number
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: number
+          discount_type?: string
+          discount_value?: number
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          max_uses_per_user?: number | null
+          note?: string | null
+          updated_at?: string
+          used_count?: number
+          valid_from?: string | null
+          valid_until?: string | null
         }
         Relationships: []
       }
@@ -1217,8 +1310,11 @@ export type Database = {
           amount: number
           created_at: string
           currency: string
+          discount_amount: number
+          final_amount: number | null
           id: string
           invoice_id: string | null
+          promo_code: string | null
           status: string
           user_id: string
         }
@@ -1226,8 +1322,11 @@ export type Database = {
           amount?: number
           created_at?: string
           currency?: string
+          discount_amount?: number
+          final_amount?: number | null
           id?: string
           invoice_id?: string | null
+          promo_code?: string | null
           status?: string
           user_id: string
         }
@@ -1235,8 +1334,11 @@ export type Database = {
           amount?: number
           created_at?: string
           currency?: string
+          discount_amount?: number
+          final_amount?: number | null
           id?: string
           invoice_id?: string | null
+          promo_code?: string | null
           status?: string
           user_id?: string
         }
@@ -1438,6 +1540,15 @@ export type Database = {
         }
         Returns: string
       }
+      increment_platform_promo_usage: {
+        Args: {
+          p_discount_amount: number
+          p_payment_id: string
+          p_promo_id: string
+          p_telegram_id: number
+        }
+        Returns: undefined
+      }
       increment_promo_usage: { Args: { p_code: string }; Returns: undefined }
       increment_shop_promo_usage: {
         Args: { p_code: string; p_shop_id: string }
@@ -1464,6 +1575,10 @@ export type Database = {
       shop_deduct_balance: {
         Args: { p_amount: number; p_shop_id: string; p_telegram_id: number }
         Returns: number
+      }
+      validate_platform_subscription_promo: {
+        Args: { p_code: string; p_telegram_id: number }
+        Returns: Json
       }
       validate_promo_code: { Args: { p_code: string }; Returns: Json }
       validate_shop_promo_code: {
