@@ -494,7 +494,7 @@ const COLORS: Record<string, string> = {
   purple: "#8E24AA", black: "#212121", orange: "#FB8C00",
 };
 
-const WIZARD_CALLBACK_COMMANDS = new Set(["wcolor", "wback", "confirm_create", "accept_terms"]);
+const WIZARD_CALLBACK_COMMANDS = new Set(["wcolor", "wback", "confirm_create", "accept_terms", "wcancel"]);
 const WIZARD_STALE_TEXT = "⚠️ Этот шаг больше неактуален. Магазин уже создан или сценарий завершён.";
 const WIZARD_FINAL_TEXT = "✅ Сценарий завершён. Этот шаг больше неактуален.";
 
