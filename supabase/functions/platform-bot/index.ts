@@ -28,8 +28,27 @@ const TG = (token: string) => {
   return {
     send: (chatId: number, text: string, markup?: unknown) =>
       call("sendMessage", { chat_id: chatId, text, parse_mode: "HTML", disable_web_page_preview: true, ...(markup ? { reply_markup: markup } : {}) }),
-    edit: (chatId: number, msgId: number, text: string, markup?: unknown) =>
-      call("editMessageText", { chat_id: chatId, message_id: msgId, text, parse_mode: "HTML", disable_web_page_preview: true, ...(markup ? { reply_markup: markup } : {}) }),
+    edit: async (chatId: number, msgId: number, text: string, markup?: unknown) => {
+      const res = await call("editMessageText", { chat_id: chatId, message_id: msgId, text, parse_mode: "HTML", disable_web_page_preview: true, ...(markup ? { reply_markup: markup } : {}) });
+      if (res?.ok) return res;
+
+      const description = String(res?.description || "").toLowerCase();
+      const shouldFallbackToSend =
+        description.includes("there is no text in the message to edit") ||
+        description.includes("message can't be edited") ||
+        description.includes("message to edit not found");
+
+      if (!shouldFallbackToSend) return res;
+
+      await call("deleteMessage", { chat_id: chatId, message_id: msgId }).catch(() => null);
+      return call("sendMessage", {
+        chat_id: chatId,
+        text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+        ...(markup ? { reply_markup: markup } : {}),
+      });
+    },
     answer: (cbId: string, text?: string) =>
       call("answerCallbackQuery", { callback_query_id: cbId, ...(text ? { text, show_alert: true } : {}) }),
     getChatMember: (chatId: string, userId: number) =>
@@ -334,12 +353,12 @@ async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName:
   const kb = { ...ikb(await welcomeButtons(chatId)) };
 
   if (config.media_type === "photo" && config.media_url) {
-    await tg.sendPhoto(chatId, config.media_url);
+    await tg.sendPhoto(chatId, config.media_url, welcomeText, kb);
   } else if (config.media_type === "video" && config.media_url) {
-    await tg.sendVideo(chatId, config.media_url);
+    await tg.sendVideo(chatId, config.media_url, welcomeText, kb);
+  } else {
+    await tg.send(chatId, welcomeText, kb);
   }
-  await tg.send(chatId, welcomeText, kb);
-  const hasShop = await userHasShop(chatId);
   // Check subscription reminders in background
   await sendTrialReminder(chatId);
   await checkAndEnforceSubscription(chatId);
