@@ -194,13 +194,26 @@ const PlatformProfile: React.FC = () => {
   };
 
   if (error || (!loading && !data)) {
+    const isNotInTelegram = error === 'Откройте профиль через Telegram';
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#F0F7FF] to-white flex items-center justify-center p-6">
         <Card className="max-w-md w-full border border-red-100 bg-white shadow-lg">
-          <CardContent className="p-8 text-center space-y-3">
-            <AlertTriangle className="w-10 h-10 text-red-400 mx-auto" />
-            <p className="text-gray-700 font-medium">Не удалось загрузить профиль</p>
-            <p className="text-gray-400 text-sm">{error}</p>
+          <CardContent className="p-8 text-center space-y-4">
+            <AlertTriangle className={`w-10 h-10 mx-auto ${isNotInTelegram ? 'text-blue-400' : 'text-red-400'}`} />
+            <p className="text-gray-700 font-medium">
+              {isNotInTelegram ? 'Профиль доступен только в Telegram' : 'Не удалось загрузить профиль'}
+            </p>
+            <p className="text-gray-400 text-sm">
+              {isNotInTelegram ? 'Откройте эту страницу через кнопку в платформенном боте.' : error}
+            </p>
+            {!isNotInTelegram && (
+              <button
+                onClick={() => { setError(null); fetchProfile(); }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" /> Попробовать снова
+              </button>
+            )}
           </CardContent>
         </Card>
       </div>
