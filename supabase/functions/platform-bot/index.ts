@@ -533,7 +533,7 @@ async function showProfile(tg: ReturnType<typeof TG>, chatId: number, msgId?: nu
   const subLabel = subStatusLabel(user.subscription_status);
   const priceInfo = await getSubscriptionPrice(chatId);
   let subExtra = "";
-  if (user.subscription_expires_at) {
+  if (user.subscription_expires_at && !["cancelled", "blocked", "none"].includes(user.subscription_status)) {
     const daysLeft = subscriptionDaysLeft(user.subscription_expires_at);
     if (daysLeft > 0) {
       subExtra = `\n⏳ Осталось: <b>${daysLeft}</b> ${daysLeft === 1 ? "день" : daysLeft < 5 ? "дня" : "дней"}`;
