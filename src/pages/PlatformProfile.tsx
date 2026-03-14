@@ -59,6 +59,7 @@ const statusConfig: Record<string, { label: string; color: string; bg: string; i
   grace_period: { label: 'Льготный период', color: 'text-amber-600', bg: 'bg-amber-50 border-amber-200', icon: <AlertTriangle className="w-5 h-5 text-amber-500" /> },
   cancelled: { label: 'Отменена', color: 'text-gray-600', bg: 'bg-gray-50 border-gray-300', icon: <AlertTriangle className="w-5 h-5 text-gray-400" /> },
   blocked: { label: 'Заблокирована', color: 'text-red-700', bg: 'bg-red-50 border-red-300', icon: <AlertTriangle className="w-5 h-5 text-red-600" /> },
+  none: { label: 'Не активна', color: 'text-gray-500', bg: 'bg-gray-50 border-gray-200', icon: <Clock className="w-5 h-5 text-gray-400" /> },
 };
 
 function daysUntil(dateStr: string | null): number | null {
@@ -358,6 +359,13 @@ const PlatformProfile: React.FC = () => {
               <div className="bg-red-100/50 rounded-xl p-3 text-center">
                 <p className="text-xs text-red-700 font-medium">
                   ⚠️ Подписка истекла. Нажмите для продления.
+                </p>
+              </div>
+            )}
+            {subscription.status === 'none' && (
+              <div className="bg-gray-100/50 rounded-xl p-3 text-center">
+                <p className="text-xs text-gray-600 font-medium">
+                  ⏳ Подписка не активна. Нажмите для оформления.
                 </p>
               </div>
             )}
