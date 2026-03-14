@@ -36,6 +36,7 @@ const statusConfig: Record<string, { label: string; badgeVariant: 'default' | 's
   grace_period: { label: 'Льготный период', badgeVariant: 'secondary' },
   cancelled: { label: 'Отменена', badgeVariant: 'secondary' },
   blocked: { label: 'Заблокирована', badgeVariant: 'destructive' },
+  none: { label: 'Не активна', badgeVariant: 'secondary' },
 };
 
 function daysUntil(dateStr: string | null): number | null {
@@ -52,7 +53,7 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
   const { initData } = useTelegram();
   const cfg = statusConfig[subscription.status] || statusConfig.expired;
   const daysLeft = daysUntil(subscription.expires_at);
-  const needsRenewal = ['expired', 'trial', 'grace_period', 'cancelled'].includes(subscription.status);
+  const needsRenewal = ['expired', 'trial', 'grace_period', 'cancelled', 'none'].includes(subscription.status);
   const canRenew = needsRenewal || (subscription.status === 'active' && daysLeft !== null && daysLeft <= 7);
   const tierLabels: Record<string, string> = { early_3: '🎉 Early Bird', standard_5: 'Стандартный' };
   const price = subscription.billing_price_usd || 0;

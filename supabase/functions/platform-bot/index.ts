@@ -180,15 +180,27 @@ function subscriptionDaysLeft(expiresAt: string | null): number {
 }
 
 function subStatusLabel(status: string): string {
-  const map: Record<string, string> = { active: "✅ Активна", trial: "🆓 Пробный период", expired: "❌ Истекла", grace_period: "⚠️ Льготный период", cancelled: "🚫 Отменена", blocked: "🔒 Заблокирована" };
+  const map: Record<string, string> = { active: "✅ Активна", trial: "🆓 Пробный период", expired: "❌ Истекла", grace_period: "⚠️ Льготный период", cancelled: "🚫 Отменена", blocked: "🔒 Заблокирована", none: "⏳ Не активна" };
   return map[status] || status;
 }
 
 async function checkAndEnforceSubscription(telegramId: number): Promise<{ status: string; expired: boolean }> {
   const { data: user } = await db().from("platform_users").select("subscription_status, subscription_expires_at, expiry_notified_at, id").eq("telegram_id", telegramId).maybeSingle();
-  if (!user) return { status: "trial", expired: false };
+  if (!user) return { status: "none", expired: false };
   const status = user.subscription_status;
+  if (status === "none") return { status: "none", expired: false };
   if (status === "blocked" || status === "cancelled") return { status, expired: true };
+  // If user has 'trial' status but no expiry date, check global trial policy
+  if (status === "trial" && !user.subscription_expires_at) {
+    const ss = await getSubSettings();
+    if (!ss.trial_enabled) {
+      // Trial is disabled globally and user was never properly granted one — treat as no subscription
+      await db().from("platform_users").update({ subscription_status: "none", updated_at: new Date().toISOString() }).eq("telegram_id", telegramId);
+      return { status: "none", expired: false };
+    }
+    // Trial enabled but not yet activated (no expiry) — user hasn't created a shop yet
+    return { status: "trial", expired: false };
+  }
   if (!user.subscription_expires_at) return { status, expired: false };
   const daysLeft = subscriptionDaysLeft(user.subscription_expires_at);
   const ss = await getSubSettings();
@@ -425,7 +437,11 @@ async function upsertUser(from: { id: number; first_name: string; last_name?: st
   const { data: existing } = await db().from("platform_users").select("id").eq("telegram_id", from.id).maybeSingle();
   const fields = { first_name: from.first_name || "", last_name: from.last_name || null, username: from.username || null, is_premium: from.is_premium || false, language_code: from.language_code || null, updated_at: new Date().toISOString() };
   if (existing) { await db().from("platform_users").update(fields).eq("telegram_id", from.id); return existing; }
-  const { data } = await db().from("platform_users").insert({ telegram_id: from.id, ...fields }).select("id").single();
+  // For NEW users: set subscription_status based on global trial policy
+  // Don't default to 'trial' if trial is globally disabled
+  const ss = await getSubSettings();
+  const initialStatus = ss.trial_enabled ? "trial" : "none";
+  const { data } = await db().from("platform_users").insert({ telegram_id: from.id, ...fields, subscription_status: initialStatus }).select("id").single();
   return data;
 }
 
@@ -531,8 +547,14 @@ async function showProfile(tg: ReturnType<typeof TG>, chatId: number, msgId?: nu
   }
   if (user.subscription_status === "trial") {
     const ss = await getSubSettings();
-    subExtra += `\n\n🆓 <i>Пробный период — ${ss.trial_days} дней после создания магазина.</i>`;
-    subExtra += `\n<i>После окончания потребуется подписка $${priceInfo.price}/мес.</i>`;
+    if (ss.trial_enabled) {
+      subExtra += `\n\n🆓 <i>Пробный период — ${ss.trial_days} дней после создания магазина.</i>`;
+      subExtra += `\n<i>После окончания потребуется подписка $${priceInfo.price}/мес.</i>`;
+    } else {
+      subExtra += `\n\n<i>Для работы магазина необходима подписка $${priceInfo.price}/мес.</i>`;
+    }
+  } else if (user.subscription_status === "none") {
+    subExtra += `\n\n<i>Для работы магазина оформите подписку $${priceInfo.price}/мес.</i>`;
   }
   const text = `👤 <b>${esc(user.first_name)}${user.last_name ? " " + esc(user.last_name) : ""}</b>${user.username ? `\n🔗 @${esc(user.username)}` : ""}\n\n🏪 Магазинов: <b>${shopCount || 0}</b>\n📊 Подписка: <b>${subLabel}</b>${subExtra}`;
   const kb = ikb([[webAppBtn("🌐 Открыть профиль", `${WEBAPP_DOMAIN}/platform/profile`)], [btn("💳 Подписка", "p:sub")], [btn("◀️ Назад", "p:home")]]);
@@ -646,8 +668,12 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
 
   const tierLabel = priceInfo.tier === "early_3" ? "🎉 Early Bird" : "Стандартный";
   let statusBlock = "";
-  if (user.subscription_status === "trial") {
+  if (user.subscription_status === "trial" && ss.trial_enabled) {
     statusBlock = `\n\n🆓 <b>Пробный период</b>\nВам доступны ${ss.trial_days} дней бесплатного использования.\nПосле окончания необходимо оформить подписку.`;
+  } else if (user.subscription_status === "trial" && !ss.trial_enabled) {
+    statusBlock = `\n\n⏳ <b>Подписка не активна</b>\nОформите подписку для работы магазина.`;
+  } else if (user.subscription_status === "none") {
+    statusBlock = `\n\n⏳ <b>Подписка не активна</b>\nОформите подписку для работы магазина.`;
   } else if (user.subscription_status === "expired") {
     statusBlock = `\n\n⚠️ <b>Подписка истекла</b>\nМагазины приостановлены. Продлите подписку для возобновления.`;
   } else if (user.subscription_status === "grace_period") {
@@ -657,7 +683,7 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
   const text = `💳 <b>Подписка</b>\n\n📊 Статус: <b>${status}</b>${daysLeftText}${statusBlock}\n\n💰 Ваша цена: <b>$${priceInfo.price}/мес</b> ${tierLabel}\n🏷 Тариф: ${tierLabel}\n\n<b>Включает:</b>\n• ${ss.max_shops_per_user} магазин\n• Приём платежей через CryptoBot\n• Собственный Telegram-бот\n• Авто-доставка цифровых товаров\n• ${ss.trial_enabled ? `${ss.trial_days} дней пробного периода` : "Пробный период недоступен"}`;
 
   const rows: Btn[][] = [];
-  const needsPayment = ["expired", "trial", "grace_period", "cancelled"].includes(user.subscription_status);
+  const needsPayment = ["expired", "trial", "grace_period", "cancelled", "none"].includes(user.subscription_status);
   const canRenew = needsPayment || (user.subscription_status === "active" && user.subscription_expires_at && subscriptionDaysLeft(user.subscription_expires_at) <= 7);
 
   if (canRenew) {
@@ -897,6 +923,15 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     if (ss.trial_started_notify) {
       const trialNotification = `🎉 <b>Ваш пробный период начался!</b>\n\nВам доступен бесплатный пробный период <b>${ss.trial_days} дней</b> на платформе <b>${PLATFORM_NAME}</b>.\n\n📅 Дата окончания: ${new Date(trialExpiresAt).toLocaleDateString("ru")}\n\n✅ В течение пробного периода магазин работает полноценно:\n• Бот принимает заказы\n• Автовыдача активна\n• Все функции доступны\n\n⚠️ После окончания пробного периода для продолжения работы магазина потребуется оформить подписку.`;
       await tg.send(chatId, trialNotification);
+    }
+  } else if (!ss.trial_enabled || (ss.one_trial_per_user && user.has_used_trial)) {
+    // Trial is disabled or user already used it — set status to 'none' so they must pay
+    if (user.subscription_status === "trial" || user.subscription_status === "none") {
+      const priceInfo = await getSubscriptionPrice(chatId);
+      await db().from("platform_users").update({
+        subscription_status: "none", updated_at: new Date().toISOString(),
+      }).eq("telegram_id", chatId);
+      trialMsg = `\n\n💳 <b>Для работы магазина необходима подписка</b>\n💰 Стоимость: $${priceInfo.price}/мес\n\nОформите подписку через меню «💳 Подписка» в профиле.`;
     }
   }
   await deactivateWizardMessages(tg, chatId, finalizingData, msgId);
@@ -1936,19 +1971,37 @@ async function admScPrices(tg: ReturnType<typeof TG>, chatId: number, msgId: num
 
 async function admScTrial(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
   const ss = await getSubSettings();
+  // Count active trial users (with actual trial expiry set)
+  const { count: activeTrialCount } = await db().from("platform_users").select("id", { count: "exact", head: true })
+    .eq("subscription_status", "trial").not("subscription_expires_at", "is", null);
+  // Count "trial" users without expiry (legacy/orphan)
+  const { count: orphanTrialCount } = await db().from("platform_users").select("id", { count: "exact", head: true })
+    .eq("subscription_status", "trial").is("subscription_expires_at", null);
   const text =
     `🆓 <b>Настройки Trial</b>\n\n` +
     `Trial: ${ss.trial_enabled ? "✅ Включён" : "❌ Выключен"}\n` +
     `Длительность: <b>${ss.trial_days}</b> дней\n` +
     `Один trial на пользователя: ${ss.one_trial_per_user ? "✅" : "❌"}\n` +
-    `Авто-trial при создании магазина: ${ss.auto_trial_on_shop_create ? "✅" : "❌"}`;
-  return tg.edit(chatId, msgId, text, ikb([
+    `Авто-trial при создании магазина: ${ss.auto_trial_on_shop_create ? "✅" : "❌"}\n\n` +
+    `<b>📊 Состояние:</b>\n` +
+    `  Активных trial: <b>${activeTrialCount || 0}</b>\n` +
+    `  Orphan trial (без даты): <b>${orphanTrialCount || 0}</b>\n\n` +
+    (!ss.trial_enabled ? `⚠️ <i>Trial выключен. Новые trial не выдаются.\n${(activeTrialCount || 0) > 0 ? "Уже выданные trial продолжают действовать до конца срока." : ""}</i>\n` : "") +
+    ((orphanTrialCount || 0) > 0 ? `⚠️ <i>Orphan trial — пользователи со статусом 'trial' без даты окончания. Можно очистить.</i>` : "");
+  const rows: Btn[][] = [
     [btn(ss.trial_enabled ? "❌ Выкл trial" : "✅ Вкл trial", "adm:sc:tog:trial_enabled")],
     [btn("✏️ Дни trial", "adm:sc:set:trial_days")],
     [btn(ss.one_trial_per_user ? "❌ Multi-trial" : "✅ Один trial", "adm:sc:tog:one_trial_per_user")],
     [btn(ss.auto_trial_on_shop_create ? "❌ Авто-trial выкл" : "✅ Авто-trial вкл", "adm:sc:tog:auto_trial_on_shop_create")],
-    [btn("◀️ Назад", "adm:subconfig")],
-  ]));
+  ];
+  if ((orphanTrialCount || 0) > 0) {
+    rows.push([btn("🧹 Очистить orphan trials", "adm:sc:clean_orphan_trials")]);
+  }
+  if ((activeTrialCount || 0) > 0 && !ss.trial_enabled) {
+    rows.push([btn("⏹ Завершить все active trials", "adm:sc:expire_all_trials")]);
+  }
+  rows.push([btn("◀️ Назад", "adm:subconfig")]);
+  return tg.edit(chatId, msgId, text, ikb(rows));
 }
 
 async function admScLimits(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
@@ -2568,9 +2621,39 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
   // ─── Subscription Config (platform-wide) ──
   if (cmd === "subconfig") return admSubConfig(tg, chatId, msgId);
   if (cmd === "sc") {
-    const subCmd = parts[2]; // prices, trial, limits, expiry, notify, set, tog
+    const subCmd = parts[2]; // prices, trial, limits, expiry, notify, set, tog, clean_orphan_trials, expire_all_trials
     if (subCmd === "prices") return admScPrices(tg, chatId, msgId);
     if (subCmd === "trial") return admScTrial(tg, chatId, msgId);
+    if (subCmd === "clean_orphan_trials") {
+      // Set all orphan trial users (no expiry) to 'none'
+      const { data: orphans } = await db().from("platform_users").select("telegram_id").eq("subscription_status", "trial").is("subscription_expires_at", null);
+      const count = orphans?.length || 0;
+      for (const o of orphans || []) {
+        await db().from("platform_users").update({ subscription_status: "none", updated_at: new Date().toISOString() }).eq("telegram_id", o.telegram_id);
+      }
+      await admLog(adminTgId, "clean_orphan_trials", "sub_config", "trial", { cleaned: count });
+      await tg.answer(cbId, `✅ Очищено ${count} orphan trial(s)`);
+      return admScTrial(tg, chatId, msgId);
+    }
+    if (subCmd === "expire_all_trials") {
+      // Expire all active trials immediately
+      const { data: activeTrials } = await db().from("platform_users").select("telegram_id, id").eq("subscription_status", "trial").not("subscription_expires_at", "is", null);
+      const count = activeTrials?.length || 0;
+      for (const u of activeTrials || []) {
+        await db().from("platform_users").update({ subscription_status: "expired", updated_at: new Date().toISOString() }).eq("telegram_id", u.telegram_id);
+        // Pause shops
+        const ss2 = await getSubSettings();
+        if (ss2.on_expiry_pause_shop) {
+          const { data: shops } = await db().from("shops").select("id").eq("owner_id", u.id).eq("status", "active");
+          for (const shop of shops || []) {
+            await db().from("shops").update({ status: "paused", updated_at: new Date().toISOString() }).eq("id", shop.id);
+          }
+        }
+      }
+      await admLog(adminTgId, "expire_all_trials", "sub_config", "trial", { expired: count });
+      await tg.answer(cbId, `✅ Завершено ${count} trial(s)`);
+      return admScTrial(tg, chatId, msgId);
+    }
     if (subCmd === "limits") return admScLimits(tg, chatId, msgId);
     if (subCmd === "expiry") return admScExpiry(tg, chatId, msgId);
     if (subCmd === "notify") return admScNotify(tg, chatId, msgId);
