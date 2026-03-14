@@ -29,6 +29,7 @@ interface Props {
   loading?: boolean;
 }
 
+the statusthis is correct already — adding 'none' status:
 const statusConfig: Record<string, { label: string; badgeVariant: 'default' | 'secondary' | 'destructive' }> = {
   active: { label: 'Активна', badgeVariant: 'default' },
   trial: { label: 'Пробный период', badgeVariant: 'secondary' },
@@ -36,6 +37,7 @@ const statusConfig: Record<string, { label: string; badgeVariant: 'default' | 's
   grace_period: { label: 'Льготный период', badgeVariant: 'secondary' },
   cancelled: { label: 'Отменена', badgeVariant: 'secondary' },
   blocked: { label: 'Заблокирована', badgeVariant: 'destructive' },
+  none: { label: 'Не активна', badgeVariant: 'secondary' },
 };
 
 function daysUntil(dateStr: string | null): number | null {
