@@ -162,6 +162,49 @@ serve(async (req) => {
         return jsonRes({ history: history || [] });
       }
 
+      case "platform-profile": {
+        // Platform-level profile: user + subscription + balance + shops
+        const { data: pUser } = await supabase.from("platform_users").select("*")
+          .eq("telegram_id", telegramId).maybeSingle();
+        if (!pUser) return jsonRes({ error: "Platform user not found" }, 404);
+
+        const { data: shops } = await supabase.from("shops").select("id, name, slug, status, bot_username, webhook_status, created_at")
+          .eq("owner_id", pUser.id).order("created_at", { ascending: false });
+
+        return jsonRes({
+          user: {
+            id: pUser.id,
+            telegram_id: pUser.telegram_id,
+            first_name: pUser.first_name,
+            last_name: pUser.last_name,
+            username: pUser.username,
+            photo_url: pUser.photo_url,
+            is_premium: pUser.is_premium,
+            language_code: pUser.language_code,
+            created_at: pUser.created_at,
+          },
+          subscription: {
+            status: pUser.subscription_status,
+            expires_at: pUser.subscription_expires_at,
+            trial_started_at: pUser.trial_started_at,
+            has_used_trial: pUser.has_used_trial,
+            pricing_tier: pUser.pricing_tier,
+            billing_price_usd: pUser.billing_price_usd,
+            first_paid_at: pUser.first_paid_at,
+          },
+          balance: 0, // platform_users doesn't have balance; kept for future
+          shops: (shops || []).map((s: any) => ({
+            id: s.id,
+            name: s.name,
+            slug: s.slug,
+            status: s.status,
+            bot_username: s.bot_username,
+            webhook_status: s.webhook_status,
+            created_at: s.created_at,
+          })),
+        });
+      }
+
       case "stats": {
         if (isShop) {
           const { data: orders } = await supabase.from("shop_orders").select("total_amount, discount_amount, status")
