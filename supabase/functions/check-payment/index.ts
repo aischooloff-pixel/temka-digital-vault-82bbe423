@@ -214,9 +214,8 @@ async function checkTopupPayment(params: {
   let payload: any = {};
   try { payload = JSON.parse(invoice.payload || "{}"); } catch {}
 
-  if (payload.type !== "topup") return jsonRes({ error: "Invalid invoice type" }, 400);
+  if (payload.type !== "topup" && payload.type !== "platform_topup") return jsonRes({ error: "Invalid invoice type" }, 400);
   if (Number(payload.telegramUserId) !== telegramId) return jsonRes({ error: "Invoice owner mismatch" }, 403);
-  if (shopId && (payload.shopId || null) !== shopId) return jsonRes({ error: "Invoice shop mismatch" }, 403);
 
   if (invoice.status === "paid") {
     try {
@@ -230,6 +229,86 @@ async function checkTopupPayment(params: {
 
   if (invoice.status === "expired") return jsonRes({ topupStatus: "expired", paymentStatus: "expired" });
   return jsonRes({ topupStatus: invoice.status || "awaiting", paymentStatus: "awaiting" });
+}
+
+async function checkSubscriptionPayment(params: {
+  supabase: any;
+  tokens: { botToken: string | null; cryptobotToken: string | null };
+  invoiceId: string;
+  telegramId: number;
+}) {
+  const { supabase, tokens, invoiceId, telegramId } = params;
+  if (!tokens.cryptobotToken) return jsonRes({ subscriptionStatus: "awaiting", paymentStatus: "awaiting" });
+
+  const response = await fetch(`${CRYPTOBOT_API_URL}/getInvoices`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Crypto-Pay-API-Token": tokens.cryptobotToken },
+    body: JSON.stringify({ invoice_ids: invoiceId }),
+  });
+
+  const data = await response.json();
+  if (!data.ok || !data.result?.items?.length) return jsonRes({ subscriptionStatus: "awaiting", paymentStatus: "awaiting" });
+
+  const invoice = data.result.items[0];
+  let payload: any = {};
+  try { payload = JSON.parse(invoice.payload || "{}"); } catch {}
+
+  if (payload.type !== "subscription") return jsonRes({ error: "Invalid invoice type" }, 400);
+  if (Number(payload.telegramUserId) !== telegramId) return jsonRes({ error: "Invoice owner mismatch" }, 403);
+
+  if (invoice.status === "paid") {
+    // Check if already processed
+    const { data: existing } = await supabase.from("processed_invoices").select("invoice_id").eq("invoice_id", invoiceId).maybeSingle();
+    if (existing) return jsonRes({ subscriptionStatus: "paid", paymentStatus: "paid" });
+
+    // Process subscription payment (same logic as webhook)
+    const { error: dedupError } = await supabase.from("processed_invoices").insert({
+      invoice_id: invoiceId, type: "subscription", order_id: null,
+      telegram_id: telegramId, amount: Number(payload.subscriptionPrice || invoice.amount),
+    });
+    if (dedupError) return jsonRes({ subscriptionStatus: "paid", paymentStatus: "paid" });
+
+    const balanceUsed = Number(payload.balanceUsed || 0);
+    if (balanceUsed > 0) {
+      const { data: newBal, error: balErr } = await supabase.rpc("platform_deduct_balance", { p_telegram_id: telegramId, p_amount: balanceUsed });
+      if (!balErr) {
+        await supabase.from("platform_balance_history").insert({
+          telegram_id: telegramId, amount: -balanceUsed, balance_after: newBal,
+          type: "subscription", comment: `Подписка (invoice:${invoiceId})`,
+        });
+      }
+    }
+
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: pUser } = await supabase.from("platform_users").select("first_paid_at, id").eq("telegram_id", telegramId).maybeSingle();
+    await supabase.from("platform_users").update({
+      subscription_status: "active", subscription_expires_at: expiresAt,
+      billing_price_usd: payload.subscriptionPrice, pricing_tier: payload.tier,
+      first_paid_at: pUser?.first_paid_at || new Date().toISOString(),
+      reminder_sent_at: null, expiry_notified_at: null, updated_at: new Date().toISOString(),
+    }).eq("telegram_id", telegramId);
+
+    if (pUser?.id) {
+      const { data: shops } = await supabase.from("shops").select("id").eq("owner_id", pUser.id).eq("status", "paused");
+      for (const shop of shops || []) {
+        await supabase.from("shops").update({ status: "active", updated_at: new Date().toISOString() }).eq("id", shop.id);
+      }
+    }
+
+    await supabase.from("subscription_payments").update({ status: "paid" }).eq("id", payload.paymentId);
+
+    const botToken = Deno.env.get("PLATFORM_BOT_TOKEN");
+    if (botToken) {
+      let msg = `✅ <b>Подписка активирована!</b>\n\n📅 До: ${new Date(expiresAt).toLocaleDateString("ru")}`;
+      if (balanceUsed > 0) msg += `\n💳 С баланса: -$${balanceUsed.toFixed(2)}`;
+      try { await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: telegramId, text: msg, parse_mode: "HTML" }) }); } catch {}
+    }
+
+    return jsonRes({ subscriptionStatus: "paid", paymentStatus: "paid", expiresAt });
+  }
+
+  if (invoice.status === "expired") return jsonRes({ subscriptionStatus: "expired", paymentStatus: "expired" });
+  return jsonRes({ subscriptionStatus: invoice.status || "awaiting", paymentStatus: "awaiting" });
 }
 
 serve(async (req) => {
