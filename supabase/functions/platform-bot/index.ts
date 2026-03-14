@@ -70,9 +70,10 @@ const db = () => {
 };
 
 // ─── Helpers ──────────────────────────────────
-type Btn = { text: string; callback_data?: string; url?: string };
+type Btn = { text: string; callback_data?: string; url?: string; web_app?: { url: string } };
 const btn = (t: string, cb: string): Btn => ({ text: t, callback_data: cb });
 const urlBtn = (t: string, url: string): Btn => ({ text: t, url });
+const webAppBtn = (t: string, url: string): Btn => ({ text: t, web_app: { url } });
 const ikb = (rows: Btn[][]) => ({ inline_keyboard: rows });
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
