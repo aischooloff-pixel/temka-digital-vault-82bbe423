@@ -138,7 +138,7 @@ const PlatformProfile: React.FC = () => {
     };
   }, []);
 
-  const handleSubscriptionPay = async (useBalance: boolean) => {
+  const handleSubscriptionPay = async (useBalance: boolean, promoCode?: string) => {
     if (!isInTelegram || !initData) {
       toast.info('Откройте платформу через Telegram');
       return;
@@ -146,13 +146,12 @@ const PlatformProfile: React.FC = () => {
     setSubLoading(true);
     try {
       const { data: res, error: err } = await supabase.functions.invoke('create-subscription-invoice', {
-        body: { initData, useBalance },
+        body: { initData, useBalance, promoCode },
       });
       if (err) throw err;
       if (res?.error) throw new Error(res.error);
 
       if (res?.status === 'paid') {
-        // Paid fully from balance
         toast.success('Подписка активирована!');
         setSubSheetOpen(false);
         fetchProfile(true);
@@ -161,7 +160,6 @@ const PlatformProfile: React.FC = () => {
 
       if (res?.payUrl) {
         openTelegramLink(res.payUrl);
-        // Start polling for subscription payment
         if (subPollRef.current) clearInterval(subPollRef.current);
         subPollCountRef.current = 0;
         subPollRef.current = window.setInterval(async () => {
