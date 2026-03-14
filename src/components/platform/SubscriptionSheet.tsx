@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ShieldCheck, Clock, AlertTriangle, Crown, Calendar, CreditCard, Sparkles } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { ShieldCheck, Clock, AlertTriangle, Crown, Calendar, CreditCard, Sparkles, Wallet, Loader2 } from 'lucide-react';
 
 interface SubscriptionData {
   status: string;
@@ -16,9 +18,11 @@ interface SubscriptionData {
 
 interface Props {
   subscription: SubscriptionData;
+  balance: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onRenew: () => void;
+  onPayWithInvoice: (useBalance: boolean) => Promise<void>;
+  loading?: boolean;
 }
 
 const statusConfig: Record<string, { label: string; color: string; badgeVariant: 'default' | 'secondary' | 'destructive' }> = {
@@ -40,11 +44,17 @@ function formatDate(dateStr: string | null): string {
   return new Date(dateStr).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-const SubscriptionSheet = ({ subscription, open, onOpenChange, onRenew }: Props) => {
+const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWithInvoice, loading }: Props) => {
   const cfg = statusConfig[subscription.status] || statusConfig.expired;
   const daysLeft = daysUntil(subscription.expires_at);
   const needsRenewal = ['expired', 'trial', 'grace_period', 'cancelled'].includes(subscription.status);
+  const canRenew = needsRenewal || (subscription.status === 'active' && daysLeft !== null && daysLeft <= 7);
   const tierLabels: Record<string, string> = { early_3: '🎉 Early Bird', standard_5: 'Стандартный' };
+  const price = subscription.billing_price_usd || 0;
+  const [useBalance, setUseBalance] = useState(true);
+  const canPayFull = balance >= price;
+  const balanceToUse = useBalance ? Math.min(balance, price) : 0;
+  const toPay = Math.max(0, price - balanceToUse);
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -56,7 +66,7 @@ const SubscriptionSheet = ({ subscription, open, onOpenChange, onRenew }: Props)
           </DrawerTitle>
         </DrawerHeader>
 
-        <div className="px-4 pb-4 space-y-4">
+        <div className="px-4 pb-4 space-y-4 max-h-[60vh] overflow-y-auto">
           {/* Status */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-500">Статус</span>
@@ -66,10 +76,10 @@ const SubscriptionSheet = ({ subscription, open, onOpenChange, onRenew }: Props)
           <Separator />
 
           {/* Price */}
-          {subscription.billing_price_usd != null && (
+          {price > 0 && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-500">Стоимость</span>
-              <span className="text-lg font-bold text-gray-900">${subscription.billing_price_usd}/мес</span>
+              <span className="text-lg font-bold text-gray-900">${price}/мес</span>
             </div>
           )}
 
@@ -144,13 +154,64 @@ const SubscriptionSheet = ({ subscription, open, onOpenChange, onRenew }: Props)
               </p>
             </div>
           )}
+          {subscription.status === 'grace_period' && (
+            <div className="bg-amber-50 rounded-xl p-3 text-center">
+              <p className="text-xs text-amber-700 font-medium">
+                ⏰ Льготный период. Скоро магазины будут приостановлены.
+              </p>
+            </div>
+          )}
+
+          {/* Balance payment option */}
+          {canRenew && price > 0 && balance > 0 && (
+            <>
+              <Separator />
+              <div className="bg-blue-50 rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-600 flex items-center gap-1">
+                    <Wallet className="w-3.5 h-3.5 text-blue-500" /> Оплатить с баланса
+                  </span>
+                  <Switch checked={useBalance} onCheckedChange={setUseBalance} />
+                </div>
+                {useBalance && (
+                  <div className="text-xs text-gray-500 space-y-0.5">
+                    <div className="flex justify-between">
+                      <span>Баланс:</span>
+                      <span className="font-medium">${balance.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Спишется:</span>
+                      <span className="font-medium text-blue-600">-${balanceToUse.toFixed(2)}</span>
+                    </div>
+                    {toPay > 0 && (
+                      <div className="flex justify-between">
+                        <span>Доплатить:</span>
+                        <span className="font-medium text-gray-800">${toPay.toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="p-4 pt-2 space-y-2">
-          {needsRenewal && (
-            <Button onClick={onRenew} className="w-full bg-[#2B7FFF] hover:bg-[#2070EE] text-white">
-              💳 {subscription.status === 'trial' ? 'Оформить подписку' : 'Продлить подписку'}
-              {subscription.billing_price_usd != null && ` — $${subscription.billing_price_usd}`}
+          {canRenew && price > 0 && (
+            <Button
+              onClick={() => onPayWithInvoice(useBalance)}
+              disabled={loading}
+              className="w-full bg-[#2B7FFF] hover:bg-[#2070EE] text-white"
+            >
+              {loading ? (
+                <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Создание счёта...</>
+              ) : canPayFull && useBalance ? (
+                `💳 Оплатить с баланса — $${price}`
+              ) : toPay > 0 ? (
+                `💳 ${subscription.status === 'trial' ? 'Оформить' : 'Продлить'} — $${toPay.toFixed(2)}`
+              ) : (
+                `💳 Оформить бесплатно`
+              )}
             </Button>
           )}
           <DrawerClose asChild>
