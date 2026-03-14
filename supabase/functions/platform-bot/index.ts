@@ -656,7 +656,8 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
   const priceInfo = await getSubscriptionPrice(chatId);
   const status = subStatusLabel(user.subscription_status);
   let daysLeftText = "";
-  if (user.subscription_expires_at) {
+  // Don't show days left / expiry for cancelled or blocked statuses
+  if (user.subscription_expires_at && !["cancelled", "blocked", "none"].includes(user.subscription_status)) {
     const dLeft = subscriptionDaysLeft(user.subscription_expires_at);
     if (dLeft > 0) {
       daysLeftText = `\n⏳ Осталось: <b>${dLeft}</b> ${dLeft === 1 ? "день" : dLeft < 5 ? "дня" : "дней"}`;
@@ -674,6 +675,8 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
     statusBlock = `\n\n⏳ <b>Подписка не активна</b>\nОформите подписку для работы магазина.`;
   } else if (user.subscription_status === "none") {
     statusBlock = `\n\n⏳ <b>Подписка не активна</b>\nОформите подписку для работы магазина.`;
+  } else if (user.subscription_status === "cancelled") {
+    statusBlock = `\n\n🚫 <b>Подписка отменена</b>\nМагазины приостановлены. Оформите подписку заново для возобновления.`;
   } else if (user.subscription_status === "expired") {
     statusBlock = `\n\n⚠️ <b>Подписка истекла</b>\nМагазины приостановлены. Продлите подписку для возобновления.`;
   } else if (user.subscription_status === "grace_period") {
@@ -995,6 +998,30 @@ async function handleText(tg: ReturnType<typeof TG>, chatId: number, text: strin
   const sData = { ...(session.data || {}) } as Record<string, unknown>;
   const val = text.trim();
 
+  // ─── Subscription promo input ───────────
+  if (state === "sub_promo_input") {
+    const code = val.toUpperCase();
+    if (code.length < 2) return tg.send(chatId, "❌ Промокод слишком короткий. Попробуйте ещё:");
+    const { data: result } = await db().rpc("validate_platform_subscription_promo", { p_code: code, p_telegram_id: chatId });
+    const r = result as any;
+    await clearSession(chatId);
+    if (!r || !r.valid) {
+      return tg.send(chatId, `❌ ${r?.error || "Промокод не найден"}`, ikb([[btn("🔄 Попробовать снова", "p:sub_promo")], [btn("◀️ К подписке", "p:sub")]]));
+    }
+    const priceInfo = await getSubscriptionPrice(chatId);
+    let discountText = "";
+    if (r.discount_type === "percent") {
+      const da = Math.round(priceInfo.price * r.discount_value / 100 * 100) / 100;
+      discountText = `${r.discount_value}% (-$${da.toFixed(2)})`;
+    } else {
+      const da = Math.min(r.discount_value, priceInfo.price);
+      discountText = `-$${da.toFixed(2)}`;
+    }
+    return tg.send(chatId, `✅ <b>Промокод ${esc(r.code)} применён!</b>\n\n🎫 Скидка: <b>${discountText}</b>\n💰 Стоимость: $${priceInfo.price}/мес\n\nОткройте Mini App для оплаты со скидкой:`, ikb([
+      [webAppBtn("💳 Оплатить со скидкой", Deno.env.get("WEBAPP_URL") || "")],
+      [btn("◀️ К подписке", "p:sub")],
+    ]));
+  }
   // ─── ADM FSM states ─────────────────────
   if (state.startsWith("adm_")) return handleAdmText(tg, chatId, val, state, sData);
 
@@ -1081,6 +1108,23 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
   if (cmd === "howitworks") return howItWorks(tg, chatId, msgId);
   if (cmd === "profile") return showProfile(tg, chatId, msgId);
   if (cmd === "sub") return showSubscription(tg, chatId, msgId);
+  if (cmd === "pay_sub") {
+    // Create subscription invoice directly from bot
+    const priceInfo = await getSubscriptionPrice(chatId);
+    const { data: pUser } = await db().from("platform_users").select("id, subscription_status, subscription_expires_at, balance, billing_price_usd, pricing_tier").eq("telegram_id", chatId).maybeSingle();
+    if (!pUser) return tg.edit(chatId, msgId, "❌ Пользователь не найден.", ikb([[btn("◀️ Назад", "p:sub")]]));
+    // Redirect to Mini App for payment (since CryptoBot invoice requires initData verification)
+    const webAppUrl = Deno.env.get("WEBAPP_URL") || "";
+    return tg.edit(chatId, msgId, `💳 <b>Оплата подписки</b>\n\n💰 Стоимость: <b>$${priceInfo.price}/мес</b>\n\nДля оплаты откройте Mini App:`, ikb([
+      [webAppBtn("💳 Перейти к оплате", webAppUrl)],
+      [btn("◀️ Назад", "p:sub")],
+    ]));
+  }
+  if (cmd === "sub_promo") {
+    // Ask user to enter promo code via text input
+    await setSession(chatId, "sub_promo_input", {});
+    return tg.edit(chatId, msgId, "🎫 <b>Ввод промокода</b>\n\nВведите ваш промокод для скидки на подписку:", ikb([[btn("❌ Отмена", "p:sub")]]));
+  }
   if (cmd === "myshops") return myShops(tg, chatId, msgId, parseInt(parts[2]) || 0);
   if (cmd === "shop") return shopView(tg, chatId, msgId, parts[2]);
   if (cmd === "settings") return shopSettings(tg, chatId, msgId, parts[2]);

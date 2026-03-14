@@ -79,7 +79,16 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
       const { data: res, error } = await supabase.functions.invoke('get-my-data', {
         body: { initData, action: 'validate-sub-promo', promoCode: promoCode.trim() },
       });
-      if (error) throw error;
+      if (error) {
+        // Extract specific error from FunctionsHttpError response body if available
+        let errMsg = 'Ошибка проверки промокода';
+        try {
+          const errBody = typeof error === 'object' && 'context' in error ? await (error as any).context?.json?.() : null;
+          if (errBody?.error) errMsg = errBody.error;
+        } catch {}
+        setPromoError(errMsg);
+        return;
+      }
       if (res?.error || !res?.valid) {
         setPromoError(res?.error || 'Промокод не найден');
         return;
@@ -93,7 +102,7 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
       setPromoResult({ valid: true, code: res.code, discount_type: res.discount_type, discount_value: res.discount_value, discountAmount: da });
       toast.success(`Промокод применён: -$${da.toFixed(2)}`);
     } catch (e: any) {
-      setPromoError(e.message || 'Ошибка проверки');
+      setPromoError(e.message || 'Ошибка проверки промокода');
     } finally {
       setPromoLoading(false);
     }
@@ -149,8 +158,8 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
 
           <Separator />
 
-          {/* Expiration */}
-          {subscription.expires_at && (
+          {/* Expiration — hide for cancelled/blocked/none */}
+          {subscription.expires_at && !['cancelled', 'blocked', 'none'].includes(subscription.status) && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" /> Действует до
@@ -159,7 +168,7 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
             </div>
           )}
 
-          {daysLeft !== null && (
+          {daysLeft !== null && !['cancelled', 'blocked', 'none'].includes(subscription.status) && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5" /> Осталось
@@ -204,6 +213,20 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
             <div className="bg-red-50 rounded-xl p-3 text-center">
               <p className="text-xs text-red-700 font-medium">
                 ⚠️ Подписка истекла. Магазины приостановлены. Продлите для возобновления.
+              </p>
+            </div>
+          )}
+          {subscription.status === 'cancelled' && (
+            <div className="bg-orange-50 rounded-xl p-3 text-center">
+              <p className="text-xs text-orange-700 font-medium">
+                🚫 Подписка отменена. Магазины приостановлены. Оформите подписку заново.
+              </p>
+            </div>
+          )}
+          {subscription.status === 'none' && (
+            <div className="bg-slate-50 rounded-xl p-3 text-center">
+              <p className="text-xs text-slate-700 font-medium">
+                ⏳ Подписка не активна. Оформите подписку для работы магазина.
               </p>
             </div>
           )}
