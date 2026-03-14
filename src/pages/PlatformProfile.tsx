@@ -378,7 +378,7 @@ const PlatformProfile: React.FC = () => {
                   <div
                     key={shop.id}
                     className="flex items-center gap-3 p-3 rounded-xl bg-gray-50/80 hover:bg-blue-50/50 transition-colors cursor-pointer active:scale-[0.99]"
-                    onClick={() => { setSelectedShop(shop); setShopSheetOpen(true); }}
+                    onClick={() => { haptic.impact('light'); setSelectedShop(shop); setShopSheetOpen(true); }}
                   >
                     <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">
                       {shop.name[0]?.toUpperCase()}
