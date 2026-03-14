@@ -79,7 +79,16 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
       const { data: res, error } = await supabase.functions.invoke('get-my-data', {
         body: { initData, action: 'validate-sub-promo', promoCode: promoCode.trim() },
       });
-      if (error) throw error;
+      if (error) {
+        // Extract specific error from FunctionsHttpError response body if available
+        let errMsg = 'Ошибка проверки промокода';
+        try {
+          const errBody = typeof error === 'object' && 'context' in error ? await (error as any).context?.json?.() : null;
+          if (errBody?.error) errMsg = errBody.error;
+        } catch {}
+        setPromoError(errMsg);
+        return;
+      }
       if (res?.error || !res?.valid) {
         setPromoError(res?.error || 'Промокод не найден');
         return;
@@ -93,7 +102,7 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
       setPromoResult({ valid: true, code: res.code, discount_type: res.discount_type, discount_value: res.discount_value, discountAmount: da });
       toast.success(`Промокод применён: -$${da.toFixed(2)}`);
     } catch (e: any) {
-      setPromoError(e.message || 'Ошибка проверки');
+      setPromoError(e.message || 'Ошибка проверки промокода');
     } finally {
       setPromoLoading(false);
     }
