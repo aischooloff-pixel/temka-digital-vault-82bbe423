@@ -1296,7 +1296,7 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
     } catch (e) { await clearSession(chatId); return tg.edit(chatId, msgId, `❌ Ошибка: ${(e as Error).message}`, ikb([[btn("◀️ Назад", "p:sub")]])); }
   }
   if (cmd === "sub_promo") {
-    await setSession(chatId, "sub_enter_promo", {});
+    await setSession(chatId, "sub_promo_input", {});
     return tg.edit(chatId, msgId, `🎫 <b>Промокод на подписку</b>\n\nВведите промокод:`, ikb([[btn("❌ Отмена", "p:sub")]]));
   }
 }
