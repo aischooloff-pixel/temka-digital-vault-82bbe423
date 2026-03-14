@@ -94,6 +94,7 @@ export const TelegramProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       user,
       initData: webApp?.initData || '',
       isInTelegram: !!webApp,
+      isReady,
       colorScheme: webApp?.colorScheme || 'dark',
       haptic,
       openTelegramLink,
