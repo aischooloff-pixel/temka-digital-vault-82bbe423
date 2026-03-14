@@ -543,13 +543,8 @@ async function showProfile(tg: ReturnType<typeof TG>, chatId: number, msgId?: nu
     }
   }
   if (user.subscription_status === "trial") {
-    const ss = await getSubSettings();
-    if (ss.trial_enabled) {
-      subExtra += `\n\n🆓 <i>Пробный период — ${ss.trial_days} дней после создания магазина.</i>`;
-      subExtra += `\n<i>После окончания потребуется подписка $${priceInfo.price}/мес.</i>`;
-    } else {
-      subExtra += `\n\n<i>Для работы магазина необходима подписка $${priceInfo.price}/мес.</i>`;
-    }
+    subExtra += `\n\n✅ <i>Подписка активна бесплатно (пробный период).</i>`;
+    subExtra += `\n<i>После окончания пробного периода продление: $${priceInfo.price}/мес.</i>`;
   } else if (user.subscription_status === "none") {
     subExtra += `\n\n<i>Для работы магазина оформите подписку $${priceInfo.price}/мес.</i>`;
   }
