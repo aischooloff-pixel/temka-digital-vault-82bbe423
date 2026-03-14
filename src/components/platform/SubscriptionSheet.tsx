@@ -207,6 +207,20 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
               </p>
             </div>
           )}
+          {subscription.status === 'cancelled' && (
+            <div className="bg-orange-50 rounded-xl p-3 text-center">
+              <p className="text-xs text-orange-700 font-medium">
+                🚫 Подписка отменена. Магазины приостановлены. Оформите подписку заново.
+              </p>
+            </div>
+          )}
+          {subscription.status === 'none' && (
+            <div className="bg-slate-50 rounded-xl p-3 text-center">
+              <p className="text-xs text-slate-700 font-medium">
+                ⏳ Подписка не активна. Оформите подписку для работы магазина.
+              </p>
+            </div>
+          )}
           {subscription.status === 'grace_period' && (
             <div className="bg-amber-50 rounded-xl p-3 text-center">
               <p className="text-xs text-amber-700 font-medium">
