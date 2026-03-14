@@ -2843,7 +2843,23 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     return tg.send(chatId, text, ikb(rows));
   }
 
-  if (state === "adm_user_balance") {
+  // ─── Subscription Config: set numeric value ─
+  if (state === "adm_sc_set_value") {
+    const key = sData.key as string;
+    const back = sData.back as string || "subconfig";
+    const num = parseFloat(val);
+    if (isNaN(num) || num < 0) return tg.send(chatId, "❌ Введите число ≥ 0:");
+    const ss = await getSubSettings();
+    const oldVal = (ss as any)[key];
+    await clearSession(chatId);
+    await db().from("shop_settings").upsert({ key: `sub_${key}`, value: String(num), updated_at: new Date().toISOString() }, { onConflict: "key" });
+    invalidateSubCache();
+    await admLog(chatId, "update_sub_setting", "sub_config", key, { old: oldVal, new: num });
+    const resp = await tg.send(chatId, `✅ <b>${key}</b> обновлено: ${oldVal} → <b>${num}</b>`, ikb([[btn("◀️ Назад", `adm:sc:${back}`)]]));
+    return;
+  }
+
+
     const targetTgId = sData.target_tg_id as number;
     const match = val.match(/^([+-]?)(\d+(?:\.\d+)?)$/);
     if (!match) return tg.send(chatId, "❌ Формат: +10 или -5");
