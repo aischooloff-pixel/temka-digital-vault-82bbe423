@@ -95,43 +95,9 @@ const PlatformProfile: React.FC = () => {
     } catch {}
   }, [webApp]);
 
-  const mockData: ProfileData = {
-    user: {
-      id: 'demo-id',
-      telegram_id: 123456789,
-      first_name: 'Александр',
-      last_name: 'Иванов',
-      username: 'alex_ivanov',
-      is_premium: true,
-      created_at: '2025-01-15T00:00:00Z',
-    },
-    subscription: {
-      status: 'active',
-      expires_at: new Date(Date.now() + 18 * 24 * 60 * 60 * 1000).toISOString(),
-      trial_started_at: null,
-      has_used_trial: true,
-      pricing_tier: 'early_3',
-      billing_price_usd: 3,
-      first_paid_at: '2025-02-01T00:00:00Z',
-    },
-    balance: 12.50,
-    shops: [
-      {
-        id: 'shop-1',
-        name: 'Digital Store',
-        slug: 'digital-store',
-        status: 'active',
-        bot_username: 'digital_store_bot',
-        webhook_status: 'active',
-        created_at: '2025-02-10T00:00:00Z',
-        stats: { products: 12, orders: 47, customers: 156, revenue: 842.50 },
-      },
-    ],
-  };
-
   useEffect(() => {
     if (!initData || !tgUser) {
-      setData(mockData);
+      setError('Откройте профиль через Telegram');
       setLoading(false);
       return;
     }

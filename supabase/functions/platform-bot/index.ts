@@ -326,7 +326,7 @@ async function upsertUser(from: { id: number; first_name: string; last_name?: st
 }
 
 // ─── Bottom panel (keyboard) ──────────────────
-const bottomPanel = (hasShop: boolean) => ({ keyboard: [[{ text: "👤 Профиль", web_app: { url: `${WEBAPP_DOMAIN}/platform/profile` } }, { text: "🆘 Поддержка" }], [{ text: hasShop ? "🏪 Мой магазин" : "🏪 Создать магазин" }]], resize_keyboard: true, is_persistent: true });
+const bottomPanel = (hasShop: boolean) => ({ keyboard: [[{ text: "👤 Профиль" }, { text: "🆘 Поддержка" }], [{ text: hasShop ? "🏪 Мой магазин" : "🏪 Создать магазин" }]], resize_keyboard: true, is_persistent: true });
 
 async function sendBottomPanel(tg: ReturnType<typeof TG>, chatId: number, hasShop: boolean): Promise<void> {
   await tg.send(chatId, "⬇️", bottomPanel(hasShop));
