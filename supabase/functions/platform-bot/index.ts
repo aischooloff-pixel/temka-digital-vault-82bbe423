@@ -476,7 +476,7 @@ async function welcomeButtons(chatId: number): Promise<Btn[][]> {
 
 async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName: string) {
   // ─── Enforce subscription (pause shops etc.) but don't replace welcome ───
-  const subResult = await checkAndEnforceSubscription(chatId);
+  await checkAndEnforceSubscription(chatId);
 
   // Send trial reminder (non-blocking, for upcoming expiry)
   await sendTrialReminder(chatId);
