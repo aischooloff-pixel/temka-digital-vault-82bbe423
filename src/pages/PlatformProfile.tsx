@@ -216,8 +216,8 @@ const PlatformProfile: React.FC = () => {
   const initials = (user.first_name?.[0] || '') + (user.last_name?.[0] || '');
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#F0F7FF] to-white">
-      <div className="max-w-lg mx-auto p-4 pb-8 space-y-4">
+    <div className="min-h-screen bg-gradient-to-b from-[#F0F7FF] to-white" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <div className="max-w-lg mx-auto p-4 space-y-4" style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}>
 
         {/* Block 1: Profile Header */}
         <Card className="border border-blue-100 bg-white shadow-sm overflow-hidden">
