@@ -174,7 +174,7 @@ async function handleTopup(supabase: any, orderData: any, invoiceId: string, top
     .select("invoice_id, type, processed_at").eq("invoice_id", invoiceId).maybeSingle();
 
   const isShopTopup = !!topupShopId;
-  const historyTable = isShopTopup ? "shop_balance_history" : "balance_history";
+  const historyTable = isPlatformTopup ? "platform_balance_history" : (isShopTopup ? "shop_balance_history" : "balance_history");
 
   const alreadyCredited = await hasTopupLedgerRecord(supabase, historyTable, invoiceId, telegramUserId, topupAmount, existingProcessed?.processed_at || null, topupShopId);
 
