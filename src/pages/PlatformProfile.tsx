@@ -4,8 +4,29 @@ import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Store, Crown, Wallet, Calendar, Clock, Bot, ShieldCheck, AlertTriangle, Sparkles } from 'lucide-react';
+import { Store, Crown, Wallet, Calendar, Clock, Bot, ShieldCheck, AlertTriangle, Sparkles, ChevronRight } from 'lucide-react';
+import { toast } from 'sonner';
+import SubscriptionSheet from '@/components/platform/SubscriptionSheet';
+import ShopInfoSheet from '@/components/platform/ShopInfoSheet';
+import BalanceTopupSheet from '@/components/platform/BalanceTopupSheet';
+
+interface ShopStats {
+  products: number;
+  orders: number;
+  customers: number;
+  revenue: number;
+}
+
+interface ShopData {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  bot_username: string | null;
+  webhook_status: string;
+  created_at: string;
+  stats?: ShopStats;
+}
 
 interface ProfileData {
   user: {
@@ -28,15 +49,7 @@ interface ProfileData {
     first_paid_at: string | null;
   };
   balance: number;
-  shops: {
-    id: string;
-    name: string;
-    slug: string;
-    status: string;
-    bot_username: string | null;
-    webhook_status: string;
-    created_at: string;
-  }[];
+  shops: ShopData[];
 }
 
 const statusConfig: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
@@ -50,8 +63,7 @@ const statusConfig: Record<string, { label: string; color: string; bg: string; i
 
 function daysUntil(dateStr: string | null): number | null {
   if (!dateStr) return null;
-  const diff = new Date(dateStr).getTime() - Date.now();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
 function formatDate(dateStr: string | null): string {
@@ -60,10 +72,17 @@ function formatDate(dateStr: string | null): string {
 }
 
 const PlatformProfile: React.FC = () => {
-  const { user: tgUser, initData, isInTelegram } = useTelegram();
+  const { user: tgUser, initData, isInTelegram, openTelegramLink } = useTelegram();
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Sheet states
+  const [subSheetOpen, setSubSheetOpen] = useState(false);
+  const [balanceSheetOpen, setBalanceSheetOpen] = useState(false);
+  const [shopSheetOpen, setShopSheetOpen] = useState(false);
+  const [selectedShop, setSelectedShop] = useState<ShopData | null>(null);
+  const [topupLoading, setTopupLoading] = useState(false);
 
   const mockData: ProfileData = {
     user: {
@@ -80,7 +99,7 @@ const PlatformProfile: React.FC = () => {
       expires_at: new Date(Date.now() + 18 * 24 * 60 * 60 * 1000).toISOString(),
       trial_started_at: null,
       has_used_trial: true,
-      pricing_tier: 'early',
+      pricing_tier: 'early_3',
       billing_price_usd: 3,
       first_paid_at: '2025-02-01T00:00:00Z',
     },
@@ -94,13 +113,13 @@ const PlatformProfile: React.FC = () => {
         bot_username: 'digital_store_bot',
         webhook_status: 'active',
         created_at: '2025-02-10T00:00:00Z',
+        stats: { products: 12, orders: 47, customers: 156, revenue: 842.50 },
       },
     ],
   };
 
   useEffect(() => {
     if (!initData || !tgUser) {
-      // Use mock data as fallback for preview
       setData(mockData);
       setLoading(false);
       return;
@@ -121,6 +140,39 @@ const PlatformProfile: React.FC = () => {
     })();
   }, [initData, tgUser]);
 
+  const handleRenewSubscription = () => {
+    if (isInTelegram) {
+      // Open platform bot for subscription payment
+      openTelegramLink('https://t.me/ShopBotPlatform_bot');
+    } else {
+      toast.info('Откройте платформу через Telegram для оплаты подписки');
+    }
+  };
+
+  const handleTopup = async (amount: number) => {
+    if (!isInTelegram || !initData) {
+      toast.info('Откройте платформу через Telegram для пополнения');
+      return;
+    }
+    setTopupLoading(true);
+    try {
+      const { data: res, error: err } = await supabase.functions.invoke('create-topup-invoice', {
+        body: { initData, amount },
+      });
+      if (err) throw err;
+      if (res?.error) throw new Error(res.error);
+      if (res?.payUrl) {
+        openTelegramLink(res.payUrl);
+        setBalanceSheetOpen(false);
+        toast.success('Инвойс создан. Перенаправляем к оплате...');
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'Ошибка создания инвойса');
+    } finally {
+      setTopupLoading(false);
+    }
+  };
+
   if (error || (!loading && !data)) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#F0F7FF] to-white flex items-center justify-center p-6">
@@ -131,6 +183,14 @@ const PlatformProfile: React.FC = () => {
             <p className="text-gray-400 text-sm">{error}</p>
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  if (loading || !data) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-[#F0F7FF] to-white flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -181,8 +241,11 @@ const PlatformProfile: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Block 2: Balance */}
-        <Card className="border border-blue-100 bg-white shadow-sm">
+        {/* Block 2: Balance — clickable */}
+        <Card
+          className="border border-blue-100 bg-white shadow-sm cursor-pointer hover:shadow-md transition-shadow active:scale-[0.99]"
+          onClick={() => setBalanceSheetOpen(true)}
+        >
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -194,15 +257,19 @@ const PlatformProfile: React.FC = () => {
                   <p className="text-2xl font-bold text-gray-900">${data.balance.toFixed(2)}</p>
                 </div>
               </div>
-              <button className="px-4 py-2 rounded-xl bg-blue-50 text-blue-600 text-sm font-medium hover:bg-blue-100 transition-colors">
-                Пополнить
-              </button>
+              <div className="flex items-center gap-1 text-blue-500">
+                <span className="text-xs font-medium">Пополнить</span>
+                <ChevronRight className="w-4 h-4" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Block 3: Subscription — dominant */}
-        <Card className={`border shadow-sm overflow-hidden ${subCfg.bg}`}>
+        {/* Block 3: Subscription — dominant, clickable */}
+        <Card
+          className={`border shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow active:scale-[0.99] ${subCfg.bg}`}
+          onClick={() => setSubSheetOpen(true)}
+        >
           <CardContent className="p-5 space-y-4">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
@@ -214,15 +281,17 @@ const PlatformProfile: React.FC = () => {
                   <p className={`text-lg font-bold ${subCfg.color}`}>{subCfg.label}</p>
                 </div>
               </div>
-              {subscription.billing_price_usd != null && (
-                <div className="text-right">
-                  <p className="text-2xl font-extrabold text-gray-900">${subscription.billing_price_usd}</p>
-                  <p className="text-[10px] text-gray-400 font-medium">/ мес</p>
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                {subscription.billing_price_usd != null && (
+                  <div className="text-right">
+                    <p className="text-2xl font-extrabold text-gray-900">${subscription.billing_price_usd}</p>
+                    <p className="text-[10px] text-gray-400 font-medium">/ мес</p>
+                  </div>
+                )}
+                <ChevronRight className="w-5 h-5 text-gray-300" />
+              </div>
             </div>
 
-            {/* Details row */}
             <div className="grid grid-cols-2 gap-3">
               {subscription.expires_at && (
                 <div className="bg-white/60 rounded-xl p-3">
@@ -247,29 +316,28 @@ const PlatformProfile: React.FC = () => {
             {subscription.pricing_tier && (
               <div className="flex items-center gap-2 text-xs text-gray-500">
                 <Crown className="w-3.5 h-3.5 text-amber-500" />
-                Тариф: <span className="font-medium text-gray-700 capitalize">{subscription.pricing_tier}</span>
+                Тариф: <span className="font-medium text-gray-700 capitalize">{subscription.pricing_tier === 'early_3' ? 'Early Bird' : subscription.pricing_tier}</span>
               </div>
             )}
 
             {subscription.status === 'trial' && (
               <div className="bg-blue-100/50 rounded-xl p-3 text-center">
                 <p className="text-xs text-blue-700 font-medium">
-                  🎉 Вы используете пробный период. Оформите подписку, чтобы продолжить.
+                  🎉 Пробный период. Нажмите для оформления подписки.
                 </p>
               </div>
             )}
-
             {subscription.status === 'expired' && (
               <div className="bg-red-100/50 rounded-xl p-3 text-center">
                 <p className="text-xs text-red-700 font-medium">
-                  ⚠️ Подписка истекла. Продлите, чтобы продолжить работу с платформой.
+                  ⚠️ Подписка истекла. Нажмите для продления.
                 </p>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Block 4: Shops */}
+        {/* Block 4: Shops — clickable */}
         <Card className="border border-blue-100 bg-white shadow-sm">
           <CardContent className="p-5 space-y-3">
             <div className="flex items-center justify-between">
@@ -292,7 +360,11 @@ const PlatformProfile: React.FC = () => {
             ) : (
               <div className="space-y-2">
                 {shops.map((shop) => (
-                  <div key={shop.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50/80 hover:bg-blue-50/50 transition-colors">
+                  <div
+                    key={shop.id}
+                    className="flex items-center gap-3 p-3 rounded-xl bg-gray-50/80 hover:bg-blue-50/50 transition-colors cursor-pointer active:scale-[0.99]"
+                    onClick={() => { setSelectedShop(shop); setShopSheetOpen(true); }}
+                  >
                     <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">
                       {shop.name[0]?.toUpperCase()}
                     </div>
@@ -310,6 +382,7 @@ const PlatformProfile: React.FC = () => {
                         )}
                       </div>
                     </div>
+                    <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
                   </div>
                 ))}
               </div>
@@ -321,6 +394,26 @@ const PlatformProfile: React.FC = () => {
           Платформа · {new Date().getFullYear()}
         </p>
       </div>
+
+      {/* Sheets */}
+      <SubscriptionSheet
+        subscription={subscription}
+        open={subSheetOpen}
+        onOpenChange={setSubSheetOpen}
+        onRenew={handleRenewSubscription}
+      />
+      <ShopInfoSheet
+        shop={selectedShop}
+        open={shopSheetOpen}
+        onOpenChange={setShopSheetOpen}
+      />
+      <BalanceTopupSheet
+        balance={data.balance}
+        open={balanceSheetOpen}
+        onOpenChange={setBalanceSheetOpen}
+        onTopup={handleTopup}
+        loading={topupLoading}
+      />
     </div>
   );
 };
