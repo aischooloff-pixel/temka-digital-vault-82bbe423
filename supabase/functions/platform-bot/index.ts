@@ -495,12 +495,8 @@ async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName:
     await tg.send(chatId, welcomeText, kb);
   }
 
-  // If subscription expired, send a compact notice AFTER the welcome
-  if (subResult.expired) {
-    const priceInfo = await getSubscriptionPrice(chatId);
-    const notice = `⚠️ <b>Подписка истекла</b> — магазины приостановлены.\n💰 Продлите за <b>$${priceInfo.price}/мес</b>`;
-    await tg.send(chatId, notice, ikb([[btn("💳 Продлить подписку", "p:sub")]]));
-  }
+  // Важно: приветственное сообщение не заменяем экраном об истечении подписки.
+  // Информацию по подписке пользователь видит в профиле/экране подписки.
 
   // Send/update persistent bottom panel keyboard
   await tg.send(chatId, "📋 Используйте кнопки ниже для навигации:", bottomPanel(hasShop));
