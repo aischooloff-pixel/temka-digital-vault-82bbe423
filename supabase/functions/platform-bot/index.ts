@@ -476,7 +476,7 @@ async function welcomeButtons(chatId: number): Promise<Btn[][]> {
 
 async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName: string) {
   // ─── Enforce subscription (pause shops etc.) but don't replace welcome ───
-  const subResult = await checkAndEnforceSubscription(chatId);
+  await checkAndEnforceSubscription(chatId);
 
   // Send trial reminder (non-blocking, for upcoming expiry)
   await sendTrialReminder(chatId);
@@ -495,12 +495,8 @@ async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName:
     await tg.send(chatId, welcomeText, kb);
   }
 
-  // If subscription expired, send a compact notice AFTER the welcome
-  if (subResult.expired) {
-    const priceInfo = await getSubscriptionPrice(chatId);
-    const notice = `⚠️ <b>Подписка истекла</b> — магазины приостановлены.\n💰 Продлите за <b>$${priceInfo.price}/мес</b>`;
-    await tg.send(chatId, notice, ikb([[btn("💳 Продлить подписку", "p:sub")]]));
-  }
+  // Важно: приветственное сообщение не заменяем экраном об истечении подписки.
+  // Информацию по подписке пользователь видит в профиле/экране подписки.
 
   // Send/update persistent bottom panel keyboard
   await tg.send(chatId, "📋 Используйте кнопки ниже для навигации:", bottomPanel(hasShop));
@@ -2260,8 +2256,10 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
   }
   if (cmd === "usub_trial") {
     const tgId = parseInt(parts[2]);
+    const ss = await getSubSettings();
     const { data: pu } = await db().from("platform_users").select("has_used_trial").eq("telegram_id", tgId).maybeSingle();
-    const trialExpiresAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const trialDays = ss.trial_days;
+    const trialExpiresAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString();
     await db().from("platform_users").update({
       subscription_status: "trial", trial_started_at: new Date().toISOString(),
       subscription_expires_at: trialExpiresAt, has_used_trial: true,
@@ -2280,7 +2278,7 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
       }
     }
     await admLog(adminTgId, "grant_trial", "user", String(tgId), { expires_at: trialExpiresAt, was_used: pu?.has_used_trial });
-    return tg.edit(chatId, msgId, `🆓 Trial выдан на ${TRIAL_DAYS} дней до ${new Date(trialExpiresAt).toLocaleDateString("ru")}`, ikb([[btn("◀️ К подписке", `adm:usub:${tgId}`), btn("◀️ К пользователю", `adm:ucard:${tgId}`)]]));
+    return tg.edit(chatId, msgId, `🆓 Trial выдан на ${trialDays} дней до ${new Date(trialExpiresAt).toLocaleDateString("ru")}`, ikb([[btn("◀️ К подписке", `adm:usub:${tgId}`), btn("◀️ К пользователю", `adm:ucard:${tgId}`)]]));
   }
   if (cmd === "usub_free") {
     const tgId = parseInt(parts[2]);
