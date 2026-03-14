@@ -85,19 +85,93 @@ async function getSupportLink(): Promise<string> {
   const { data } = await db().from("shop_settings").select("value").eq("key", "platform_support_link").maybeSingle();
   return data?.value || Deno.env.get("PLATFORM_SUPPORT_LINK") || SUPPORT_LINK_DEFAULT;
 }
-const EARLY_BIRD_PRICE = 3;
-const STANDARD_PRICE = 5;
-const EARLY_BIRD_LIMIT = 10;
-const TRIAL_DAYS = 7;
+// ─── Subscription Settings (dynamic from DB) ──
+interface SubSettings {
+  standard_price_usd: number;
+  early_price_usd: number;
+  early_slots_limit: number;
+  pricing_enabled: boolean;
+  trial_enabled: boolean;
+  trial_days: number;
+  one_trial_per_user: boolean;
+  auto_trial_on_shop_create: boolean;
+  max_shops_per_user: number;
+  grace_period_enabled: boolean;
+  grace_period_days: number;
+  on_expiry_pause_shop: boolean;
+  on_expiry_deactivate_bot: boolean;
+  reminder_enabled: boolean;
+  reminder_days_before: number;
+  trial_started_notify: boolean;
+  expired_notify: boolean;
+  bot_deactivated_notify: boolean;
+}
+
+const SUB_DEFAULTS: SubSettings = {
+  standard_price_usd: 5,
+  early_price_usd: 3,
+  early_slots_limit: 10,
+  pricing_enabled: true,
+  trial_enabled: true,
+  trial_days: 7,
+  one_trial_per_user: true,
+  auto_trial_on_shop_create: true,
+  max_shops_per_user: 1,
+  grace_period_enabled: false,
+  grace_period_days: 3,
+  on_expiry_pause_shop: true,
+  on_expiry_deactivate_bot: true,
+  reminder_enabled: true,
+  reminder_days_before: 7,
+  trial_started_notify: true,
+  expired_notify: true,
+  bot_deactivated_notify: true,
+};
+
+let _subSettingsCache: { settings: SubSettings; ts: number } | null = null;
+const SUB_CACHE_TTL = 60_000; // 1 minute
+
+async function getSubSettings(): Promise<SubSettings> {
+  if (_subSettingsCache && Date.now() - _subSettingsCache.ts < SUB_CACHE_TTL) return _subSettingsCache.settings;
+  const { data: rows } = await db().from("shop_settings").select("key, value").like("key", "sub_%");
+  const map: Record<string, string> = {};
+  for (const r of rows || []) map[r.key] = r.value;
+  const g = (k: string, def: number) => { const v = map[`sub_${k}`]; return v != null ? parseFloat(v) : def; };
+  const b = (k: string, def: boolean) => { const v = map[`sub_${k}`]; return v != null ? v === "true" : def; };
+  const settings: SubSettings = {
+    standard_price_usd: g("standard_price_usd", SUB_DEFAULTS.standard_price_usd),
+    early_price_usd: g("early_price_usd", SUB_DEFAULTS.early_price_usd),
+    early_slots_limit: g("early_slots_limit", SUB_DEFAULTS.early_slots_limit),
+    pricing_enabled: b("pricing_enabled", SUB_DEFAULTS.pricing_enabled),
+    trial_enabled: b("trial_enabled", SUB_DEFAULTS.trial_enabled),
+    trial_days: g("trial_days", SUB_DEFAULTS.trial_days),
+    one_trial_per_user: b("one_trial_per_user", SUB_DEFAULTS.one_trial_per_user),
+    auto_trial_on_shop_create: b("auto_trial_on_shop_create", SUB_DEFAULTS.auto_trial_on_shop_create),
+    max_shops_per_user: g("max_shops_per_user", SUB_DEFAULTS.max_shops_per_user),
+    grace_period_enabled: b("grace_period_enabled", SUB_DEFAULTS.grace_period_enabled),
+    grace_period_days: g("grace_period_days", SUB_DEFAULTS.grace_period_days),
+    on_expiry_pause_shop: b("on_expiry_pause_shop", SUB_DEFAULTS.on_expiry_pause_shop),
+    on_expiry_deactivate_bot: b("on_expiry_deactivate_bot", SUB_DEFAULTS.on_expiry_deactivate_bot),
+    reminder_enabled: b("reminder_enabled", SUB_DEFAULTS.reminder_enabled),
+    reminder_days_before: g("reminder_days_before", SUB_DEFAULTS.reminder_days_before),
+    trial_started_notify: b("trial_started_notify", SUB_DEFAULTS.trial_started_notify),
+    expired_notify: b("expired_notify", SUB_DEFAULTS.expired_notify),
+    bot_deactivated_notify: b("bot_deactivated_notify", SUB_DEFAULTS.bot_deactivated_notify),
+  };
+  _subSettingsCache = { settings, ts: Date.now() };
+  return settings;
+}
+
+function invalidateSubCache() { _subSettingsCache = null; }
 
 // ─── Subscription Helpers ─────────────────────
 async function getSubscriptionPrice(telegramId: number): Promise<{ price: number; tier: string }> {
   const { data: user } = await db().from("platform_users").select("billing_price_usd, pricing_tier").eq("telegram_id", telegramId).maybeSingle();
   if (user?.billing_price_usd != null && user?.pricing_tier) return { price: Number(user.billing_price_usd), tier: user.pricing_tier };
-  // Count users who have already paid
+  const ss = await getSubSettings();
   const { count } = await db().from("platform_users").select("id", { count: "exact", head: true }).not("first_paid_at", "is", null);
   const paidCount = count || 0;
-  return paidCount < EARLY_BIRD_LIMIT ? { price: EARLY_BIRD_PRICE, tier: "early_3" } : { price: STANDARD_PRICE, tier: "standard_5" };
+  return paidCount < ss.early_slots_limit ? { price: ss.early_price_usd, tier: "early_3" } : { price: ss.standard_price_usd, tier: "standard_5" };
 }
 
 function subscriptionDaysLeft(expiresAt: string | null): number {
