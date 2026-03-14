@@ -534,7 +534,8 @@ async function showProfile(tg: ReturnType<typeof TG>, chatId: number, msgId?: nu
     }
   }
   if (user.subscription_status === "trial") {
-    subExtra += `\n\n🆓 <i>Пробный период — ${TRIAL_DAYS} дней после создания магазина.</i>`;
+    const ss = await getSubSettings();
+    subExtra += `\n\n🆓 <i>Пробный период — ${ss.trial_days} дней после создания магазина.</i>`;
     subExtra += `\n<i>После окончания потребуется подписка $${priceInfo.price}/мес.</i>`;
   }
   const text = `👤 <b>${esc(user.first_name)}${user.last_name ? " " + esc(user.last_name) : ""}</b>${user.username ? `\n🔗 @${esc(user.username)}` : ""}\n\n🏪 Магазинов: <b>${shopCount || 0}</b>\n📊 Подписка: <b>${subLabel}</b>${subExtra}`;
