@@ -80,11 +80,19 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
         body: { initData, action: 'validate-sub-promo', promoCode: promoCode.trim() },
       });
       if (error) {
-        // Extract specific error from FunctionsHttpError response body if available
         let errMsg = 'Ошибка проверки промокода';
         try {
-          const errBody = typeof error === 'object' && 'context' in error ? await (error as any).context?.json?.() : null;
-          if (errBody?.error) errMsg = errBody.error;
+          // FunctionsHttpError has .context (Response object)
+          if (error && typeof error === 'object' && 'context' in error) {
+            const resp = (error as any).context;
+            if (resp && typeof resp.json === 'function') {
+              const errBody = await resp.json();
+              if (errBody?.error) errMsg = errBody.error;
+            }
+          } else if (error && typeof error === 'object' && 'message' in error) {
+            const msg = (error as any).message;
+            if (msg && !msg.includes('non-2xx')) errMsg = msg;
+          }
         } catch {}
         setPromoError(errMsg);
         return;
