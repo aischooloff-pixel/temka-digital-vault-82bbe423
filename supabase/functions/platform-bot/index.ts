@@ -872,7 +872,7 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
   const finalizingData = trackWizardMessage(sData, msgId);
   await setSession(chatId, "wiz_finalizing", finalizingData);
   await tg.edit(chatId, msgId, "⏳ Создаю магазин...");
-  const { data: user } = await db().from("platform_users").select("id, has_used_trial, subscription_status").eq("telegram_id", chatId).maybeSingle();
+  const { data: user } = await db().from("platform_users").select("id, has_used_trial, subscription_status, subscription_expires_at").eq("telegram_id", chatId).maybeSingle();
   if (!user) { await clearSession(chatId); return tg.edit(chatId, msgId, "❌ Ошибка: пользователь не найден.", ikb([[btn("◀️ Меню", "p:home")]])); }
   // Double-check shop limit on backend
   const ss = await getSubSettings();
