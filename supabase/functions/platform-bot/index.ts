@@ -3049,7 +3049,8 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     const price = parseFloat(val);
     if (isNaN(price) || price < 0 || price > 100) return tg.send(chatId, "❌ Введите число от 0 до 100:");
     await clearSession(chatId);
-    const tier = price <= EARLY_BIRD_PRICE ? "early_3" : "standard_5";
+    const ss = await getSubSettings();
+    const tier = price <= ss.early_price_usd ? "early_3" : "standard_5";
     await db().from("platform_users").update({
       billing_price_usd: price, pricing_tier: tier, updated_at: new Date().toISOString(),
     }).eq("telegram_id", targetTgId);
