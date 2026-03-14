@@ -425,7 +425,11 @@ async function upsertUser(from: { id: number; first_name: string; last_name?: st
   const { data: existing } = await db().from("platform_users").select("id").eq("telegram_id", from.id).maybeSingle();
   const fields = { first_name: from.first_name || "", last_name: from.last_name || null, username: from.username || null, is_premium: from.is_premium || false, language_code: from.language_code || null, updated_at: new Date().toISOString() };
   if (existing) { await db().from("platform_users").update(fields).eq("telegram_id", from.id); return existing; }
-  const { data } = await db().from("platform_users").insert({ telegram_id: from.id, ...fields }).select("id").single();
+  // For NEW users: set subscription_status based on global trial policy
+  // Don't default to 'trial' if trial is globally disabled
+  const ss = await getSubSettings();
+  const initialStatus = ss.trial_enabled ? "trial" : "none";
+  const { data } = await db().from("platform_users").insert({ telegram_id: from.id, ...fields, subscription_status: initialStatus }).select("id").single();
   return data;
 }
 
