@@ -137,7 +137,8 @@ async function processPaidTopup(params: {
     .select("invoice_id, type, processed_at").eq("invoice_id", invoiceId).maybeSingle();
 
   const isShopTopup = !!shopId;
-  const historyTable = isShopTopup ? "shop_balance_history" : "balance_history";
+  const isPlatformTopup = payload.type === "platform_topup";
+  const historyTable = isPlatformTopup ? "platform_balance_history" : (isShopTopup ? "shop_balance_history" : "balance_history");
 
   const alreadyCredited = await hasTopupLedgerRecord(supabase, historyTable, invoiceId, telegramId, topupAmount, existingProcessed?.processed_at || null, shopId);
 
@@ -148,9 +149,19 @@ async function processPaidTopup(params: {
     return { topupStatus: "paid", paymentStatus: "paid", amount: topupAmount };
   }
 
-  // Credit balance — tenant-scoped
+  // Credit balance — tenant-scoped or platform
   let newBalance: number;
-  if (isShopTopup) {
+  if (isPlatformTopup) {
+    const { data: nb, error: balanceError } = await supabase.rpc("platform_credit_balance", {
+      p_telegram_id: telegramId, p_amount: topupAmount,
+    });
+    if (balanceError) throw new Error(`platform_credit_balance failed: ${balanceError.message}`);
+    newBalance = nb;
+    await supabase.from("platform_balance_history").insert({
+      telegram_id: telegramId, amount: topupAmount, balance_after: newBalance,
+      type: "credit", comment: topupComment(invoiceId),
+    });
+  } else if (isShopTopup) {
     const { data: nb, error: balanceError } = await supabase.rpc("shop_credit_balance", {
       p_shop_id: shopId, p_telegram_id: telegramId, p_amount: topupAmount,
     });
@@ -172,7 +183,9 @@ async function processPaidTopup(params: {
     });
   }
 
-  await notifyTopup(tokens.botToken, telegramId, topupAmount, Number(newBalance) || 0, invoiceId);
+  let notifyBotToken = tokens.botToken;
+  if (isPlatformTopup) notifyBotToken = Deno.env.get("PLATFORM_BOT_TOKEN") || tokens.botToken;
+  await notifyTopup(notifyBotToken, telegramId, topupAmount, Number(newBalance) || 0, invoiceId);
   await markTopupProcessed(supabase, invoiceId, telegramId, topupAmount, Boolean(existingProcessed));
 
   return { topupStatus: "paid", paymentStatus: "paid", amount: topupAmount, balance: newBalance };
