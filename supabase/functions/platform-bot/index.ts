@@ -180,7 +180,7 @@ function subscriptionDaysLeft(expiresAt: string | null): number {
 }
 
 function subStatusLabel(status: string): string {
-  const map: Record<string, string> = { active: "✅ Активна", trial: "🆓 Пробный период", expired: "❌ Истекла", grace_period: "⚠️ Льготный период", cancelled: "🚫 Отменена", blocked: "🔒 Заблокирована" };
+  const map: Record<string, string> = { active: "✅ Активна", trial: "🆓 Пробный период", expired: "❌ Истекла", grace_period: "⚠️ Льготный период", cancelled: "🚫 Отменена", blocked: "🔒 Заблокирована", none: "⏳ Не активна" };
   return map[status] || status;
 }
 
