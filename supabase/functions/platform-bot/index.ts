@@ -475,16 +475,8 @@ async function welcomeButtons(chatId: number): Promise<Btn[][]> {
 }
 
 async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName: string) {
-  // ─── Enforce subscription BEFORE showing welcome UI ───
+  // ─── Enforce subscription (pause shops etc.) but don't replace welcome ───
   const subResult = await checkAndEnforceSubscription(chatId);
-  if (subResult.expired) {
-    const priceInfo = await getSubscriptionPrice(chatId);
-    const text = `❌ <b>Подписка истекла</b>\n\nВаша подписка на <b>${PLATFORM_NAME}</b> закончилась.\n\n🏪 Магазины приостановлены.\n🤖 Боты деактивированы.\n\nПродлите подписку для возобновления работы.\n💰 Стоимость: <b>$${priceInfo.price}/мес</b>`;
-    await tg.send(chatId, text, ikb([[btn("💳 Продлить подписку", "p:sub")], [btn("👤 Мой профиль", "p:profile")]]));
-    const hasShop = await userHasShop(chatId);
-    await tg.send(chatId, "📋 Используйте кнопки ниже для навигации:", bottomPanel(hasShop));
-    return;
-  }
 
   // Send trial reminder (non-blocking, for upcoming expiry)
   await sendTrialReminder(chatId);
