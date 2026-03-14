@@ -70,9 +70,10 @@ const db = () => {
 };
 
 // ─── Helpers ──────────────────────────────────
-type Btn = { text: string; callback_data?: string; url?: string };
+type Btn = { text: string; callback_data?: string; url?: string; web_app?: { url: string } };
 const btn = (t: string, cb: string): Btn => ({ text: t, callback_data: cb });
 const urlBtn = (t: string, url: string): Btn => ({ text: t, url });
+const webAppBtn = (t: string, url: string): Btn => ({ text: t, web_app: { url } });
 const ikb = (rows: Btn[][]) => ({ inline_keyboard: rows });
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -433,7 +434,7 @@ async function showProfile(tg: ReturnType<typeof TG>, chatId: number, msgId?: nu
     subExtra += `\n<i>После окончания потребуется подписка $${priceInfo.price}/мес.</i>`;
   }
   const text = `👤 <b>${esc(user.first_name)}${user.last_name ? " " + esc(user.last_name) : ""}</b>${user.username ? `\n🔗 @${esc(user.username)}` : ""}\n\n🏪 Магазинов: <b>${shopCount || 0}</b>\n📊 Подписка: <b>${subLabel}</b>${subExtra}`;
-  const kb = ikb([[urlBtn("🌐 Открыть профиль", "https://t.me/sazcawd2bot/app")], [btn("💳 Подписка", "p:sub")], [btn("◀️ Назад", "p:home")]]);
+  const kb = ikb([[webAppBtn("🌐 Открыть профиль", `${WEBAPP_DOMAIN}/platform/profile`)], [btn("💳 Подписка", "p:sub")], [btn("◀️ Назад", "p:home")]]);
   if (msgId) return tg.edit(chatId, msgId, text, kb);
   return tg.send(chatId, text, kb);
 }
