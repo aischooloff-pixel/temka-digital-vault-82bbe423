@@ -634,10 +634,10 @@ async function shopStats(tg: ReturnType<typeof TG>, chatId: number, msgId: numbe
 async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
   const { data: user } = await db().from("platform_users").select("*").eq("telegram_id", chatId).maybeSingle();
   if (!user) return;
+  const ss = await getSubSettings();
   const priceInfo = await getSubscriptionPrice(chatId);
   const status = subStatusLabel(user.subscription_status);
   let daysLeftText = "";
-  let trialInfo = "";
   if (user.subscription_expires_at) {
     const dLeft = subscriptionDaysLeft(user.subscription_expires_at);
     if (dLeft > 0) {
@@ -647,18 +647,33 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
       daysLeftText = `\n📅 Истекла: ${new Date(user.subscription_expires_at).toLocaleDateString("ru")}`;
     }
   }
+
+  const tierLabel = priceInfo.tier === "early_3" ? "🎉 Early Bird" : "Стандартный";
+  let statusBlock = "";
   if (user.subscription_status === "trial") {
-    trialInfo = `\n\n🆓 <b>Пробный период</b>\nВам доступны ${TRIAL_DAYS} дней бесплатного использования.\nПосле окончания необходимо оформить подписку.`;
+    statusBlock = `\n\n🆓 <b>Пробный период</b>\nВам доступны ${ss.trial_days} дней бесплатного использования.\nПосле окончания необходимо оформить подписку.`;
+  } else if (user.subscription_status === "expired") {
+    statusBlock = `\n\n⚠️ <b>Подписка истекла</b>\nМагазины приостановлены. Продлите подписку для возобновления.`;
+  } else if (user.subscription_status === "grace_period") {
+    statusBlock = `\n\n⏰ <b>Льготный период</b>\nСкоро магазины будут приостановлены. Продлите подписку.`;
   }
-  if (user.subscription_status === "expired") {
-    trialInfo = `\n\n⚠️ <b>Подписка истекла</b>\nМагазины приостановлены. Продлите подписку для возобновления.`;
-  }
-  const text = `💳 <b>Подписка</b>\n\n📊 Статус: <b>${status}</b>${daysLeftText}${trialInfo}\n\n💰 Ваша цена: <b>$${priceInfo.price}/мес</b> ${priceInfo.tier === "early_3" ? "🎉 Early Bird" : ""}\n\nВключает:\n• 1 магазин\n• Приём платежей через CryptoBot\n• Собственный Telegram-бот\n• Авто-доставка цифровых товаров\n• ${TRIAL_DAYS} дней бесплатного пробного периода`;
+
+  const text = `💳 <b>Подписка</b>\n\n📊 Статус: <b>${status}</b>${daysLeftText}${statusBlock}\n\n💰 Ваша цена: <b>$${priceInfo.price}/мес</b> ${tierLabel}\n🏷 Тариф: ${tierLabel}\n\n<b>Включает:</b>\n• ${ss.max_shops_per_user} магазин\n• Приём платежей через CryptoBot\n• Собственный Telegram-бот\n• Авто-доставка цифровых товаров\n• ${ss.trial_enabled ? `${ss.trial_days} дней пробного периода` : "Пробный период недоступен"}`;
+
   const rows: Btn[][] = [];
-  if (user.subscription_status !== "active") {
+  const needsPayment = ["expired", "trial", "grace_period", "cancelled"].includes(user.subscription_status);
+  const canRenew = needsPayment || (user.subscription_status === "active" && user.subscription_expires_at && subscriptionDaysLeft(user.subscription_expires_at) <= 7);
+
+  if (canRenew) {
     rows.push([btn(`💳 Оплатить $${priceInfo.price}`, "p:pay_sub")]);
+    rows.push([btn("🎫 Ввести промокод", "p:sub_promo")]);
   }
-  rows.push([btn("◀️ Назад", "p:home")]);
+
+  if (user.subscription_status === "active" || user.subscription_status === "trial") {
+    rows.push([webAppBtn("🌐 Профиль и подписка", "https://t.me/sazcawd2bot/app")]);
+  }
+
+  rows.push([btn("◀️ Назад", "p:profile")]);
   return tg.edit(chatId, msgId, text, ikb(rows));
 }
 
