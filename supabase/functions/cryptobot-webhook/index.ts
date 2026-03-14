@@ -185,9 +185,19 @@ async function handleTopup(supabase: any, orderData: any, invoiceId: string, top
     return;
   }
 
-  // Credit balance — tenant-scoped
+  // Credit balance — tenant-scoped or platform
   let newBalance: number;
-  if (isShopTopup) {
+  if (isPlatformTopup) {
+    const { data: nb, error: creditError } = await supabase.rpc("platform_credit_balance", {
+      p_telegram_id: telegramUserId, p_amount: topupAmount,
+    });
+    if (creditError) throw new Error(`platform_credit_balance failed: ${creditError.message}`);
+    newBalance = nb;
+    await supabase.from("platform_balance_history").insert({
+      telegram_id: telegramUserId, amount: topupAmount, balance_after: newBalance,
+      type: "credit", comment: topupComment(invoiceId),
+    });
+  } else if (isShopTopup) {
     const { data: nb, error: creditError } = await supabase.rpc("shop_credit_balance", {
       p_shop_id: topupShopId, p_telegram_id: telegramUserId, p_amount: topupAmount,
     });
