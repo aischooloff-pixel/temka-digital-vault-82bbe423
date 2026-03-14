@@ -32,6 +32,7 @@ const TelegramContext = createContext<TelegramContextType | undefined>(undefined
 export const TelegramProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [webApp, setWebApp] = useState<TelegramWebApp | null>(null);
   const [user, setUser] = useState<TelegramUser | null>(null);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
@@ -54,6 +55,7 @@ export const TelegramProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         });
       }
     }
+    setIsReady(true);
   }, []);
 
   const haptic = {
