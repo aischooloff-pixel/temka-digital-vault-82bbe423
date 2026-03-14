@@ -1154,27 +1154,62 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
       discountAmount = Number(promoData.discount_amount || 0);
     }
     const finalAmount = Math.max(0, SUBSCRIPTION_PRICE - discountAmount);
-    const { data: user } = await db().from("platform_users").select("id").eq("telegram_id", telegramId).maybeSingle();
+
+    // Check user balance for partial/full payment
+    const { data: user } = await db().from("platform_users").select("id, balance, billing_price_usd, first_paid_at").eq("telegram_id", telegramId).maybeSingle();
     if (!user) return tg.edit(chatId, msgId, "❌ Пользователь не найден.", ikb([[btn("◀️ Назад", "p:sub")]]));
+
+    const userBalance = Number(user.balance) || 0;
+    const balanceUsed = Math.min(userBalance, finalAmount);
+    const toPay = Math.max(0, finalAmount - balanceUsed);
+
     const { data: payment, error: payError } = await db().from("subscription_payments").insert({
-      user_id: user.id, amount: SUBSCRIPTION_PRICE, promo_code: promoCode, discount_amount: discountAmount, final_amount: finalAmount,
-      status: finalAmount === 0 ? "paid" : "pending",
+      user_id: user.id, amount: SUBSCRIPTION_PRICE, promo_code: promoCode, discount_amount: discountAmount, final_amount: toPay,
+      status: toPay === 0 ? "paid" : "pending",
     }).select("id").single();
     if (payError || !payment) return tg.edit(chatId, msgId, `❌ Ошибка: ${payError?.message || "unknown"}`, ikb([[btn("◀️ Назад", "p:sub")]]));
     if (promoId && promoCode) {
       await db().rpc("increment_platform_promo_usage", { p_promo_id: promoId, p_telegram_id: telegramId, p_payment_id: payment.id, p_discount_amount: discountAmount });
     }
-    if (finalAmount === 0) {
+
+    // If fully covered by promo + balance
+    if (toPay === 0) {
+      // Deduct balance if used
+      if (balanceUsed > 0) {
+        const { data: newBal, error: balErr } = await db().rpc("platform_deduct_balance", { p_telegram_id: telegramId, p_amount: balanceUsed });
+        if (!balErr) {
+          await db().from("platform_balance_history").insert({
+            telegram_id: telegramId, amount: -balanceUsed, balance_after: newBal,
+            type: "subscription", comment: `Подписка ${PLATFORM_NAME} (1 мес)`,
+          });
+        }
+      }
       const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
       await db().from("platform_users").update({
         subscription_status: "active", subscription_expires_at: expiresAt,
         billing_price_usd: SUBSCRIPTION_PRICE, pricing_tier: priceInfo.tier,
-        first_paid_at: new Date().toISOString(), reminder_sent_at: null, expiry_notified_at: null,
+        first_paid_at: user.first_paid_at || new Date().toISOString(),
+        reminder_sent_at: null, expiry_notified_at: null,
         updated_at: new Date().toISOString(),
       }).eq("telegram_id", telegramId);
+      // Reactivate paused shops
+      const { data: shops } = await db().from("shops").select("id, bot_token_encrypted").eq("owner_id", user.id).eq("status", "paused");
+      const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
+      for (const shop of shops || []) {
+        await db().from("shops").update({ status: "active", updated_at: new Date().toISOString() }).eq("id", shop.id);
+        if (shop.bot_token_encrypted && encKey) {
+          try { const { data: rawToken } = await db().rpc("decrypt_token", { p_encrypted: shop.bot_token_encrypted, p_key: encKey }); if (rawToken) await setupSellerWebhook(rawToken, shop.id); } catch {}
+        }
+      }
+      await db().from("subscription_payments").update({ status: "paid" }).eq("id", payment.id);
       await clearSession(chatId);
-      return tg.edit(chatId, msgId, `✅ <b>Подписка активирована!</b>\n\n🎫 Промокод: <code>${esc(promoCode || "")}</code>\n💰 Скидка: $${discountAmount.toFixed(2)}\n\n✅ Подписка до ${new Date(expiresAt).toLocaleDateString("ru")}`, ikb([[btn("◀️ В меню", "p:home")]]));
+      let msg = `✅ <b>Подписка активирована!</b>\n\n📅 Действует до: ${new Date(expiresAt).toLocaleDateString("ru")}\n💰 Стоимость: $${SUBSCRIPTION_PRICE.toFixed(2)}`;
+      if (discountAmount > 0) msg += `\n🎫 Промокод: <code>${esc(promoCode || "")}</code>\n🏷 Скидка: -$${discountAmount.toFixed(2)}`;
+      if (balanceUsed > 0) msg += `\n💳 С баланса: -$${balanceUsed.toFixed(2)}`;
+      return tg.edit(chatId, msgId, msg, ikb([[btn("◀️ В меню", "p:home")]]));
     }
+
+    // Create CryptoBot invoice for remaining amount
     const platformCBToken = Deno.env.get("CRYPTOBOT_API_TOKEN");
     if (!platformCBToken) { await clearSession(chatId); return tg.edit(chatId, msgId, "❌ Платёжная система не настроена.", ikb([[btn("◀️ Назад", "p:sub")]])); }
     try {
@@ -1182,9 +1217,9 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
       const invoiceRes = await fetch("https://pay.crypt.bot/api/createInvoice", {
         method: "POST", headers: { "Content-Type": "application/json", "Crypto-Pay-API-Token": platformCBToken },
         body: JSON.stringify({
-          currency_type: "fiat", fiat: "USD", amount: finalAmount.toFixed(2),
+          currency_type: "fiat", fiat: "USD", amount: toPay.toFixed(2),
           description: `Подписка ${PLATFORM_NAME} (1 мес)${promoCode ? ` [промо: ${promoCode}]` : ""}`,
-          payload: JSON.stringify({ type: "subscription", paymentId: payment.id, telegramUserId: telegramId }),
+          payload: JSON.stringify({ type: "subscription", paymentId: payment.id, telegramUserId: telegramId, balanceUsed, subscriptionPrice: SUBSCRIPTION_PRICE, tier: priceInfo.tier }),
           paid_btn_name: "callback", paid_btn_url: `https://t.me/${botInfo.result?.username || "bot"}`,
         }),
       }).then(r => r.json());
@@ -1194,7 +1229,8 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
       await clearSession(chatId);
       let text = `💳 <b>Оплата подписки</b>\n\n💰 Стоимость: $${SUBSCRIPTION_PRICE.toFixed(2)}`;
       if (discountAmount > 0) text += `\n🎫 Промокод: <code>${esc(promoCode || "")}</code>\n🏷 Скидка: -$${discountAmount.toFixed(2)}`;
-      text += `\n💵 К оплате: <b>$${finalAmount.toFixed(2)}</b>\n\nНажмите кнопку ниже для оплаты:`;
+      if (balanceUsed > 0) text += `\n💳 С баланса: -$${balanceUsed.toFixed(2)}`;
+      text += `\n💵 К оплате: <b>$${toPay.toFixed(2)}</b>\n\nНажмите кнопку ниже для оплаты:`;
       return tg.edit(chatId, msgId, text, ikb([[urlBtn("💳 Оплатить", invoice.pay_url)], [btn("◀️ Назад", "p:sub")]]));
     } catch (e) { await clearSession(chatId); return tg.edit(chatId, msgId, `❌ Ошибка: ${(e as Error).message}`, ikb([[btn("◀️ Назад", "p:sub")]])); }
   }

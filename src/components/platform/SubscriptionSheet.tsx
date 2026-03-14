@@ -4,7 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
-import { ShieldCheck, Clock, AlertTriangle, Crown, Calendar, CreditCard, Sparkles, Wallet, Loader2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { ShieldCheck, Clock, AlertTriangle, Crown, Calendar, CreditCard, Sparkles, Wallet, Loader2, Tag, X, Check } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useTelegram } from '@/contexts/TelegramContext';
+import { toast } from 'sonner';
 
 interface SubscriptionData {
   status: string;
@@ -21,17 +25,17 @@ interface Props {
   balance: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onPayWithInvoice: (useBalance: boolean) => Promise<void>;
+  onPayWithInvoice: (useBalance: boolean, promoCode?: string) => Promise<void>;
   loading?: boolean;
 }
 
-const statusConfig: Record<string, { label: string; color: string; badgeVariant: 'default' | 'secondary' | 'destructive' }> = {
-  active: { label: 'Активна', color: 'text-emerald-600', badgeVariant: 'default' },
-  trial: { label: 'Пробный период', color: 'text-blue-600', badgeVariant: 'secondary' },
-  expired: { label: 'Истекла', color: 'text-red-600', badgeVariant: 'destructive' },
-  grace_period: { label: 'Льготный период', color: 'text-amber-600', badgeVariant: 'secondary' },
-  cancelled: { label: 'Отменена', color: 'text-gray-600', badgeVariant: 'secondary' },
-  blocked: { label: 'Заблокирована', color: 'text-red-700', badgeVariant: 'destructive' },
+const statusConfig: Record<string, { label: string; badgeVariant: 'default' | 'secondary' | 'destructive' }> = {
+  active: { label: 'Активна', badgeVariant: 'default' },
+  trial: { label: 'Пробный период', badgeVariant: 'secondary' },
+  expired: { label: 'Истекла', badgeVariant: 'destructive' },
+  grace_period: { label: 'Льготный период', badgeVariant: 'secondary' },
+  cancelled: { label: 'Отменена', badgeVariant: 'secondary' },
+  blocked: { label: 'Заблокирована', badgeVariant: 'destructive' },
 };
 
 function daysUntil(dateStr: string | null): number | null {
@@ -45,16 +49,64 @@ function formatDate(dateStr: string | null): string {
 }
 
 const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWithInvoice, loading }: Props) => {
+  const { initData } = useTelegram();
   const cfg = statusConfig[subscription.status] || statusConfig.expired;
   const daysLeft = daysUntil(subscription.expires_at);
   const needsRenewal = ['expired', 'trial', 'grace_period', 'cancelled'].includes(subscription.status);
   const canRenew = needsRenewal || (subscription.status === 'active' && daysLeft !== null && daysLeft <= 7);
   const tierLabels: Record<string, string> = { early_3: '🎉 Early Bird', standard_5: 'Стандартный' };
   const price = subscription.billing_price_usd || 0;
+
   const [useBalance, setUseBalance] = useState(true);
-  const canPayFull = balance >= price;
-  const balanceToUse = useBalance ? Math.min(balance, price) : 0;
-  const toPay = Math.max(0, price - balanceToUse);
+  const [promoCode, setPromoCode] = useState('');
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoResult, setPromoResult] = useState<{ valid: boolean; code: string; discount_type: string; discount_value: number; discountAmount: number } | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+
+  const discountAmount = promoResult?.discountAmount || 0;
+  const afterDiscount = Math.max(0, price - discountAmount);
+  const balanceToUse = useBalance ? Math.min(balance, afterDiscount) : 0;
+  const toPay = Math.max(0, afterDiscount - balanceToUse);
+  const canPayFull = toPay === 0;
+
+  const validatePromo = async () => {
+    if (!promoCode.trim() || !initData) return;
+    setPromoLoading(true);
+    setPromoError(null);
+    setPromoResult(null);
+    try {
+      const { data: res, error } = await supabase.functions.invoke('get-my-data', {
+        body: { initData, action: 'validate-sub-promo', promoCode: promoCode.trim() },
+      });
+      if (error) throw error;
+      if (res?.error || !res?.valid) {
+        setPromoError(res?.error || 'Промокод не найден');
+        return;
+      }
+      let da = 0;
+      if (res.discount_type === 'percent') {
+        da = Math.round(price * res.discount_value / 100 * 100) / 100;
+      } else {
+        da = Math.min(res.discount_value, price);
+      }
+      setPromoResult({ valid: true, code: res.code, discount_type: res.discount_type, discount_value: res.discount_value, discountAmount: da });
+      toast.success(`Промокод применён: -$${da.toFixed(2)}`);
+    } catch (e: any) {
+      setPromoError(e.message || 'Ошибка проверки');
+    } finally {
+      setPromoLoading(false);
+    }
+  };
+
+  const clearPromo = () => {
+    setPromoCode('');
+    setPromoResult(null);
+    setPromoError(null);
+  };
+
+  const handlePay = () => {
+    onPayWithInvoice(useBalance, promoResult?.code || undefined);
+  };
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -69,7 +121,7 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
         <div className="px-4 pb-4 space-y-4 max-h-[60vh] overflow-y-auto">
           {/* Status */}
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-500">Статус</span>
+            <span className="text-sm text-muted-foreground">Статус</span>
             <Badge variant={cfg.badgeVariant} className="text-xs">{cfg.label}</Badge>
           </div>
 
@@ -78,16 +130,16 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
           {/* Price */}
           {price > 0 && (
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-500">Стоимость</span>
-              <span className="text-lg font-bold text-gray-900">${price}/мес</span>
+              <span className="text-sm text-muted-foreground">Стоимость</span>
+              <span className="text-lg font-bold">${price}/мес</span>
             </div>
           )}
 
           {/* Tier */}
           {subscription.pricing_tier && (
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-500">Тариф</span>
-              <span className="text-sm font-medium text-gray-700 flex items-center gap-1">
+              <span className="text-sm text-muted-foreground">Тариф</span>
+              <span className="text-sm font-medium flex items-center gap-1">
                 <Crown className="w-3.5 h-3.5 text-amber-500" />
                 {tierLabels[subscription.pricing_tier] || subscription.pricing_tier}
               </span>
@@ -99,16 +151,16 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
           {/* Expiration */}
           {subscription.expires_at && (
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-500 flex items-center gap-1">
+              <span className="text-sm text-muted-foreground flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" /> Действует до
               </span>
-              <span className="text-sm font-medium text-gray-800">{formatDate(subscription.expires_at)}</span>
+              <span className="text-sm font-medium">{formatDate(subscription.expires_at)}</span>
             </div>
           )}
 
           {daysLeft !== null && (
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-500 flex items-center gap-1">
+              <span className="text-sm text-muted-foreground flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5" /> Осталось
               </span>
               <span className={`text-sm font-bold ${daysLeft <= 3 ? 'text-red-600' : daysLeft <= 7 ? 'text-amber-600' : 'text-emerald-600'}`}>
@@ -120,18 +172,18 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
           {/* First paid */}
           {subscription.first_paid_at && (
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-500">Первая оплата</span>
-              <span className="text-xs text-gray-400">{formatDate(subscription.first_paid_at)}</span>
+              <span className="text-sm text-muted-foreground">Первая оплата</span>
+              <span className="text-xs text-muted-foreground">{formatDate(subscription.first_paid_at)}</span>
             </div>
           )}
 
           {/* Includes */}
           <Separator />
           <div>
-            <p className="text-xs text-gray-400 font-medium mb-2">Включено в подписку:</p>
+            <p className="text-xs text-muted-foreground font-medium mb-2">Включено в подписку:</p>
             <div className="space-y-1.5">
               {['1 магазин с собственным ботом', 'Приём платежей через CryptoBot', 'Авто-доставка цифровых товаров', '7 дней бесплатного пробного периода'].map((item, i) => (
-                <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
+                <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Sparkles className="w-3 h-3 text-blue-400 shrink-0" />
                   {item}
                 </div>
@@ -162,23 +214,78 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
             </div>
           )}
 
+          {/* Promo code section */}
+          {canRenew && price > 0 && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+                  <Tag className="w-3 h-3" /> Промокод
+                </p>
+                {promoResult ? (
+                  <div className="bg-emerald-50 rounded-xl p-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium text-emerald-700 flex items-center gap-1">
+                        <Check className="w-3 h-3" /> {promoResult.code}
+                      </p>
+                      <p className="text-xs text-emerald-600">
+                        Скидка: -${promoResult.discountAmount.toFixed(2)}
+                      </p>
+                    </div>
+                    <button onClick={clearPromo} className="p-1 rounded-full hover:bg-emerald-100">
+                      <X className="w-3.5 h-3.5 text-emerald-600" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      value={promoCode}
+                      onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                      placeholder="Введите код"
+                      className="h-9 text-sm"
+                      onKeyDown={(e) => e.key === 'Enter' && validatePromo()}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={validatePromo}
+                      disabled={!promoCode.trim() || promoLoading}
+                      className="h-9 px-3 shrink-0"
+                    >
+                      {promoLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : 'OK'}
+                    </Button>
+                  </div>
+                )}
+                {promoError && (
+                  <p className="text-xs text-red-500">{promoError}</p>
+                )}
+              </div>
+            </>
+          )}
+
           {/* Balance payment option */}
           {canRenew && price > 0 && balance > 0 && (
             <>
               <Separator />
               <div className="bg-blue-50 rounded-xl p-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600 flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
                     <Wallet className="w-3.5 h-3.5 text-blue-500" /> Оплатить с баланса
                   </span>
                   <Switch checked={useBalance} onCheckedChange={setUseBalance} />
                 </div>
                 {useBalance && (
-                  <div className="text-xs text-gray-500 space-y-0.5">
+                  <div className="text-xs text-muted-foreground space-y-0.5">
                     <div className="flex justify-between">
                       <span>Баланс:</span>
                       <span className="font-medium">${balance.toFixed(2)}</span>
                     </div>
+                    {discountAmount > 0 && (
+                      <div className="flex justify-between">
+                        <span>Скидка:</span>
+                        <span className="font-medium text-emerald-600">-${discountAmount.toFixed(2)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span>Спишется:</span>
                       <span className="font-medium text-blue-600">-${balanceToUse.toFixed(2)}</span>
@@ -186,7 +293,7 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
                     {toPay > 0 && (
                       <div className="flex justify-between">
                         <span>Доплатить:</span>
-                        <span className="font-medium text-gray-800">${toPay.toFixed(2)}</span>
+                        <span className="font-medium">${toPay.toFixed(2)}</span>
                       </div>
                     )}
                   </div>
@@ -194,23 +301,41 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
               </div>
             </>
           )}
+
+          {/* Price summary when discount applied */}
+          {canRenew && discountAmount > 0 && !useBalance && (
+            <div className="bg-emerald-50 rounded-xl p-3">
+              <div className="text-xs space-y-0.5">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Стоимость:</span>
+                  <span>${price.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-emerald-600">
+                  <span>Скидка:</span>
+                  <span>-${discountAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-semibold">
+                  <span>Итого:</span>
+                  <span>${afterDiscount.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="p-4 pt-2 space-y-2">
           {canRenew && price > 0 && (
             <Button
-              onClick={() => onPayWithInvoice(useBalance)}
+              onClick={handlePay}
               disabled={loading}
               className="w-full bg-[#2B7FFF] hover:bg-[#2070EE] text-white"
             >
               {loading ? (
                 <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Создание счёта...</>
-              ) : canPayFull && useBalance ? (
-                `💳 Оплатить с баланса — $${price}`
-              ) : toPay > 0 ? (
-                `💳 ${subscription.status === 'trial' ? 'Оформить' : 'Продлить'} — $${toPay.toFixed(2)}`
+              ) : canPayFull ? (
+                `💳 Оплатить${useBalance && balanceToUse > 0 ? ' с баланса' : ''} — $${afterDiscount.toFixed(2)}`
               ) : (
-                `💳 Оформить бесплатно`
+                `💳 ${subscription.status === 'trial' ? 'Оформить' : 'Продлить'} — $${toPay.toFixed(2)}`
               )}
             </Button>
           )}
