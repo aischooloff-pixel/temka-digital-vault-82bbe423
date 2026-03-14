@@ -910,8 +910,13 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     botStatusMsg = whResult.ok ? `\n\n🤖 Бот @${botUsername} подключён и готов к работе!` : `\n\n⚠️ Бот @${botUsername} сохранён, но webhook не установлен: ${whResult.error}`;
   }
   // ─── Activate trial if enabled and not used ───
+  // Don't replace an already active/paid subscription with trial
+  const isAlreadyActive = user.subscription_status === "active" && user.subscription_expires_at && new Date(user.subscription_expires_at) > new Date();
   let trialMsg = "";
-  if (ss.trial_enabled && ss.auto_trial_on_shop_create && (!ss.one_trial_per_user || !user.has_used_trial)) {
+  if (isAlreadyActive) {
+    // User already has an active subscription — no trial needed
+    trialMsg = "";
+  } else if (ss.trial_enabled && ss.auto_trial_on_shop_create && (!ss.one_trial_per_user || !user.has_used_trial)) {
     const trialExpiresAt = new Date(Date.now() + ss.trial_days * 24 * 60 * 60 * 1000).toISOString();
     await db().from("platform_users").update({
       subscription_status: "trial", trial_started_at: new Date().toISOString(),
@@ -926,7 +931,7 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     }
   } else if (!ss.trial_enabled || (ss.one_trial_per_user && user.has_used_trial)) {
     // Trial is disabled or user already used it — set status to 'none' so they must pay
-    if (user.subscription_status === "trial" || user.subscription_status === "none") {
+    if (user.subscription_status !== "active") {
       const priceInfo = await getSubscriptionPrice(chatId);
       await db().from("platform_users").update({
         subscription_status: "none", updated_at: new Date().toISOString(),
