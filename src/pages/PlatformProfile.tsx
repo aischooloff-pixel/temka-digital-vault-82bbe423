@@ -72,7 +72,7 @@ function formatDate(dateStr: string | null): string {
 }
 
 const PlatformProfile: React.FC = () => {
-  const { user: tgUser, initData, isInTelegram, openTelegramLink, webApp, haptic } = useTelegram();
+  const { user: tgUser, initData, isInTelegram, isReady, openTelegramLink, webApp, haptic } = useTelegram();
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -96,11 +96,19 @@ const PlatformProfile: React.FC = () => {
   }, [webApp]);
 
   useEffect(() => {
+    // Wait for TelegramContext to finish initializing
+    if (!isReady) return;
+
     if (!initData || !tgUser) {
       setError('Откройте профиль через Telegram');
       setLoading(false);
       return;
     }
+
+    // Clear any previous error when context becomes available
+    setError(null);
+    setLoading(true);
+
     (async () => {
       try {
         const { data: res, error: err } = await supabase.functions.invoke('get-my-data', {
@@ -119,7 +127,7 @@ const PlatformProfile: React.FC = () => {
         setLoading(false);
       }
     })();
-  }, [initData, tgUser]);
+  }, [isReady, initData, tgUser]);
 
   const handleRenewSubscription = () => {
     if (isInTelegram) {
