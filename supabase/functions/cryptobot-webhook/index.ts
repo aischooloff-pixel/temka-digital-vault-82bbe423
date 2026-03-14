@@ -134,8 +134,10 @@ serve(async (req) => {
       const invoice = parsedBody.payload;
       const invoiceId = String(invoice.invoice_id);
 
-      if (orderData.type === "topup") {
-        await handleTopup(supabase, orderData, invoiceId, shopId);
+      if (orderData.type === "topup" || orderData.type === "platform_topup") {
+        await handleTopup(supabase, orderData, invoiceId, orderData.type === "platform_topup" ? null : shopId, orderData.type === "platform_topup");
+      } else if (orderData.type === "subscription") {
+        await handleSubscriptionPayment(supabase, orderData, invoiceId);
       } else {
         const { error: dedupError } = await supabase.from("processed_invoices").insert({
           invoice_id: invoiceId, type: "payment", order_id: orderData.orderId || null,
