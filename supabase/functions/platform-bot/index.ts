@@ -326,7 +326,7 @@ async function upsertUser(from: { id: number; first_name: string; last_name?: st
 }
 
 // ─── Bottom panel (keyboard) ──────────────────
-const bottomPanel = (hasShop: boolean) => ({ keyboard: [[{ text: "👤 Профиль" }, { text: "🆘 Поддержка" }], [{ text: hasShop ? "🏪 Мой магазин" : "🏪 Создать магазин" }]], resize_keyboard: true, is_persistent: true });
+const bottomPanel = (hasShop: boolean) => ({ keyboard: [[{ text: "👤 Профиль", web_app: { url: `${WEBAPP_DOMAIN}/platform/profile` } }, { text: "🆘 Поддержка" }], [{ text: hasShop ? "🏪 Мой магазин" : "🏪 Создать магазин" }]], resize_keyboard: true, is_persistent: true });
 
 async function sendBottomPanel(tg: ReturnType<typeof TG>, chatId: number, hasShop: boolean): Promise<void> {
   await tg.send(chatId, "⬇️", bottomPanel(hasShop));
@@ -433,8 +433,8 @@ async function showProfile(tg: ReturnType<typeof TG>, chatId: number, msgId?: nu
     subExtra += `\n<i>После окончания потребуется подписка $${priceInfo.price}/мес.</i>`;
   }
   const text = `👤 <b>${esc(user.first_name)}${user.last_name ? " " + esc(user.last_name) : ""}</b>${user.username ? `\n🔗 @${esc(user.username)}` : ""}\n\n🏪 Магазинов: <b>${shopCount || 0}</b>\n📊 Подписка: <b>${subLabel}</b>${subExtra}`;
-  const profileUrl = `${WEBAPP_DOMAIN}/account`;
-  const kb = ikb([[urlBtn("Открыть профиль", profileUrl)], [btn("Мои магазины", "p:myshops:0")], [btn("Подписка", "p:sub")], [btn("◀️ Назад", "p:home")]]);
+  const profileUrl = `${WEBAPP_DOMAIN}/platform/profile`;
+  const kb = ikb([[urlBtn("🌐 Открыть профиль", profileUrl)], [btn("💳 Подписка", "p:sub")], [btn("◀️ Назад", "p:home")]]);
   if (msgId) return tg.edit(chatId, msgId, text, kb);
   return tg.send(chatId, text, kb);
 }

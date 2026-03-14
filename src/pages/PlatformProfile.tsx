@@ -72,7 +72,7 @@ function formatDate(dateStr: string | null): string {
 }
 
 const PlatformProfile: React.FC = () => {
-  const { user: tgUser, initData, isInTelegram, openTelegramLink } = useTelegram();
+  const { user: tgUser, initData, isInTelegram, openTelegramLink, webApp, haptic } = useTelegram();
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +83,17 @@ const PlatformProfile: React.FC = () => {
   const [shopSheetOpen, setShopSheetOpen] = useState(false);
   const [selectedShop, setSelectedShop] = useState<ShopData | null>(null);
   const [topupLoading, setTopupLoading] = useState(false);
+
+  // TMA: set header/background colors & hide back button
+  useEffect(() => {
+    if (!webApp) return;
+    try {
+      webApp.setHeaderColor('#2B7FFF');
+      webApp.setBackgroundColor('#F0F7FF');
+      webApp.BackButton.hide();
+      webApp.expand();
+    } catch {}
+  }, [webApp]);
 
   const mockData: ProfileData = {
     user: {
@@ -131,6 +142,10 @@ const PlatformProfile: React.FC = () => {
         });
         if (err) throw err;
         if (res?.error) throw new Error(res.error);
+        // Merge Telegram photo_url if backend doesn't have it
+        if (res?.user && !res.user.photo_url && tgUser?.photoUrl) {
+          res.user.photo_url = tgUser.photoUrl;
+        }
         setData(res);
       } catch (e: any) {
         setError(e.message || 'Ошибка загрузки');
@@ -201,8 +216,8 @@ const PlatformProfile: React.FC = () => {
   const initials = (user.first_name?.[0] || '') + (user.last_name?.[0] || '');
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#F0F7FF] to-white">
-      <div className="max-w-lg mx-auto p-4 pb-8 space-y-4">
+    <div className="min-h-screen bg-gradient-to-b from-[#F0F7FF] to-white" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <div className="max-w-lg mx-auto p-4 space-y-4" style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}>
 
         {/* Block 1: Profile Header */}
         <Card className="border border-blue-100 bg-white shadow-sm overflow-hidden">
@@ -244,7 +259,7 @@ const PlatformProfile: React.FC = () => {
         {/* Block 2: Balance — clickable */}
         <Card
           className="border border-blue-100 bg-white shadow-sm cursor-pointer hover:shadow-md transition-shadow active:scale-[0.99]"
-          onClick={() => setBalanceSheetOpen(true)}
+          onClick={() => { haptic.impact('light'); setBalanceSheetOpen(true); }}
         >
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
@@ -268,7 +283,7 @@ const PlatformProfile: React.FC = () => {
         {/* Block 3: Subscription — dominant, clickable */}
         <Card
           className={`border shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow active:scale-[0.99] ${subCfg.bg}`}
-          onClick={() => setSubSheetOpen(true)}
+          onClick={() => { haptic.impact('light'); setSubSheetOpen(true); }}
         >
           <CardContent className="p-5 space-y-4">
             <div className="flex items-start justify-between">
@@ -363,7 +378,7 @@ const PlatformProfile: React.FC = () => {
                   <div
                     key={shop.id}
                     className="flex items-center gap-3 p-3 rounded-xl bg-gray-50/80 hover:bg-blue-50/50 transition-colors cursor-pointer active:scale-[0.99]"
-                    onClick={() => { setSelectedShop(shop); setShopSheetOpen(true); }}
+                    onClick={() => { haptic.impact('light'); setSelectedShop(shop); setShopSheetOpen(true); }}
                   >
                     <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">
                       {shop.name[0]?.toUpperCase()}
