@@ -283,7 +283,7 @@ const PlatformProfile: React.FC = () => {
         {/* Block 3: Subscription — dominant, clickable */}
         <Card
           className={`border shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow active:scale-[0.99] ${subCfg.bg}`}
-          onClick={() => setSubSheetOpen(true)}
+          onClick={() => { haptic.impact('light'); setSubSheetOpen(true); }}
         >
           <CardContent className="p-5 space-y-4">
             <div className="flex items-start justify-between">
