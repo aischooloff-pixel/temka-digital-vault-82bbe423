@@ -134,8 +134,10 @@ serve(async (req) => {
       const invoice = parsedBody.payload;
       const invoiceId = String(invoice.invoice_id);
 
-      if (orderData.type === "topup") {
-        await handleTopup(supabase, orderData, invoiceId, shopId);
+      if (orderData.type === "topup" || orderData.type === "platform_topup") {
+        await handleTopup(supabase, orderData, invoiceId, orderData.type === "platform_topup" ? null : shopId, orderData.type === "platform_topup");
+      } else if (orderData.type === "subscription") {
+        await handleSubscriptionPayment(supabase, orderData, invoiceId);
       } else {
         const { error: dedupError } = await supabase.from("processed_invoices").insert({
           invoice_id: invoiceId, type: "payment", order_id: orderData.orderId || null,
@@ -162,8 +164,8 @@ serve(async (req) => {
   }
 });
 
-// ─── Topup handler (tenant-aware) ─────────────
-async function handleTopup(supabase: any, orderData: any, invoiceId: string, topupShopId: string | null) {
+// ─── Topup handler (tenant-aware + platform) ─────────────
+async function handleTopup(supabase: any, orderData: any, invoiceId: string, topupShopId: string | null, isPlatformTopup = false) {
   const topupAmount = Number(orderData.amount);
   const telegramUserId = Number(orderData.telegramUserId);
   if (!telegramUserId || !topupAmount || topupAmount <= 0) throw new Error(`[topup] invalid payload invoice=${invoiceId}`);
@@ -172,7 +174,7 @@ async function handleTopup(supabase: any, orderData: any, invoiceId: string, top
     .select("invoice_id, type, processed_at").eq("invoice_id", invoiceId).maybeSingle();
 
   const isShopTopup = !!topupShopId;
-  const historyTable = isShopTopup ? "shop_balance_history" : "balance_history";
+  const historyTable = isPlatformTopup ? "platform_balance_history" : (isShopTopup ? "shop_balance_history" : "balance_history");
 
   const alreadyCredited = await hasTopupLedgerRecord(supabase, historyTable, invoiceId, telegramUserId, topupAmount, existingProcessed?.processed_at || null, topupShopId);
 
@@ -183,9 +185,19 @@ async function handleTopup(supabase: any, orderData: any, invoiceId: string, top
     return;
   }
 
-  // Credit balance — tenant-scoped
+  // Credit balance — tenant-scoped or platform
   let newBalance: number;
-  if (isShopTopup) {
+  if (isPlatformTopup) {
+    const { data: nb, error: creditError } = await supabase.rpc("platform_credit_balance", {
+      p_telegram_id: telegramUserId, p_amount: topupAmount,
+    });
+    if (creditError) throw new Error(`platform_credit_balance failed: ${creditError.message}`);
+    newBalance = nb;
+    await supabase.from("platform_balance_history").insert({
+      telegram_id: telegramUserId, amount: topupAmount, balance_after: newBalance,
+      type: "credit", comment: topupComment(invoiceId),
+    });
+  } else if (isShopTopup) {
     const { data: nb, error: creditError } = await supabase.rpc("shop_credit_balance", {
       p_shop_id: topupShopId, p_telegram_id: telegramUserId, p_amount: topupAmount,
     });
@@ -208,11 +220,81 @@ async function handleTopup(supabase: any, orderData: any, invoiceId: string, top
   }
 
   let botToken: string | null = null;
-  if (isShopTopup) botToken = await decryptShopToken(supabase, topupShopId, "bot_token_encrypted");
+  if (isPlatformTopup) {
+    botToken = Deno.env.get("PLATFORM_BOT_TOKEN") || null;
+  } else if (isShopTopup) {
+    botToken = await decryptShopToken(supabase, topupShopId!, "bot_token_encrypted");
+  }
   if (!botToken) botToken = Deno.env.get("TELEGRAM_BOT_TOKEN") || null;
 
   await sendTopupNotification(botToken, telegramUserId, topupAmount, Number(newBalance), invoiceId);
   await markTopupProcessed(supabase, invoiceId, telegramUserId, topupAmount, Boolean(existingProcessed));
+}
+
+// ─── Subscription payment handler ─────────────
+async function handleSubscriptionPayment(supabase: any, orderData: any, invoiceId: string) {
+  const telegramUserId = Number(orderData.telegramUserId);
+  const paymentId = orderData.paymentId;
+  const balanceUsed = Number(orderData.balanceUsed || 0);
+  const subscriptionPrice = Number(orderData.subscriptionPrice || 0);
+  const tier = orderData.tier || "standard_5";
+
+  if (!telegramUserId || !paymentId) throw new Error(`[subscription] invalid payload invoice=${invoiceId}`);
+
+  // Idempotency check
+  const { error: dedupError } = await supabase.from("processed_invoices").insert({
+    invoice_id: invoiceId, type: "subscription", order_id: null,
+    telegram_id: telegramUserId, amount: subscriptionPrice,
+  });
+  if (dedupError) return; // Already processed
+
+  // Deduct balance if used
+  if (balanceUsed > 0) {
+    const { data: newBal, error: balErr } = await supabase.rpc("platform_deduct_balance", {
+      p_telegram_id: telegramUserId, p_amount: balanceUsed,
+    });
+    if (!balErr) {
+      await supabase.from("platform_balance_history").insert({
+        telegram_id: telegramUserId, amount: -balanceUsed, balance_after: newBal,
+        type: "subscription", comment: `Подписка (invoice:${invoiceId})`,
+      });
+    }
+  }
+
+  // Activate subscription
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: pUser } = await supabase.from("platform_users").select("first_paid_at, id").eq("telegram_id", telegramUserId).maybeSingle();
+  
+  await supabase.from("platform_users").update({
+    subscription_status: "active", subscription_expires_at: expiresAt,
+    billing_price_usd: subscriptionPrice, pricing_tier: tier,
+    first_paid_at: pUser?.first_paid_at || new Date().toISOString(),
+    reminder_sent_at: null, expiry_notified_at: null, updated_at: new Date().toISOString(),
+  }).eq("telegram_id", telegramUserId);
+
+  // Reactivate paused shops
+  if (pUser?.id) {
+    const { data: shops } = await supabase.from("shops").select("id").eq("owner_id", pUser.id).eq("status", "paused");
+    for (const shop of shops || []) {
+      await supabase.from("shops").update({ status: "active", updated_at: new Date().toISOString() }).eq("id", shop.id);
+    }
+  }
+
+  // Mark payment as paid
+  await supabase.from("subscription_payments").update({ status: "paid" }).eq("id", paymentId);
+
+  // Notify
+  const botToken = Deno.env.get("PLATFORM_BOT_TOKEN");
+  if (botToken) {
+    let msg = `✅ <b>Подписка активирована!</b>\n\n📅 Действует до: ${new Date(expiresAt).toLocaleDateString("ru")}\n💰 Стоимость: $${subscriptionPrice.toFixed(2)}`;
+    if (balanceUsed > 0) msg += `\n💳 С баланса: -$${balanceUsed.toFixed(2)}`;
+    try {
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: telegramUserId, text: msg, parse_mode: "HTML" }),
+      });
+    } catch {}
+  }
 }
 
 // ─── Platform order payment ─────────────────────

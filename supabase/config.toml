@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.get-my-data]
 verify_jwt = false
+
+[functions.create-subscription-invoice]
+verify_jwt = false

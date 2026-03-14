@@ -317,6 +317,36 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_balance_history: {
+        Row: {
+          amount: number
+          balance_after: number
+          comment: string
+          created_at: string
+          id: string
+          telegram_id: number
+          type: string
+        }
+        Insert: {
+          amount: number
+          balance_after?: number
+          comment?: string
+          created_at?: string
+          id?: string
+          telegram_id: number
+          type?: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          comment?: string
+          created_at?: string
+          id?: string
+          telegram_id?: number
+          type?: string
+        }
+        Relationships: []
+      }
       platform_promo_usages: {
         Row: {
           created_at: string
@@ -433,6 +463,7 @@ export type Database = {
       }
       platform_users: {
         Row: {
+          balance: number
           billing_price_usd: number | null
           created_at: string
           expiry_notified_at: string | null
@@ -454,6 +485,7 @@ export type Database = {
           username: string | null
         }
         Insert: {
+          balance?: number
           billing_price_usd?: number | null
           created_at?: string
           expiry_notified_at?: string | null
@@ -475,6 +507,7 @@ export type Database = {
           username?: string | null
         }
         Update: {
+          balance?: number
           billing_price_usd?: number | null
           created_at?: string
           expiry_notified_at?: string | null
@@ -1598,6 +1631,14 @@ export type Database = {
       increment_shop_promo_usage: {
         Args: { p_code: string; p_shop_id: string }
         Returns: undefined
+      }
+      platform_credit_balance: {
+        Args: { p_amount: number; p_telegram_id: number }
+        Returns: number
+      }
+      platform_deduct_balance: {
+        Args: { p_amount: number; p_telegram_id: number }
+        Returns: number
       }
       reserve_inventory: {
         Args: { p_order_id: string; p_product_id: string; p_quantity: number }

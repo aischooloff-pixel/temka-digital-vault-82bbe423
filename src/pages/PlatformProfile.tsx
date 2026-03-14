@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useTelegram } from '@/contexts/TelegramContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Store, Crown, Wallet, Calendar, Clock, Bot, ShieldCheck, AlertTriangle, Sparkles, ChevronRight } from 'lucide-react';
+import { Store, Crown, Wallet, Calendar, Clock, Bot, ShieldCheck, AlertTriangle, Sparkles, ChevronRight, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import SubscriptionSheet from '@/components/platform/SubscriptionSheet';
 import ShopInfoSheet from '@/components/platform/ShopInfoSheet';
@@ -76,13 +76,18 @@ const PlatformProfile: React.FC = () => {
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Sheet states
   const [subSheetOpen, setSubSheetOpen] = useState(false);
   const [balanceSheetOpen, setBalanceSheetOpen] = useState(false);
   const [shopSheetOpen, setShopSheetOpen] = useState(false);
   const [selectedShop, setSelectedShop] = useState<ShopData | null>(null);
-  const [topupLoading, setTopupLoading] = useState(false);
+  const [subLoading, setSubLoading] = useState(false);
+
+  // Polling refs for subscription payment
+  const subPollRef = useRef<number | null>(null);
+  const subPollCountRef = useRef(0);
 
   // TMA: set header/background colors & hide back button
   useEffect(() => {
@@ -95,70 +100,97 @@ const PlatformProfile: React.FC = () => {
     } catch {}
   }, [webApp]);
 
-  useEffect(() => {
-    if (!isReady) return;
-
-    // Для загрузки профиля обязателен только initData (tgUser может прийти позже или отсутствовать)
+  const fetchProfile = useCallback(async (silent = false) => {
     if (!initData) {
-      setError('Откройте профиль через Telegram');
-      setLoading(false);
+      if (!silent) setError('Откройте профиль через Telegram');
+      if (!silent) setLoading(false);
       return;
     }
+    if (!silent) setError(null);
+    if (silent) setRefreshing(true); else setLoading(true);
 
-    setError(null);
-    setLoading(true);
-
-    (async () => {
-      try {
-        const { data: res, error: err } = await supabase.functions.invoke('get-my-data', {
-          body: { initData, action: 'platform-profile' },
-        });
-        if (err) throw err;
-        if (res?.error) throw new Error(res.error);
-
-        if (res?.user && !res.user.photo_url && tgUser?.photoUrl) {
-          res.user.photo_url = tgUser.photoUrl;
-        }
-
-        setData(res);
-      } catch (e: any) {
-        setError(e.message || 'Ошибка загрузки');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [isReady, initData, tgUser?.photoUrl]);
-
-  const handleRenewSubscription = () => {
-    if (isInTelegram) {
-      // Open platform bot for subscription payment
-      openTelegramLink('https://t.me/ShopBotPlatform_bot');
-    } else {
-      toast.info('Откройте платформу через Telegram для оплаты подписки');
-    }
-  };
-
-  const handleTopup = async (amount: number) => {
-    if (!isInTelegram || !initData) {
-      toast.info('Откройте платформу через Telegram для пополнения');
-      return;
-    }
-    setTopupLoading(true);
     try {
-      const { data: res, error: err } = await supabase.functions.invoke('create-topup-invoice', {
-        body: { initData, amount },
+      const { data: res, error: err } = await supabase.functions.invoke('get-my-data', {
+        body: { initData, action: 'platform-profile' },
       });
       if (err) throw err;
       if (res?.error) throw new Error(res.error);
+      if (res?.user && !res.user.photo_url && tgUser?.photoUrl) {
+        res.user.photo_url = tgUser.photoUrl;
+      }
+      setData(res);
+    } catch (e: any) {
+      if (!silent) setError(e.message || 'Ошибка загрузки');
+    } finally {
+      if (silent) setRefreshing(false); else setLoading(false);
+    }
+  }, [initData, tgUser?.photoUrl]);
+
+  useEffect(() => {
+    if (!isReady) return;
+    fetchProfile();
+  }, [isReady, fetchProfile]);
+
+  // Cleanup subscription polling
+  useEffect(() => {
+    return () => {
+      if (subPollRef.current) clearInterval(subPollRef.current);
+    };
+  }, []);
+
+  const handleSubscriptionPay = async (useBalance: boolean) => {
+    if (!isInTelegram || !initData) {
+      toast.info('Откройте платформу через Telegram');
+      return;
+    }
+    setSubLoading(true);
+    try {
+      const { data: res, error: err } = await supabase.functions.invoke('create-subscription-invoice', {
+        body: { initData, useBalance },
+      });
+      if (err) throw err;
+      if (res?.error) throw new Error(res.error);
+
+      if (res?.status === 'paid') {
+        // Paid fully from balance
+        toast.success('Подписка активирована!');
+        setSubSheetOpen(false);
+        fetchProfile(true);
+        return;
+      }
+
       if (res?.payUrl) {
         openTelegramLink(res.payUrl);
-        setBalanceSheetOpen(false);
-        toast.success('Инвойс создан. Перенаправляем к оплате...');
+        // Start polling for subscription payment
+        if (subPollRef.current) clearInterval(subPollRef.current);
+        subPollCountRef.current = 0;
+        subPollRef.current = window.setInterval(async () => {
+          subPollCountRef.current++;
+          if (subPollCountRef.current >= 60) {
+            if (subPollRef.current) clearInterval(subPollRef.current);
+            subPollRef.current = null;
+            return;
+          }
+          try {
+            const { data: checkRes } = await supabase.functions.invoke('check-payment', {
+              body: { invoiceId: res.invoiceId, initData, platform: true, type: 'subscription' },
+            });
+            if (checkRes?.paymentStatus === 'paid' || checkRes?.subscriptionStatus === 'paid') {
+              if (subPollRef.current) clearInterval(subPollRef.current);
+              subPollRef.current = null;
+              toast.success('Подписка активирована!');
+              setSubSheetOpen(false);
+              fetchProfile(true);
+            }
+          } catch {}
+        }, 5000);
+        toast.success('Счёт создан. Перенаправляем к оплате...');
+        setSubSheetOpen(false);
       }
     } catch (e: any) {
-      toast.error(e.message || 'Ошибка создания инвойса');
+      toast.error(e.message || 'Ошибка создания счёта');
     } finally {
-      setTopupLoading(false);
+      setSubLoading(false);
     }
   };
 
@@ -195,7 +227,15 @@ const PlatformProfile: React.FC = () => {
 
         {/* Block 1: Profile Header */}
         <Card className="border border-blue-100 bg-white shadow-sm overflow-hidden">
-          <div className="h-20 bg-gradient-to-r from-[#2B7FFF] to-[#60A5FA]" />
+          <div className="h-20 bg-gradient-to-r from-[#2B7FFF] to-[#60A5FA] relative">
+            <button
+              onClick={() => { haptic.impact('light'); fetchProfile(true); }}
+              className="absolute top-3 right-3 p-1.5 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+              disabled={refreshing}
+            >
+              <RefreshCw className={`w-4 h-4 text-white ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
           <CardContent className="p-5 -mt-10">
             <div className="flex items-end gap-4">
               <Avatar className="w-16 h-16 border-[3px] border-white shadow-md">
@@ -360,9 +400,9 @@ const PlatformProfile: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{shop.name}</p>
                       <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-0.5">
-                        <span className={`inline-flex items-center gap-0.5 ${shop.status === 'active' ? 'text-emerald-500' : 'text-gray-400'}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${shop.status === 'active' ? 'bg-emerald-400' : 'bg-gray-300'}`} />
-                          {shop.status === 'active' ? 'Активен' : shop.status}
+                        <span className={`inline-flex items-center gap-0.5 ${shop.status === 'active' ? 'text-emerald-500' : shop.status === 'paused' ? 'text-amber-500' : 'text-gray-400'}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${shop.status === 'active' ? 'bg-emerald-400' : shop.status === 'paused' ? 'bg-amber-400' : 'bg-gray-300'}`} />
+                          {shop.status === 'active' ? 'Активен' : shop.status === 'paused' ? 'Приостановлен' : shop.status}
                         </span>
                         {shop.bot_username && (
                           <span className="flex items-center gap-0.5">
@@ -387,9 +427,11 @@ const PlatformProfile: React.FC = () => {
       {/* Sheets */}
       <SubscriptionSheet
         subscription={subscription}
+        balance={data.balance}
         open={subSheetOpen}
         onOpenChange={setSubSheetOpen}
-        onRenew={handleRenewSubscription}
+        onPayWithInvoice={handleSubscriptionPay}
+        loading={subLoading}
       />
       <ShopInfoSheet
         shop={selectedShop}
@@ -400,8 +442,7 @@ const PlatformProfile: React.FC = () => {
         balance={data.balance}
         open={balanceSheetOpen}
         onOpenChange={setBalanceSheetOpen}
-        onTopup={handleTopup}
-        loading={topupLoading}
+        onBalanceUpdated={() => fetchProfile(true)}
       />
     </div>
   );
