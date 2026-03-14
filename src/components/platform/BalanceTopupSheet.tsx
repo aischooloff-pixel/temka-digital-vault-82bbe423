@@ -32,7 +32,7 @@ const BalanceTopupSheet = ({ balance, open, onOpenChange, onBalanceUpdated }: Pr
 
   const handlePresetClick = (amount: number) => {
     setSelectedPreset(amount);
-    setCustomAmount('');
+    setCustomAmount(amount.toFixed(2));
   };
 
   const handleCustomChange = (val: string) => {
