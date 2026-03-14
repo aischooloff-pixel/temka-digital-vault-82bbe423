@@ -186,9 +186,21 @@ function subStatusLabel(status: string): string {
 
 async function checkAndEnforceSubscription(telegramId: number): Promise<{ status: string; expired: boolean }> {
   const { data: user } = await db().from("platform_users").select("subscription_status, subscription_expires_at, expiry_notified_at, id").eq("telegram_id", telegramId).maybeSingle();
-  if (!user) return { status: "trial", expired: false };
+  if (!user) return { status: "none", expired: false };
   const status = user.subscription_status;
+  if (status === "none") return { status: "none", expired: false };
   if (status === "blocked" || status === "cancelled") return { status, expired: true };
+  // If user has 'trial' status but no expiry date, check global trial policy
+  if (status === "trial" && !user.subscription_expires_at) {
+    const ss = await getSubSettings();
+    if (!ss.trial_enabled) {
+      // Trial is disabled globally and user was never properly granted one — treat as no subscription
+      await db().from("platform_users").update({ subscription_status: "none", updated_at: new Date().toISOString() }).eq("telegram_id", telegramId);
+      return { status: "none", expired: false };
+    }
+    // Trial enabled but not yet activated (no expiry) — user hasn't created a shop yet
+    return { status: "trial", expired: false };
+  }
   if (!user.subscription_expires_at) return { status, expired: false };
   const daysLeft = subscriptionDaysLeft(user.subscription_expires_at);
   const ss = await getSubSettings();
