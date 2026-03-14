@@ -924,6 +924,15 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
       const trialNotification = `🎉 <b>Ваш пробный период начался!</b>\n\nВам доступен бесплатный пробный период <b>${ss.trial_days} дней</b> на платформе <b>${PLATFORM_NAME}</b>.\n\n📅 Дата окончания: ${new Date(trialExpiresAt).toLocaleDateString("ru")}\n\n✅ В течение пробного периода магазин работает полноценно:\n• Бот принимает заказы\n• Автовыдача активна\n• Все функции доступны\n\n⚠️ После окончания пробного периода для продолжения работы магазина потребуется оформить подписку.`;
       await tg.send(chatId, trialNotification);
     }
+  } else if (!ss.trial_enabled || (ss.one_trial_per_user && user.has_used_trial)) {
+    // Trial is disabled or user already used it — set status to 'none' so they must pay
+    if (user.subscription_status === "trial" || user.subscription_status === "none") {
+      const priceInfo = await getSubscriptionPrice(chatId);
+      await db().from("platform_users").update({
+        subscription_status: "none", updated_at: new Date().toISOString(),
+      }).eq("telegram_id", chatId);
+      trialMsg = `\n\n💳 <b>Для работы магазина необходима подписка</b>\n💰 Стоимость: $${priceInfo.price}/мес\n\nОформите подписку через меню «💳 Подписка» в профиле.`;
+    }
   }
   await deactivateWizardMessages(tg, chatId, finalizingData, msgId);
   await clearSession(chatId);
