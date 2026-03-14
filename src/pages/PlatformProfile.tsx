@@ -54,7 +54,7 @@ interface ProfileData {
 
 const statusConfig: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
   active: { label: 'Активна', color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200', icon: <ShieldCheck className="w-5 h-5 text-emerald-500" /> },
-  trial: { label: 'Пробный период', color: 'text-blue-600', bg: 'bg-blue-50 border-blue-200', icon: <Clock className="w-5 h-5 text-blue-500" /> },
+  trial: { label: 'Активна', color: 'text-blue-600', bg: 'bg-blue-50 border-blue-200', icon: <Clock className="w-5 h-5 text-blue-500" /> },
   expired: { label: 'Истекла', color: 'text-red-600', bg: 'bg-red-50 border-red-200', icon: <AlertTriangle className="w-5 h-5 text-red-500" /> },
   grace_period: { label: 'Льготный период', color: 'text-amber-600', bg: 'bg-amber-50 border-amber-200', icon: <AlertTriangle className="w-5 h-5 text-amber-500" /> },
   cancelled: { label: 'Отменена', color: 'text-gray-600', bg: 'bg-gray-50 border-gray-300', icon: <AlertTriangle className="w-5 h-5 text-gray-400" /> },
@@ -351,7 +351,7 @@ const PlatformProfile: React.FC = () => {
             {subscription.status === 'trial' && (
               <div className="bg-blue-100/50 rounded-xl p-3 text-center">
                 <p className="text-xs text-blue-700 font-medium">
-                  🎉 Пробный период. Нажмите для оформления подписки.
+                  ✅ Подписка активна. Бесплатный период {daysLeft !== null ? `— осталось ${daysLeft > 0 ? `${daysLeft} дн.` : 'истекает сегодня'}` : ''}.
                 </p>
               </div>
             )}

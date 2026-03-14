@@ -31,7 +31,7 @@ interface Props {
 
 const statusConfig: Record<string, { label: string; badgeVariant: 'default' | 'secondary' | 'destructive' }> = {
   active: { label: 'Активна', badgeVariant: 'default' },
-  trial: { label: 'Пробный период', badgeVariant: 'secondary' },
+  trial: { label: 'Активна', badgeVariant: 'secondary' },
   expired: { label: 'Истекла', badgeVariant: 'destructive' },
   grace_period: { label: 'Льготный период', badgeVariant: 'secondary' },
   cancelled: { label: 'Отменена', badgeVariant: 'secondary' },
@@ -213,7 +213,7 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
           {subscription.status === 'trial' && (
             <div className="bg-blue-50 rounded-xl p-3 text-center">
               <p className="text-xs text-blue-700 font-medium">
-                🎉 Вы используете пробный период. Оформите подписку, чтобы продолжить.
+                ✅ Подписка активна по бесплатному периоду. Продлите после окончания, чтобы не было паузы.
               </p>
             </div>
           )}
