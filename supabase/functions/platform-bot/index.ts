@@ -634,10 +634,10 @@ async function shopStats(tg: ReturnType<typeof TG>, chatId: number, msgId: numbe
 async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
   const { data: user } = await db().from("platform_users").select("*").eq("telegram_id", chatId).maybeSingle();
   if (!user) return;
+  const ss = await getSubSettings();
   const priceInfo = await getSubscriptionPrice(chatId);
   const status = subStatusLabel(user.subscription_status);
   let daysLeftText = "";
-  let trialInfo = "";
   if (user.subscription_expires_at) {
     const dLeft = subscriptionDaysLeft(user.subscription_expires_at);
     if (dLeft > 0) {
@@ -647,18 +647,33 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
       daysLeftText = `\n📅 Истекла: ${new Date(user.subscription_expires_at).toLocaleDateString("ru")}`;
     }
   }
+
+  const tierLabel = priceInfo.tier === "early_3" ? "🎉 Early Bird" : "Стандартный";
+  let statusBlock = "";
   if (user.subscription_status === "trial") {
-    trialInfo = `\n\n🆓 <b>Пробный период</b>\nВам доступны ${TRIAL_DAYS} дней бесплатного использования.\nПосле окончания необходимо оформить подписку.`;
+    statusBlock = `\n\n🆓 <b>Пробный период</b>\nВам доступны ${ss.trial_days} дней бесплатного использования.\nПосле окончания необходимо оформить подписку.`;
+  } else if (user.subscription_status === "expired") {
+    statusBlock = `\n\n⚠️ <b>Подписка истекла</b>\nМагазины приостановлены. Продлите подписку для возобновления.`;
+  } else if (user.subscription_status === "grace_period") {
+    statusBlock = `\n\n⏰ <b>Льготный период</b>\nСкоро магазины будут приостановлены. Продлите подписку.`;
   }
-  if (user.subscription_status === "expired") {
-    trialInfo = `\n\n⚠️ <b>Подписка истекла</b>\nМагазины приостановлены. Продлите подписку для возобновления.`;
-  }
-  const text = `💳 <b>Подписка</b>\n\n📊 Статус: <b>${status}</b>${daysLeftText}${trialInfo}\n\n💰 Ваша цена: <b>$${priceInfo.price}/мес</b> ${priceInfo.tier === "early_3" ? "🎉 Early Bird" : ""}\n\nВключает:\n• 1 магазин\n• Приём платежей через CryptoBot\n• Собственный Telegram-бот\n• Авто-доставка цифровых товаров\n• ${TRIAL_DAYS} дней бесплатного пробного периода`;
+
+  const text = `💳 <b>Подписка</b>\n\n📊 Статус: <b>${status}</b>${daysLeftText}${statusBlock}\n\n💰 Ваша цена: <b>$${priceInfo.price}/мес</b> ${tierLabel}\n🏷 Тариф: ${tierLabel}\n\n<b>Включает:</b>\n• ${ss.max_shops_per_user} магазин\n• Приём платежей через CryptoBot\n• Собственный Telegram-бот\n• Авто-доставка цифровых товаров\n• ${ss.trial_enabled ? `${ss.trial_days} дней пробного периода` : "Пробный период недоступен"}`;
+
   const rows: Btn[][] = [];
-  if (user.subscription_status !== "active") {
+  const needsPayment = ["expired", "trial", "grace_period", "cancelled"].includes(user.subscription_status);
+  const canRenew = needsPayment || (user.subscription_status === "active" && user.subscription_expires_at && subscriptionDaysLeft(user.subscription_expires_at) <= 7);
+
+  if (canRenew) {
     rows.push([btn(`💳 Оплатить $${priceInfo.price}`, "p:pay_sub")]);
+    rows.push([btn("🎫 Ввести промокод", "p:sub_promo")]);
   }
-  rows.push([btn("◀️ Назад", "p:home")]);
+
+  if (user.subscription_status === "active" || user.subscription_status === "trial") {
+    rows.push([webAppBtn("🌐 Профиль и подписка", "https://t.me/sazcawd2bot/app")]);
+  }
+
+  rows.push([btn("◀️ Назад", "p:profile")]);
   return tg.edit(chatId, msgId, text, ikb(rows));
 }
 
@@ -1139,27 +1154,62 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
       discountAmount = Number(promoData.discount_amount || 0);
     }
     const finalAmount = Math.max(0, SUBSCRIPTION_PRICE - discountAmount);
-    const { data: user } = await db().from("platform_users").select("id").eq("telegram_id", telegramId).maybeSingle();
+
+    // Check user balance for partial/full payment
+    const { data: user } = await db().from("platform_users").select("id, balance, billing_price_usd, first_paid_at").eq("telegram_id", telegramId).maybeSingle();
     if (!user) return tg.edit(chatId, msgId, "❌ Пользователь не найден.", ikb([[btn("◀️ Назад", "p:sub")]]));
+
+    const userBalance = Number(user.balance) || 0;
+    const balanceUsed = Math.min(userBalance, finalAmount);
+    const toPay = Math.max(0, finalAmount - balanceUsed);
+
     const { data: payment, error: payError } = await db().from("subscription_payments").insert({
-      user_id: user.id, amount: SUBSCRIPTION_PRICE, promo_code: promoCode, discount_amount: discountAmount, final_amount: finalAmount,
-      status: finalAmount === 0 ? "paid" : "pending",
+      user_id: user.id, amount: SUBSCRIPTION_PRICE, promo_code: promoCode, discount_amount: discountAmount, final_amount: toPay,
+      status: toPay === 0 ? "paid" : "pending",
     }).select("id").single();
     if (payError || !payment) return tg.edit(chatId, msgId, `❌ Ошибка: ${payError?.message || "unknown"}`, ikb([[btn("◀️ Назад", "p:sub")]]));
     if (promoId && promoCode) {
       await db().rpc("increment_platform_promo_usage", { p_promo_id: promoId, p_telegram_id: telegramId, p_payment_id: payment.id, p_discount_amount: discountAmount });
     }
-    if (finalAmount === 0) {
+
+    // If fully covered by promo + balance
+    if (toPay === 0) {
+      // Deduct balance if used
+      if (balanceUsed > 0) {
+        const { data: newBal, error: balErr } = await db().rpc("platform_deduct_balance", { p_telegram_id: telegramId, p_amount: balanceUsed });
+        if (!balErr) {
+          await db().from("platform_balance_history").insert({
+            telegram_id: telegramId, amount: -balanceUsed, balance_after: newBal,
+            type: "subscription", comment: `Подписка ${PLATFORM_NAME} (1 мес)`,
+          });
+        }
+      }
       const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
       await db().from("platform_users").update({
         subscription_status: "active", subscription_expires_at: expiresAt,
         billing_price_usd: SUBSCRIPTION_PRICE, pricing_tier: priceInfo.tier,
-        first_paid_at: new Date().toISOString(), reminder_sent_at: null, expiry_notified_at: null,
+        first_paid_at: user.first_paid_at || new Date().toISOString(),
+        reminder_sent_at: null, expiry_notified_at: null,
         updated_at: new Date().toISOString(),
       }).eq("telegram_id", telegramId);
+      // Reactivate paused shops
+      const { data: shops } = await db().from("shops").select("id, bot_token_encrypted").eq("owner_id", user.id).eq("status", "paused");
+      const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
+      for (const shop of shops || []) {
+        await db().from("shops").update({ status: "active", updated_at: new Date().toISOString() }).eq("id", shop.id);
+        if (shop.bot_token_encrypted && encKey) {
+          try { const { data: rawToken } = await db().rpc("decrypt_token", { p_encrypted: shop.bot_token_encrypted, p_key: encKey }); if (rawToken) await setupSellerWebhook(rawToken, shop.id); } catch {}
+        }
+      }
+      await db().from("subscription_payments").update({ status: "paid" }).eq("id", payment.id);
       await clearSession(chatId);
-      return tg.edit(chatId, msgId, `✅ <b>Подписка активирована!</b>\n\n🎫 Промокод: <code>${esc(promoCode || "")}</code>\n💰 Скидка: $${discountAmount.toFixed(2)}\n\n✅ Подписка до ${new Date(expiresAt).toLocaleDateString("ru")}`, ikb([[btn("◀️ В меню", "p:home")]]));
+      let msg = `✅ <b>Подписка активирована!</b>\n\n📅 Действует до: ${new Date(expiresAt).toLocaleDateString("ru")}\n💰 Стоимость: $${SUBSCRIPTION_PRICE.toFixed(2)}`;
+      if (discountAmount > 0) msg += `\n🎫 Промокод: <code>${esc(promoCode || "")}</code>\n🏷 Скидка: -$${discountAmount.toFixed(2)}`;
+      if (balanceUsed > 0) msg += `\n💳 С баланса: -$${balanceUsed.toFixed(2)}`;
+      return tg.edit(chatId, msgId, msg, ikb([[btn("◀️ В меню", "p:home")]]));
     }
+
+    // Create CryptoBot invoice for remaining amount
     const platformCBToken = Deno.env.get("CRYPTOBOT_API_TOKEN");
     if (!platformCBToken) { await clearSession(chatId); return tg.edit(chatId, msgId, "❌ Платёжная система не настроена.", ikb([[btn("◀️ Назад", "p:sub")]])); }
     try {
@@ -1167,9 +1217,9 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
       const invoiceRes = await fetch("https://pay.crypt.bot/api/createInvoice", {
         method: "POST", headers: { "Content-Type": "application/json", "Crypto-Pay-API-Token": platformCBToken },
         body: JSON.stringify({
-          currency_type: "fiat", fiat: "USD", amount: finalAmount.toFixed(2),
+          currency_type: "fiat", fiat: "USD", amount: toPay.toFixed(2),
           description: `Подписка ${PLATFORM_NAME} (1 мес)${promoCode ? ` [промо: ${promoCode}]` : ""}`,
-          payload: JSON.stringify({ type: "subscription", paymentId: payment.id, telegramUserId: telegramId }),
+          payload: JSON.stringify({ type: "subscription", paymentId: payment.id, telegramUserId: telegramId, balanceUsed, subscriptionPrice: SUBSCRIPTION_PRICE, tier: priceInfo.tier }),
           paid_btn_name: "callback", paid_btn_url: `https://t.me/${botInfo.result?.username || "bot"}`,
         }),
       }).then(r => r.json());
@@ -1179,7 +1229,8 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
       await clearSession(chatId);
       let text = `💳 <b>Оплата подписки</b>\n\n💰 Стоимость: $${SUBSCRIPTION_PRICE.toFixed(2)}`;
       if (discountAmount > 0) text += `\n🎫 Промокод: <code>${esc(promoCode || "")}</code>\n🏷 Скидка: -$${discountAmount.toFixed(2)}`;
-      text += `\n💵 К оплате: <b>$${finalAmount.toFixed(2)}</b>\n\nНажмите кнопку ниже для оплаты:`;
+      if (balanceUsed > 0) text += `\n💳 С баланса: -$${balanceUsed.toFixed(2)}`;
+      text += `\n💵 К оплате: <b>$${toPay.toFixed(2)}</b>\n\nНажмите кнопку ниже для оплаты:`;
       return tg.edit(chatId, msgId, text, ikb([[urlBtn("💳 Оплатить", invoice.pay_url)], [btn("◀️ Назад", "p:sub")]]));
     } catch (e) { await clearSession(chatId); return tg.edit(chatId, msgId, `❌ Ошибка: ${(e as Error).message}`, ikb([[btn("◀️ Назад", "p:sub")]])); }
   }
@@ -2998,7 +3049,8 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     const price = parseFloat(val);
     if (isNaN(price) || price < 0 || price > 100) return tg.send(chatId, "❌ Введите число от 0 до 100:");
     await clearSession(chatId);
-    const tier = price <= EARLY_BIRD_PRICE ? "early_3" : "standard_5";
+    const ss = await getSubSettings();
+    const tier = price <= ss.early_price_usd ? "early_3" : "standard_5";
     await db().from("platform_users").update({
       billing_price_usd: price, pricing_tier: tier, updated_at: new Date().toISOString(),
     }).eq("telegram_id", targetTgId);

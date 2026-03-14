@@ -70,7 +70,7 @@ serve(async (req) => {
     if (!initData) return jsonRes({ error: "Authentication required" }, 401);
 
     // For platform-profile, use PLATFORM_BOT_TOKEN since the Mini App is launched from the platform bot
-    const isPlatformAction = action === "platform-profile";
+    const isPlatformAction = action === "platform-profile" || action === "validate-sub-promo";
     const botToken = isPlatformAction
       ? (Deno.env.get("PLATFORM_BOT_TOKEN") || await resolveBotToken(supabase, shopId))
       : await resolveBotToken(supabase, shopId);
@@ -240,6 +240,15 @@ serve(async (req) => {
         const { data: orders } = await supabase.from("orders").select("total_amount, status").eq("telegram_id", telegramId);
         const paid = (orders || []).filter((o: any) => ["paid", "processing", "delivered", "completed"].includes(o.status));
         return jsonRes({ stats: { orderCount: (orders || []).length, totalSpent: paid.reduce((s: number, o: any) => s + Number(o.total_amount), 0) } });
+      }
+
+      case "validate-sub-promo": {
+        const { promoCode: pc } = body;
+        if (!pc) return jsonRes({ valid: false, error: "Введите промокод" });
+        const { data: result } = await supabase.rpc("validate_platform_subscription_promo", { p_code: pc, p_telegram_id: telegramId });
+        const r = result as any;
+        if (!r || !r.valid) return jsonRes({ valid: false, error: r?.error || "Промокод не найден" });
+        return jsonRes({ valid: true, code: r.code, discount_type: r.discount_type, discount_value: r.discount_value });
       }
 
       default:
