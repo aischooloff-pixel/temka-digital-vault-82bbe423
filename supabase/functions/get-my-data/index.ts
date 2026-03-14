@@ -242,6 +242,15 @@ serve(async (req) => {
         return jsonRes({ stats: { orderCount: (orders || []).length, totalSpent: paid.reduce((s: number, o: any) => s + Number(o.total_amount), 0) } });
       }
 
+      case "validate-sub-promo": {
+        const { promoCode: pc } = body;
+        if (!pc) return jsonRes({ valid: false, error: "Введите промокод" });
+        const { data: result } = await supabase.rpc("validate_platform_subscription_promo", { p_code: pc, p_telegram_id: telegramId });
+        const r = result as any;
+        if (!r || !r.valid) return jsonRes({ valid: false, error: r?.error || "Промокод не найден" });
+        return jsonRes({ valid: true, code: r.code, discount_type: r.discount_type, discount_value: r.discount_value });
+      }
+
       default:
         return jsonRes({ error: "Unknown action" }, 400);
     }
