@@ -661,9 +661,9 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
 
   const tierLabel = priceInfo.tier === "early_3" ? "🎉 Early Bird" : "Стандартный";
   let statusBlock = "";
-  if (user.subscription_status === "trial" && ss.trial_enabled) {
-    statusBlock = `\n\n🆓 <b>Пробный период</b>\nВам доступны ${ss.trial_days} дней бесплатного использования.\nПосле окончания необходимо оформить подписку.`;
-  } else if (user.subscription_status === "trial" && !ss.trial_enabled) {
+  if (user.subscription_status === "trial") {
+    statusBlock = `\n\n✅ <b>Подписка активна</b>\n🆓 Сейчас действует бесплатный пробный период.\nПосле окончания потребуется продление.`;
+  } else if (user.subscription_status === "none") {
     statusBlock = `\n\n⏳ <b>Подписка не активна</b>\nОформите подписку для работы магазина.`;
   } else if (user.subscription_status === "none") {
     statusBlock = `\n\n⏳ <b>Подписка не активна</b>\nОформите подписку для работы магазина.`;
