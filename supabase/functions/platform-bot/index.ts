@@ -675,6 +675,8 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
     statusBlock = `\n\n⏳ <b>Подписка не активна</b>\nОформите подписку для работы магазина.`;
   } else if (user.subscription_status === "none") {
     statusBlock = `\n\n⏳ <b>Подписка не активна</b>\nОформите подписку для работы магазина.`;
+  } else if (user.subscription_status === "cancelled") {
+    statusBlock = `\n\n🚫 <b>Подписка отменена</b>\nМагазины приостановлены. Оформите подписку заново для возобновления.`;
   } else if (user.subscription_status === "expired") {
     statusBlock = `\n\n⚠️ <b>Подписка истекла</b>\nМагазины приостановлены. Продлите подписку для возобновления.`;
   } else if (user.subscription_status === "grace_period") {

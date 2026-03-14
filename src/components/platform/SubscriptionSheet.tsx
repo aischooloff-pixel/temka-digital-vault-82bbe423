@@ -149,8 +149,8 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
 
           <Separator />
 
-          {/* Expiration */}
-          {subscription.expires_at && (
+          {/* Expiration — hide for cancelled/blocked/none */}
+          {subscription.expires_at && !['cancelled', 'blocked', 'none'].includes(subscription.status) && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" /> Действует до
@@ -159,7 +159,7 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
             </div>
           )}
 
-          {daysLeft !== null && (
+          {daysLeft !== null && !['cancelled', 'blocked', 'none'].includes(subscription.status) && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5" /> Осталось
