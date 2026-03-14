@@ -65,8 +65,43 @@ const PlatformProfile: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const mockData: ProfileData = {
+    user: {
+      id: 'demo-id',
+      telegram_id: 123456789,
+      first_name: 'Александр',
+      last_name: 'Иванов',
+      username: 'alex_ivanov',
+      is_premium: true,
+      created_at: '2025-01-15T00:00:00Z',
+    },
+    subscription: {
+      status: 'active',
+      expires_at: new Date(Date.now() + 18 * 24 * 60 * 60 * 1000).toISOString(),
+      trial_started_at: null,
+      has_used_trial: true,
+      pricing_tier: 'early',
+      billing_price_usd: 3,
+      first_paid_at: '2025-02-01T00:00:00Z',
+    },
+    balance: 12.50,
+    shops: [
+      {
+        id: 'shop-1',
+        name: 'Digital Store',
+        slug: 'digital-store',
+        status: 'active',
+        bot_username: 'digital_store_bot',
+        webhook_status: 'active',
+        created_at: '2025-02-10T00:00:00Z',
+      },
+    ],
+  };
+
   useEffect(() => {
     if (!initData || !tgUser) {
+      // Use mock data as fallback for preview
+      setData(mockData);
       setLoading(false);
       return;
     }
@@ -86,37 +121,7 @@ const PlatformProfile: React.FC = () => {
     })();
   }, [initData, tgUser]);
 
-  // Not in Telegram
-  if (!isInTelegram && !loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-[#F0F7FF] to-white flex items-center justify-center p-6">
-        <Card className="max-w-md w-full border border-blue-100 bg-white shadow-lg">
-          <CardContent className="p-8 text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mx-auto">
-              <ShieldCheck className="w-8 h-8 text-blue-500" />
-            </div>
-            <h2 className="text-xl font-semibold text-gray-900">Доступ к профилю</h2>
-            <p className="text-gray-500 text-sm leading-relaxed">
-              Откройте эту страницу через Telegram для доступа к профилю платформы.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-[#F0F7FF] to-white p-4 space-y-4 max-w-lg mx-auto">
-        <Skeleton className="h-32 w-full rounded-2xl bg-blue-50" />
-        <Skeleton className="h-24 w-full rounded-2xl bg-blue-50" />
-        <Skeleton className="h-48 w-full rounded-2xl bg-blue-50" />
-        <Skeleton className="h-28 w-full rounded-2xl bg-blue-50" />
-      </div>
-    );
-  }
-
-  if (error || !data) {
+  if (error || (!loading && !data)) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#F0F7FF] to-white flex items-center justify-center p-6">
         <Card className="max-w-md w-full border border-red-100 bg-white shadow-lg">
