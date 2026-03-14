@@ -105,7 +105,7 @@ serve(async (req) => {
     if (resolvedShopId) {
       const { data: customer } = await supabase.from("shop_customers").select("is_blocked").eq("shop_id", resolvedShopId).eq("telegram_id", telegramUserId).maybeSingle();
       if (customer?.is_blocked) return new Response(JSON.stringify({ error: "Ваш аккаунт заблокирован" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    } else {
+    } else if (!isPlatform) {
       const { data: userProfile } = await supabase.from("user_profiles").select("is_blocked").eq("telegram_id", telegramUserId).maybeSingle();
       if (userProfile?.is_blocked) return new Response(JSON.stringify({ error: "Ваш аккаунт заблокирован" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
