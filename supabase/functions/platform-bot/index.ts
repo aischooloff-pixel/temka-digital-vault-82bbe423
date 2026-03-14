@@ -1824,7 +1824,129 @@ async function admLogsList(tg: ReturnType<typeof TG>, chatId: number, msgId: num
   return tg.edit(chatId, msgId, text, ikb(rows));
 }
 
-// ─── SETTINGS ─────────────────────────────────
+// ─── SUBSCRIPTION CONFIG (platform-wide policy) ─
+async function admSubConfig(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
+  const ss = await getSubSettings();
+  const { count: paidCount } = await db().from("platform_users").select("id", { count: "exact", head: true }).not("first_paid_at", "is", null);
+  const { count: trialCount } = await db().from("platform_users").select("id", { count: "exact", head: true }).eq("subscription_status", "trial");
+  const { count: activeCount } = await db().from("platform_users").select("id", { count: "exact", head: true }).eq("subscription_status", "active");
+  const { count: expiredCount } = await db().from("platform_users").select("id", { count: "exact", head: true }).eq("subscription_status", "expired");
+  const earlyRemaining = Math.max(0, ss.early_slots_limit - (paidCount || 0));
+
+  const text =
+    `📋 <b>Подписка — глобальные настройки</b>\n\n` +
+    `<b>💰 Цены:</b>\n` +
+    `  Стандарт: <b>$${ss.standard_price_usd}</b>/мес\n` +
+    `  Early Bird: <b>$${ss.early_price_usd}</b>/мес\n` +
+    `  Early слотов: ${ss.early_slots_limit} (осталось: ${earlyRemaining})\n` +
+    `  Pricing: ${ss.pricing_enabled ? "✅" : "❌"}\n\n` +
+    `<b>🆓 Trial:</b>\n` +
+    `  Trial: ${ss.trial_enabled ? "✅" : "❌"} (${ss.trial_days} дн.)\n` +
+    `  Один trial/user: ${ss.one_trial_per_user ? "✅" : "❌"}\n` +
+    `  Авто-trial: ${ss.auto_trial_on_shop_create ? "✅" : "❌"}\n\n` +
+    `<b>🏪 Лимиты:</b>\n` +
+    `  Магазинов на user: ${ss.max_shops_per_user}\n\n` +
+    `<b>⏰ Expiration:</b>\n` +
+    `  Grace period: ${ss.grace_period_enabled ? `✅ (${ss.grace_period_days} дн.)` : "❌"}\n` +
+    `  Пауза магазинов: ${ss.on_expiry_pause_shop ? "✅" : "❌"}\n` +
+    `  Деактивация ботов: ${ss.on_expiry_deactivate_bot ? "✅" : "❌"}\n\n` +
+    `<b>🔔 Уведомления:</b>\n` +
+    `  Reminder: ${ss.reminder_enabled ? `✅ (за ${ss.reminder_days_before} дн.)` : "❌"}\n` +
+    `  Trial started: ${ss.trial_started_notify ? "✅" : "❌"}\n` +
+    `  Expired: ${ss.expired_notify ? "✅" : "❌"}\n` +
+    `  Bot deactivated: ${ss.bot_deactivated_notify ? "✅" : "❌"}\n\n` +
+    `<b>📊 Текущее состояние:</b>\n` +
+    `  Trial: ${trialCount || 0} | Active: ${activeCount || 0} | Expired: ${expiredCount || 0}\n` +
+    `  Оплативших: ${paidCount || 0}`;
+
+  return tg.edit(chatId, msgId, text, ikb([
+    [btn("💰 Цены", "adm:sc:prices"), btn("🆓 Trial", "adm:sc:trial")],
+    [btn("🏪 Лимиты", "adm:sc:limits"), btn("⏰ Expiration", "adm:sc:expiry")],
+    [btn("🔔 Уведомления", "adm:sc:notify")],
+    [btn("🔄 Обновить", "adm:subconfig")],
+    [btn("◀️ Меню", "adm:home")],
+  ]));
+}
+
+async function admScPrices(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
+  const ss = await getSubSettings();
+  const { count: paidCount } = await db().from("platform_users").select("id", { count: "exact", head: true }).not("first_paid_at", "is", null);
+  const earlyRemaining = Math.max(0, ss.early_slots_limit - (paidCount || 0));
+  const text =
+    `💰 <b>Управление ценами</b>\n\n` +
+    `Стандартная цена: <b>$${ss.standard_price_usd}</b>/мес\n` +
+    `Early Bird цена: <b>$${ss.early_price_usd}</b>/мес\n` +
+    `Early слотов: <b>${ss.early_slots_limit}</b> (осталось: ${earlyRemaining})\n` +
+    `Pricing: ${ss.pricing_enabled ? "✅ Включён" : "❌ Выключен"}\n\n` +
+    `Оплативших пользователей: ${paidCount || 0}`;
+  return tg.edit(chatId, msgId, text, ikb([
+    [btn("✏️ Стандартная цена", "adm:sc:set:standard_price_usd"), btn("✏️ Early цена", "adm:sc:set:early_price_usd")],
+    [btn("✏️ Early слоты", "adm:sc:set:early_slots_limit")],
+    [btn(ss.pricing_enabled ? "❌ Выкл pricing" : "✅ Вкл pricing", "adm:sc:tog:pricing_enabled")],
+    [btn("◀️ Назад", "adm:subconfig")],
+  ]));
+}
+
+async function admScTrial(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
+  const ss = await getSubSettings();
+  const text =
+    `🆓 <b>Настройки Trial</b>\n\n` +
+    `Trial: ${ss.trial_enabled ? "✅ Включён" : "❌ Выключен"}\n` +
+    `Длительность: <b>${ss.trial_days}</b> дней\n` +
+    `Один trial на пользователя: ${ss.one_trial_per_user ? "✅" : "❌"}\n` +
+    `Авто-trial при создании магазина: ${ss.auto_trial_on_shop_create ? "✅" : "❌"}`;
+  return tg.edit(chatId, msgId, text, ikb([
+    [btn(ss.trial_enabled ? "❌ Выкл trial" : "✅ Вкл trial", "adm:sc:tog:trial_enabled")],
+    [btn("✏️ Дни trial", "adm:sc:set:trial_days")],
+    [btn(ss.one_trial_per_user ? "❌ Multi-trial" : "✅ Один trial", "adm:sc:tog:one_trial_per_user")],
+    [btn(ss.auto_trial_on_shop_create ? "❌ Авто-trial выкл" : "✅ Авто-trial вкл", "adm:sc:tog:auto_trial_on_shop_create")],
+    [btn("◀️ Назад", "adm:subconfig")],
+  ]));
+}
+
+async function admScLimits(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
+  const ss = await getSubSettings();
+  const text = `🏪 <b>Лимиты</b>\n\nМагазинов на пользователя: <b>${ss.max_shops_per_user}</b>`;
+  return tg.edit(chatId, msgId, text, ikb([
+    [btn("✏️ Макс. магазинов", "adm:sc:set:max_shops_per_user")],
+    [btn("◀️ Назад", "adm:subconfig")],
+  ]));
+}
+
+async function admScExpiry(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
+  const ss = await getSubSettings();
+  const text =
+    `⏰ <b>Логика окончания подписки</b>\n\n` +
+    `Grace period: ${ss.grace_period_enabled ? `✅ (${ss.grace_period_days} дн.)` : "❌"}\n` +
+    `Пауза магазинов при истечении: ${ss.on_expiry_pause_shop ? "✅" : "❌"}\n` +
+    `Деактивация ботов при истечении: ${ss.on_expiry_deactivate_bot ? "✅" : "❌"}`;
+  return tg.edit(chatId, msgId, text, ikb([
+    [btn(ss.grace_period_enabled ? "❌ Выкл grace" : "✅ Вкл grace", "adm:sc:tog:grace_period_enabled")],
+    [btn("✏️ Grace дни", "adm:sc:set:grace_period_days")],
+    [btn(ss.on_expiry_pause_shop ? "❌ Не паузить" : "✅ Паузить", "adm:sc:tog:on_expiry_pause_shop")],
+    [btn(ss.on_expiry_deactivate_bot ? "❌ Не деактивировать" : "✅ Деактивировать", "adm:sc:tog:on_expiry_deactivate_bot")],
+    [btn("◀️ Назад", "adm:subconfig")],
+  ]));
+}
+
+async function admScNotify(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
+  const ss = await getSubSettings();
+  const text =
+    `🔔 <b>Уведомления подписки</b>\n\n` +
+    `Reminder до истечения: ${ss.reminder_enabled ? `✅ (за ${ss.reminder_days_before} дн.)` : "❌"}\n` +
+    `Уведомление о начале trial: ${ss.trial_started_notify ? "✅" : "❌"}\n` +
+    `Уведомление об истечении: ${ss.expired_notify ? "✅" : "❌"}\n` +
+    `Уведомление о деактивации бота: ${ss.bot_deactivated_notify ? "✅" : "❌"}`;
+  return tg.edit(chatId, msgId, text, ikb([
+    [btn(ss.reminder_enabled ? "❌ Выкл reminder" : "✅ Вкл reminder", "adm:sc:tog:reminder_enabled")],
+    [btn("✏️ Reminder дни", "adm:sc:set:reminder_days_before")],
+    [btn(ss.trial_started_notify ? "❌" : "✅", "adm:sc:tog:trial_started_notify"), btn("Trial started", "adm:sc:notify")],
+    [btn(ss.expired_notify ? "❌" : "✅", "adm:sc:tog:expired_notify"), btn("Expired", "adm:sc:notify")],
+    [btn(ss.bot_deactivated_notify ? "❌" : "✅", "adm:sc:tog:bot_deactivated_notify"), btn("Bot deactivated", "adm:sc:notify")],
+    [btn("◀️ Назад", "adm:subconfig")],
+  ]));
+}
+
 async function admSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
   const { data: settings } = await db().from("shop_settings").select("*").order("key");
   // Filter out platform-managed keys from general settings display
