@@ -634,31 +634,117 @@ async function shopStats(tg: ReturnType<typeof TG>, chatId: number, msgId: numbe
 async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
   const { data: user } = await db().from("platform_users").select("*").eq("telegram_id", chatId).maybeSingle();
   if (!user) return;
+
+  const ss = await getSubSettings();
   const priceInfo = await getSubscriptionPrice(chatId);
-  const status = subStatusLabel(user.subscription_status);
-  let daysLeftText = "";
-  let trialInfo = "";
-  if (user.subscription_expires_at) {
-    const dLeft = subscriptionDaysLeft(user.subscription_expires_at);
-    if (dLeft > 0) {
-      daysLeftText = `\n⏳ Осталось: <b>${dLeft}</b> ${dLeft === 1 ? "день" : dLeft < 5 ? "дня" : "дней"}`;
-      daysLeftText += `\n📅 До: ${new Date(user.subscription_expires_at).toLocaleDateString("ru")}`;
-    } else {
-      daysLeftText = `\n📅 Истекла: ${new Date(user.subscription_expires_at).toLocaleDateString("ru")}`;
-    }
-  }
-  if (user.subscription_status === "trial") {
-    trialInfo = `\n\n🆓 <b>Пробный период</b>\nВам доступны ${TRIAL_DAYS} дней бесплатного использования.\nПосле окончания необходимо оформить подписку.`;
-  }
-  if (user.subscription_status === "expired") {
-    trialInfo = `\n\n⚠️ <b>Подписка истекла</b>\nМагазины приостановлены. Продлите подписку для возобновления.`;
-  }
-  const text = `💳 <b>Подписка</b>\n\n📊 Статус: <b>${status}</b>${daysLeftText}${trialInfo}\n\n💰 Ваша цена: <b>$${priceInfo.price}/мес</b> ${priceInfo.tier === "early_3" ? "🎉 Early Bird" : ""}\n\nВключает:\n• 1 магазин\n• Приём платежей через CryptoBot\n• Собственный Telegram-бот\n• Авто-доставка цифровых товаров\n• ${TRIAL_DAYS} дней бесплатного пробного периода`;
+  const statusLabel = subStatusLabel(user.subscription_status);
+  const st = user.subscription_status;
+  const dLeft = user.subscription_expires_at ? subscriptionDaysLeft(user.subscription_expires_at) : null;
+  const daysWord = (n: number) => n === 1 ? "день" : n < 5 ? "дня" : "дней";
+  const balance = Number(user.balance) || 0;
+  const tierLabel = priceInfo.tier === "early_3" ? "🎉 Early Bird" : "📦 Стандартный";
+
+  const MINI_APP_URL = "https://t.me/sazcawd2bot/app";
   const rows: Btn[][] = [];
-  if (user.subscription_status !== "active") {
-    rows.push([btn(`💳 Оплатить $${priceInfo.price}`, "p:pay_sub")]);
+  let text = "";
+
+  if (st === "active") {
+    // ── Active subscription ──
+    text = `💳 <b>Подписка</b>\n\n📊 Статус: <b>${statusLabel}</b>`;
+    if (dLeft !== null && dLeft > 0) {
+      text += `\n⏳ Осталось: <b>${dLeft}</b> ${daysWord(dLeft)}`;
+      text += `\n📅 Действует до: ${new Date(user.subscription_expires_at!).toLocaleDateString("ru")}`;
+    }
+    text += `\n\n💰 Тариф: <b>${tierLabel}</b> — $${priceInfo.price}/мес`;
+    if (balance > 0) text += `\n💵 Баланс: <b>$${balance.toFixed(2)}</b>`;
+    text += `\n\n✅ Ваши магазины работают в полном режиме.`;
+    // Allow early renewal within 7 days
+    if (dLeft !== null && dLeft <= 7) {
+      rows.push([btn(`🔄 Продлить — $${priceInfo.price}`, "p:pay_sub")]);
+    }
+    rows.push([urlBtn("👤 Профиль и подписка", MINI_APP_URL)]);
+
+  } else if (st === "trial") {
+    // ── Trial ──
+    text = `💳 <b>Подписка</b>\n\n📊 Статус: <b>${statusLabel}</b>`;
+    if (dLeft !== null && dLeft > 0) {
+      text += `\n⏳ Осталось: <b>${dLeft}</b> ${daysWord(dLeft)}`;
+      text += `\n📅 До: ${new Date(user.subscription_expires_at!).toLocaleDateString("ru")}`;
+    }
+    text += `\n\n🆓 <b>Пробный период</b>`;
+    text += `\nВам доступны <b>${ss.trial_days}</b> дней бесплатного использования.`;
+    text += `\nПосле окончания необходимо оформить подписку.`;
+    text += `\n\n💰 Ваша цена: <b>$${priceInfo.price}/мес</b> ${priceInfo.tier === "early_3" ? "🎉 Early Bird" : ""}`;
+    if (balance > 0) text += `\n💵 Баланс: <b>$${balance.toFixed(2)}</b>`;
+    text += `\n\nВключает:\n• 1 магазин с собственным ботом\n• Приём платежей через CryptoBot\n• Авто-доставка цифровых товаров`;
+    rows.push([btn(`💳 Оформить подписку — $${priceInfo.price}`, "p:pay_sub")]);
+    if (balance >= priceInfo.price) {
+      rows.push([btn(`💵 Оплатить с баланса — $${priceInfo.price}`, "p:pay_sub_balance")]);
+    }
+    rows.push([btn("🎫 Промокод", "p:sub_promo")]);
+    rows.push([urlBtn("👤 Профиль и подписка", MINI_APP_URL)]);
+
+  } else if (st === "grace_period") {
+    // ── Grace period ──
+    text = `💳 <b>Подписка</b>\n\n📊 Статус: <b>${statusLabel}</b>`;
+    if (dLeft !== null) {
+      const graceLeft = dLeft + ss.grace_period_days;
+      if (graceLeft > 0) text += `\n⏰ Льготный период: <b>${graceLeft}</b> ${daysWord(graceLeft)}`;
+    }
+    text += `\n\n⚠️ <b>Льготный период</b>`;
+    text += `\nМагазины ещё работают, но скоро будут приостановлены.`;
+    text += `\nПродлите подписку чтобы избежать остановки.`;
+    text += `\n\n💰 Стоимость: <b>$${priceInfo.price}/мес</b>`;
+    if (balance > 0) text += `\n💵 Баланс: <b>$${balance.toFixed(2)}</b>`;
+    rows.push([btn(`💳 Продлить — $${priceInfo.price}`, "p:pay_sub")]);
+    if (balance >= priceInfo.price) {
+      rows.push([btn(`💵 Оплатить с баланса`, "p:pay_sub_balance")]);
+    }
+    rows.push([btn("🎫 Промокод", "p:sub_promo")]);
+
+  } else if (st === "expired" || st === "cancelled") {
+    // ── Expired / Cancelled ──
+    text = `💳 <b>Подписка</b>\n\n📊 Статус: <b>${statusLabel}</b>`;
+    if (user.subscription_expires_at) {
+      text += `\n📅 Истекла: ${new Date(user.subscription_expires_at).toLocaleDateString("ru")}`;
+    }
+    text += `\n\n⚠️ <b>${st === "expired" ? "Подписка истекла" : "Подписка отменена"}</b>`;
+    text += `\n🏪 Магазины приостановлены`;
+    text += `\n🤖 Боты деактивированы`;
+    text += `\n\nПродлите подписку для возобновления работы.`;
+    text += `\nВсе данные сохранены — магазины восстановятся автоматически.`;
+    text += `\n\n💰 Стоимость: <b>$${priceInfo.price}/мес</b>`;
+    if (balance > 0) text += `\n💵 Баланс: <b>$${balance.toFixed(2)}</b>`;
+    rows.push([btn(`💳 Оформить подписку — $${priceInfo.price}`, "p:pay_sub")]);
+    if (balance >= priceInfo.price) {
+      rows.push([btn(`💵 Оплатить с баланса`, "p:pay_sub_balance")]);
+    }
+    rows.push([btn("🎫 Промокод", "p:sub_promo")]);
+
+  } else if (st === "blocked") {
+    // ── Blocked ──
+    text = `💳 <b>Подписка</b>\n\n📊 Статус: <b>${statusLabel}</b>`;
+    text += `\n\n🔒 Ваша подписка заблокирована администрацией.`;
+    text += `\nОбратитесь в поддержку для разъяснения.`;
+    const supportLink = await getSupportLink();
+    rows.push([urlBtn("🆘 Поддержка", supportLink)]);
+
+  } else {
+    // ── No subscription (new user) ──
+    text = `💳 <b>Подписка</b>\n\n📊 Статус: Нет активной подписки`;
+    text += `\n\n<b>${PLATFORM_NAME}</b> — создай свой Telegram магазин`;
+    text += `\nс автовыдачей за 5 минут.`;
+    text += `\n\n💰 Стоимость: <b>$${priceInfo.price}/мес</b> ${priceInfo.tier === "early_3" ? "🎉 Early Bird" : ""}`;
+    if (balance > 0) text += `\n💵 Баланс: <b>$${balance.toFixed(2)}</b>`;
+    text += `\n\nВключает:\n• 1 магазин с собственным ботом\n• Приём платежей через CryptoBot\n• Авто-доставка цифровых товаров\n• ${ss.trial_days} дней бесплатного пробного периода`;
+    rows.push([btn(`💳 Оформить подписку — $${priceInfo.price}`, "p:pay_sub")]);
+    if (balance >= priceInfo.price) {
+      rows.push([btn(`💵 Оплатить с баланса`, "p:pay_sub_balance")]);
+    }
+    rows.push([btn("🎫 Промокод", "p:sub_promo")]);
   }
-  rows.push([btn("◀️ Назад", "p:home")]);
+
+  rows.push([btn("◀️ Назад", "p:profile")]);
   return tg.edit(chatId, msgId, text, ikb(rows));
 }
 
