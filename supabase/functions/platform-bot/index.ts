@@ -2516,7 +2516,58 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
     return tg.edit(chatId, msgId, `📝 Введите заметку для промокода:`, ikb([[btn("❌ Отмена", `adm:spcard:${promoId}`)]]));
   }
 
-  // ─── Reviews ──────────────────────────────
+  // ─── Subscription Config (platform-wide) ──
+  if (cmd === "subconfig") return admSubConfig(tg, chatId, msgId);
+  if (cmd === "sc") {
+    const subCmd = parts[2]; // prices, trial, limits, expiry, notify, set, tog
+    if (subCmd === "prices") return admScPrices(tg, chatId, msgId);
+    if (subCmd === "trial") return admScTrial(tg, chatId, msgId);
+    if (subCmd === "limits") return admScLimits(tg, chatId, msgId);
+    if (subCmd === "expiry") return admScExpiry(tg, chatId, msgId);
+    if (subCmd === "notify") return admScNotify(tg, chatId, msgId);
+    if (subCmd === "tog") {
+      const key = parts[3]; // e.g. pricing_enabled
+      const ss = await getSubSettings();
+      const currentVal = (ss as any)[key];
+      if (typeof currentVal !== "boolean") return;
+      const newVal = !currentVal;
+      await db().from("shop_settings").upsert({ key: `sub_${key}`, value: String(newVal), updated_at: new Date().toISOString() }, { onConflict: "key" });
+      invalidateSubCache();
+      await admLog(adminTgId, "toggle_sub_setting", "sub_config", key, { old: currentVal, new: newVal });
+      // Navigate back to the parent section
+      const sectionMap: Record<string, string> = {
+        pricing_enabled: "prices", trial_enabled: "trial", one_trial_per_user: "trial",
+        auto_trial_on_shop_create: "trial", grace_period_enabled: "expiry",
+        on_expiry_pause_shop: "expiry", on_expiry_deactivate_bot: "expiry",
+        reminder_enabled: "notify", trial_started_notify: "notify",
+        expired_notify: "notify", bot_deactivated_notify: "notify",
+      };
+      const section = sectionMap[key] || "subconfig";
+      if (section === "prices") return admScPrices(tg, chatId, msgId);
+      if (section === "trial") return admScTrial(tg, chatId, msgId);
+      if (section === "expiry") return admScExpiry(tg, chatId, msgId);
+      if (section === "notify") return admScNotify(tg, chatId, msgId);
+      return admSubConfig(tg, chatId, msgId);
+    }
+    if (subCmd === "set") {
+      const key = parts[3]; // e.g. standard_price_usd
+      const labels: Record<string, string> = {
+        standard_price_usd: "стандартную цену (USD)", early_price_usd: "early bird цену (USD)",
+        early_slots_limit: "кол-во early слотов", trial_days: "дни trial",
+        max_shops_per_user: "макс. магазинов на user", grace_period_days: "дни grace period",
+        reminder_days_before: "за сколько дней reminder",
+      };
+      const backMap: Record<string, string> = {
+        standard_price_usd: "prices", early_price_usd: "prices", early_slots_limit: "prices",
+        trial_days: "trial", max_shops_per_user: "limits", grace_period_days: "expiry",
+        reminder_days_before: "notify",
+      };
+      await setSession(chatId, "adm_sc_set_value", { key, back: backMap[key] || "subconfig" });
+      return tg.edit(chatId, msgId, `✏️ Введите новое значение для <b>${labels[key] || key}</b>:`, ikb([[btn("❌ Отмена", `adm:sc:${backMap[key] || "subconfig"}`)]]));
+    }
+  }
+
+
   if (cmd === "reviews") return admReviewsList(tg, chatId, msgId, parts[2] || "shop", parseInt(parts[3]) || 0);
   if (cmd === "rapprove" || cmd === "rreject" || cmd === "rdelete") {
     const type = parts[2]; const reviewId = parts[3];
