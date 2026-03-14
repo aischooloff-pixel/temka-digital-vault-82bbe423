@@ -1110,23 +1110,7 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
   if (cmd === "howitworks") return howItWorks(tg, chatId, msgId);
   if (cmd === "profile") return showProfile(tg, chatId, msgId);
   if (cmd === "sub") return showSubscription(tg, chatId, msgId);
-  if (cmd === "pay_sub") {
-    // Create subscription invoice directly from bot
-    const priceInfo = await getSubscriptionPrice(chatId);
-    const { data: pUser } = await db().from("platform_users").select("id, subscription_status, subscription_expires_at, balance, billing_price_usd, pricing_tier").eq("telegram_id", chatId).maybeSingle();
-    if (!pUser) return tg.edit(chatId, msgId, "❌ Пользователь не найден.", ikb([[btn("◀️ Назад", "p:sub")]]));
-    // Redirect to Mini App for payment (since CryptoBot invoice requires initData verification)
-    const webAppUrl = Deno.env.get("WEBAPP_URL") || "";
-    return tg.edit(chatId, msgId, `💳 <b>Оплата подписки</b>\n\n💰 Стоимость: <b>$${priceInfo.price}/мес</b>\n\nДля оплаты откройте Mini App:`, ikb([
-      [webAppBtn("💳 Перейти к оплате", webAppUrl)],
-      [btn("◀️ Назад", "p:sub")],
-    ]));
-  }
-  if (cmd === "sub_promo") {
-    // Ask user to enter promo code via text input
-    await setSession(chatId, "sub_promo_input", {});
-    return tg.edit(chatId, msgId, "🎫 <b>Ввод промокода</b>\n\nВведите ваш промокод для скидки на подписку:", ikb([[btn("❌ Отмена", "p:sub")]]));
-  }
+  // p:pay_sub and p:sub_promo are handled below (after shop management callbacks)
   if (cmd === "myshops") return myShops(tg, chatId, msgId, parseInt(parts[2]) || 0);
   if (cmd === "shop") return shopView(tg, chatId, msgId, parts[2]);
   if (cmd === "settings") return shopSettings(tg, chatId, msgId, parts[2]);
@@ -1312,7 +1296,7 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
     } catch (e) { await clearSession(chatId); return tg.edit(chatId, msgId, `❌ Ошибка: ${(e as Error).message}`, ikb([[btn("◀️ Назад", "p:sub")]])); }
   }
   if (cmd === "sub_promo") {
-    await setSession(chatId, "sub_enter_promo", {});
+    await setSession(chatId, "sub_promo_input", {});
     return tg.edit(chatId, msgId, `🎫 <b>Промокод на подписку</b>\n\nВведите промокод:`, ikb([[btn("❌ Отмена", "p:sub")]]));
   }
 }
@@ -1540,7 +1524,7 @@ async function admUserCard(tg: ReturnType<typeof TG>, chatId: number, msgId: num
     `⭐ Premium: ${pu.is_premium ? "Да" : "Нет"}\n` +
     subDetails +
     `🔒 Статус: ${blocked}\n` +
-    (up ? `💰 Баланс: $${Number(up.balance || 0).toFixed(2)}\n` : "") +
+    `💰 Баланс (платформа): $${Number(pu.balance || 0).toFixed(2)}\n` +
     (up?.internal_note ? `📝 Заметка: ${esc(up.internal_note)}\n` : "") +
     `\n🏪 Магазинов: ${shopCount || 0}\n` +
     `🛍 Заказов: ${(platformOrders || 0) + (shopOrders || 0)}\n` +
@@ -3043,24 +3027,33 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     if (!match) return tg.send(chatId, "❌ Формат: +10 или -5");
     const sign = match[1] === "-" ? -1 : 1;
     const amount = parseFloat(match[2]) * sign;
-    if (amount > 0) {
-      await db().rpc("credit_balance", { p_telegram_id: targetTgId, p_amount: Math.abs(amount) });
-    } else {
-      await db().rpc("deduct_balance", { p_telegram_id: targetTgId, p_amount: Math.abs(amount) });
+    // Use platform_users balance (not user_profiles)
+    let newBal: number;
+    try {
+      if (amount > 0) {
+        const { data, error } = await db().rpc("platform_credit_balance", { p_telegram_id: targetTgId, p_amount: Math.abs(amount) });
+        if (error) throw error;
+        newBal = Number(data);
+      } else {
+        const { data, error } = await db().rpc("platform_deduct_balance", { p_telegram_id: targetTgId, p_amount: Math.abs(amount) });
+        if (error) throw error;
+        newBal = Number(data);
+      }
+    } catch (e: any) {
+      await clearSession(chatId);
+      return tg.send(chatId, `❌ Ошибка: ${e.message || "Недостаточно средств"}`, ikb([[btn("◀️ К пользователю", `adm:ucard:${targetTgId}`)]]));
     }
-    // Log to balance_history
-    const { data: up } = await db().from("user_profiles").select("balance").eq("telegram_id", targetTgId).maybeSingle();
-    await db().from("balance_history").insert({
+    // Log to platform_balance_history
+    await db().from("platform_balance_history").insert({
       telegram_id: targetTgId,
-      amount: Math.abs(amount),
+      amount: amount > 0 ? Math.abs(amount) : -Math.abs(amount),
       type: amount > 0 ? "credit" : "debit",
-      balance_after: Number(up?.balance || 0),
-      admin_telegram_id: chatId,
-      comment: `Superadmin ${amount > 0 ? "credit" : "debit"}`,
+      balance_after: newBal,
+      comment: `Superadmin ${amount > 0 ? "начисление" : "списание"}`,
     });
     await admLog(chatId, amount > 0 ? "credit_balance" : "debit_balance", "user", String(targetTgId), { amount });
     await clearSession(chatId);
-    return tg.send(chatId, `✅ Баланс обновлён: ${amount > 0 ? "+" : ""}${amount}`, ikb([[btn("◀️ К пользователю", `adm:ucard:${targetTgId}`)]]));
+    return tg.send(chatId, `✅ Баланс обновлён: ${amount > 0 ? "+" : ""}${amount}\n💰 Новый баланс: $${newBal.toFixed(2)}`, ikb([[btn("◀️ К пользователю", `adm:ucard:${targetTgId}`)]]));
   }
 
   if (state === "adm_user_note") {
