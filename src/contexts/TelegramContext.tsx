@@ -15,6 +15,7 @@ interface TelegramContextType {
   user: TelegramUser | null;
   initData: string;
   isInTelegram: boolean;
+  isReady: boolean;
   colorScheme: 'light' | 'dark';
   haptic: {
     impact: (style?: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft') => void;
