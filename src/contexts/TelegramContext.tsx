@@ -15,6 +15,7 @@ interface TelegramContextType {
   user: TelegramUser | null;
   initData: string;
   isInTelegram: boolean;
+  isReady: boolean;
   colorScheme: 'light' | 'dark';
   haptic: {
     impact: (style?: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft') => void;
@@ -31,6 +32,7 @@ const TelegramContext = createContext<TelegramContextType | undefined>(undefined
 export const TelegramProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [webApp, setWebApp] = useState<TelegramWebApp | null>(null);
   const [user, setUser] = useState<TelegramUser | null>(null);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
@@ -53,6 +55,7 @@ export const TelegramProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         });
       }
     }
+    setIsReady(true);
   }, []);
 
   const haptic = {
@@ -91,6 +94,7 @@ export const TelegramProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       user,
       initData: webApp?.initData || '',
       isInTelegram: !!webApp,
+      isReady,
       colorScheme: webApp?.colorScheme || 'dark',
       haptic,
       openTelegramLink,
