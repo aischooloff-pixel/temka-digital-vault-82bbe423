@@ -70,7 +70,7 @@ serve(async (req) => {
     if (!initData) return jsonRes({ error: "Authentication required" }, 401);
 
     // For platform-profile, use PLATFORM_BOT_TOKEN since the Mini App is launched from the platform bot
-    const isPlatformAction = action === "platform-profile";
+    const isPlatformAction = action === "platform-profile" || action === "validate-sub-promo";
     const botToken = isPlatformAction
       ? (Deno.env.get("PLATFORM_BOT_TOKEN") || await resolveBotToken(supabase, shopId))
       : await resolveBotToken(supabase, shopId);
