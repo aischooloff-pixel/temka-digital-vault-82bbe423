@@ -321,28 +321,26 @@ const PlatformProfile: React.FC = () => {
               </div>
             </div>
 
-            {subscription.status !== 'cancelled' && (
-              <div className="grid grid-cols-2 gap-3">
-                {subscription.expires_at && (
-                  <div className="bg-white/60 rounded-xl p-3">
-                    <p className="text-[10px] text-gray-400 font-medium mb-0.5 flex items-center gap-1">
-                      <Calendar className="w-3 h-3" /> Действует до
-                    </p>
-                    <p className="text-sm font-semibold text-gray-800">{formatDate(subscription.expires_at)}</p>
-                  </div>
-                )}
-                {daysLeft !== null && (
-                  <div className="bg-white/60 rounded-xl p-3">
-                    <p className="text-[10px] text-gray-400 font-medium mb-0.5 flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> Осталось
-                    </p>
-                    <p className={`text-sm font-semibold ${daysLeft <= 3 ? 'text-red-600' : daysLeft <= 7 ? 'text-amber-600' : 'text-gray-800'}`}>
-                      {daysLeft > 0 ? `${daysLeft} дн.` : 'Истекает сегодня'}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
+            <div className="grid grid-cols-2 gap-3">
+              {subscription.expires_at && (
+                <div className="bg-white/60 rounded-xl p-3">
+                  <p className="text-[10px] text-gray-400 font-medium mb-0.5 flex items-center gap-1">
+                    <Calendar className="w-3 h-3" /> Действует до
+                  </p>
+                  <p className="text-sm font-semibold text-gray-800">{formatDate(subscription.expires_at)}</p>
+                </div>
+              )}
+              {daysLeft !== null && (
+                <div className="bg-white/60 rounded-xl p-3">
+                  <p className="text-[10px] text-gray-400 font-medium mb-0.5 flex items-center gap-1">
+                    <Clock className="w-3 h-3" /> Осталось
+                  </p>
+                  <p className={`text-sm font-semibold ${daysLeft <= 3 ? 'text-red-600' : daysLeft <= 7 ? 'text-amber-600' : 'text-gray-800'}`}>
+                    {daysLeft > 0 ? `${daysLeft} дн.` : 'Истекает сегодня'}
+                  </p>
+                </div>
+              )}
+            </div>
 
             {subscription.pricing_tier && (
               <div className="flex items-center gap-2 text-xs text-gray-500">

@@ -524,7 +524,7 @@ async function showProfile(tg: ReturnType<typeof TG>, chatId: number, msgId?: nu
   const subLabel = subStatusLabel(user.subscription_status);
   const priceInfo = await getSubscriptionPrice(chatId);
   let subExtra = "";
-  if (user.subscription_expires_at && user.subscription_status !== "cancelled") {
+  if (user.subscription_expires_at) {
     const daysLeft = subscriptionDaysLeft(user.subscription_expires_at);
     if (daysLeft > 0) {
       subExtra = `\n⏳ Осталось: <b>${daysLeft}</b> ${daysLeft === 1 ? "день" : daysLeft < 5 ? "дня" : "дней"}`;
@@ -638,7 +638,7 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
   const status = subStatusLabel(user.subscription_status);
   let daysLeftText = "";
   let trialInfo = "";
-  if (user.subscription_expires_at && user.subscription_status !== "cancelled") {
+  if (user.subscription_expires_at) {
     const dLeft = subscriptionDaysLeft(user.subscription_expires_at);
     if (dLeft > 0) {
       daysLeftText = `\n⏳ Осталось: <b>${dLeft}</b> ${dLeft === 1 ? "день" : dLeft < 5 ? "дня" : "дней"}`;
