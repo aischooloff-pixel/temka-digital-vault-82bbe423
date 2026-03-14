@@ -308,21 +308,8 @@ const PlatformProfile: React.FC = () => {
                             <Bot className="w-2.5 h-2.5" /> @{shop.bot_username}
                           </span>
                         )}
-                        {shop.webhook_status === 'active' && (
-                          <span className="flex items-center gap-0.5 text-emerald-500">
-                            <Wifi className="w-2.5 h-2.5" /> Webhook
-                          </span>
-                        )}
                       </div>
                     </div>
-                    <a
-                      href={`/shop/${shop.slug}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2 rounded-lg hover:bg-blue-100 transition-colors"
-                    >
-                      <ExternalLink className="w-4 h-4 text-blue-400" />
-                    </a>
                   </div>
                 ))}
               </div>
