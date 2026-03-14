@@ -85,19 +85,93 @@ async function getSupportLink(): Promise<string> {
   const { data } = await db().from("shop_settings").select("value").eq("key", "platform_support_link").maybeSingle();
   return data?.value || Deno.env.get("PLATFORM_SUPPORT_LINK") || SUPPORT_LINK_DEFAULT;
 }
-const EARLY_BIRD_PRICE = 3;
-const STANDARD_PRICE = 5;
-const EARLY_BIRD_LIMIT = 10;
-const TRIAL_DAYS = 7;
+// ─── Subscription Settings (dynamic from DB) ──
+interface SubSettings {
+  standard_price_usd: number;
+  early_price_usd: number;
+  early_slots_limit: number;
+  pricing_enabled: boolean;
+  trial_enabled: boolean;
+  trial_days: number;
+  one_trial_per_user: boolean;
+  auto_trial_on_shop_create: boolean;
+  max_shops_per_user: number;
+  grace_period_enabled: boolean;
+  grace_period_days: number;
+  on_expiry_pause_shop: boolean;
+  on_expiry_deactivate_bot: boolean;
+  reminder_enabled: boolean;
+  reminder_days_before: number;
+  trial_started_notify: boolean;
+  expired_notify: boolean;
+  bot_deactivated_notify: boolean;
+}
+
+const SUB_DEFAULTS: SubSettings = {
+  standard_price_usd: 5,
+  early_price_usd: 3,
+  early_slots_limit: 10,
+  pricing_enabled: true,
+  trial_enabled: true,
+  trial_days: 7,
+  one_trial_per_user: true,
+  auto_trial_on_shop_create: true,
+  max_shops_per_user: 1,
+  grace_period_enabled: false,
+  grace_period_days: 3,
+  on_expiry_pause_shop: true,
+  on_expiry_deactivate_bot: true,
+  reminder_enabled: true,
+  reminder_days_before: 7,
+  trial_started_notify: true,
+  expired_notify: true,
+  bot_deactivated_notify: true,
+};
+
+let _subSettingsCache: { settings: SubSettings; ts: number } | null = null;
+const SUB_CACHE_TTL = 60_000; // 1 minute
+
+async function getSubSettings(): Promise<SubSettings> {
+  if (_subSettingsCache && Date.now() - _subSettingsCache.ts < SUB_CACHE_TTL) return _subSettingsCache.settings;
+  const { data: rows } = await db().from("shop_settings").select("key, value").like("key", "sub_%");
+  const map: Record<string, string> = {};
+  for (const r of rows || []) map[r.key] = r.value;
+  const g = (k: string, def: number) => { const v = map[`sub_${k}`]; return v != null ? parseFloat(v) : def; };
+  const b = (k: string, def: boolean) => { const v = map[`sub_${k}`]; return v != null ? v === "true" : def; };
+  const settings: SubSettings = {
+    standard_price_usd: g("standard_price_usd", SUB_DEFAULTS.standard_price_usd),
+    early_price_usd: g("early_price_usd", SUB_DEFAULTS.early_price_usd),
+    early_slots_limit: g("early_slots_limit", SUB_DEFAULTS.early_slots_limit),
+    pricing_enabled: b("pricing_enabled", SUB_DEFAULTS.pricing_enabled),
+    trial_enabled: b("trial_enabled", SUB_DEFAULTS.trial_enabled),
+    trial_days: g("trial_days", SUB_DEFAULTS.trial_days),
+    one_trial_per_user: b("one_trial_per_user", SUB_DEFAULTS.one_trial_per_user),
+    auto_trial_on_shop_create: b("auto_trial_on_shop_create", SUB_DEFAULTS.auto_trial_on_shop_create),
+    max_shops_per_user: g("max_shops_per_user", SUB_DEFAULTS.max_shops_per_user),
+    grace_period_enabled: b("grace_period_enabled", SUB_DEFAULTS.grace_period_enabled),
+    grace_period_days: g("grace_period_days", SUB_DEFAULTS.grace_period_days),
+    on_expiry_pause_shop: b("on_expiry_pause_shop", SUB_DEFAULTS.on_expiry_pause_shop),
+    on_expiry_deactivate_bot: b("on_expiry_deactivate_bot", SUB_DEFAULTS.on_expiry_deactivate_bot),
+    reminder_enabled: b("reminder_enabled", SUB_DEFAULTS.reminder_enabled),
+    reminder_days_before: g("reminder_days_before", SUB_DEFAULTS.reminder_days_before),
+    trial_started_notify: b("trial_started_notify", SUB_DEFAULTS.trial_started_notify),
+    expired_notify: b("expired_notify", SUB_DEFAULTS.expired_notify),
+    bot_deactivated_notify: b("bot_deactivated_notify", SUB_DEFAULTS.bot_deactivated_notify),
+  };
+  _subSettingsCache = { settings, ts: Date.now() };
+  return settings;
+}
+
+function invalidateSubCache() { _subSettingsCache = null; }
 
 // ─── Subscription Helpers ─────────────────────
 async function getSubscriptionPrice(telegramId: number): Promise<{ price: number; tier: string }> {
   const { data: user } = await db().from("platform_users").select("billing_price_usd, pricing_tier").eq("telegram_id", telegramId).maybeSingle();
   if (user?.billing_price_usd != null && user?.pricing_tier) return { price: Number(user.billing_price_usd), tier: user.pricing_tier };
-  // Count users who have already paid
+  const ss = await getSubSettings();
   const { count } = await db().from("platform_users").select("id", { count: "exact", head: true }).not("first_paid_at", "is", null);
   const paidCount = count || 0;
-  return paidCount < EARLY_BIRD_LIMIT ? { price: EARLY_BIRD_PRICE, tier: "early_3" } : { price: STANDARD_PRICE, tier: "standard_5" };
+  return paidCount < ss.early_slots_limit ? { price: ss.early_price_usd, tier: "early_3" } : { price: ss.standard_price_usd, tier: "standard_5" };
 }
 
 function subscriptionDaysLeft(expiresAt: string | null): number {
@@ -117,31 +191,58 @@ async function checkAndEnforceSubscription(telegramId: number): Promise<{ status
   if (status === "blocked" || status === "cancelled") return { status, expired: true };
   if (!user.subscription_expires_at) return { status, expired: false };
   const daysLeft = subscriptionDaysLeft(user.subscription_expires_at);
-  if (daysLeft <= 0 && (status === "trial" || status === "active" || status === "grace_period")) {
-    // Expire the subscription
-    await db().from("platform_users").update({ subscription_status: "expired", updated_at: new Date().toISOString() }).eq("telegram_id", telegramId);
-    // Pause all shops of this user
-    const { data: shops } = await db().from("shops").select("id, bot_token_encrypted, name").eq("owner_id", user.id).eq("status", "active");
-    const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
-    for (const shop of shops || []) {
-      await db().from("shops").update({ status: "paused", updated_at: new Date().toISOString() }).eq("id", shop.id);
-      // Deactivate seller bot webhook
-      if (shop.bot_token_encrypted && encKey) {
-        try {
-          const { data: rawToken } = await db().rpc("decrypt_token", { p_encrypted: shop.bot_token_encrypted, p_key: encKey });
-          if (rawToken) await removeSellerWebhook(rawToken);
-        } catch {}
+  const ss = await getSubSettings();
+  if (daysLeft <= 0 && (status === "trial" || status === "active")) {
+    // Check grace period
+    if (ss.grace_period_enabled && status === "active") {
+      const graceDaysLeft = daysLeft + ss.grace_period_days; // daysLeft is negative
+      if (graceDaysLeft > 0) {
+        if (user.subscription_status !== "grace_period") {
+          await db().from("platform_users").update({ subscription_status: "grace_period", updated_at: new Date().toISOString() }).eq("telegram_id", telegramId);
+        }
+        return { status: "grace_period", expired: false };
       }
     }
-    // Send expiry notification (once)
-    if (!user.expiry_notified_at) {
-      const token = Deno.env.get("PLATFORM_BOT_TOKEN");
-      if (token) {
-        const shopNames = (shops || []).map(s => s.name).join(", ") || "—";
-        const msg = `❌ <b>Подписка закончилась</b>\n\nВаша подписка на <b>${PLATFORM_NAME}</b> истекла.\n\n🏪 Магазины переведены в ограниченный режим:\n${shopNames}\n\n🤖 Боты магазинов деактивированы.\n\nДля возобновления работы продлите подписку.`;
-        try { await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: telegramId, text: msg, parse_mode: "HTML" }) }); } catch {}
+    // Expire the subscription
+    await db().from("platform_users").update({ subscription_status: "expired", updated_at: new Date().toISOString() }).eq("telegram_id", telegramId);
+    // Pause/deactivate shops
+    if (ss.on_expiry_pause_shop) {
+      const { data: shops } = await db().from("shops").select("id, bot_token_encrypted, name").eq("owner_id", user.id).eq("status", "active");
+      const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
+      for (const shop of shops || []) {
+        await db().from("shops").update({ status: "paused", updated_at: new Date().toISOString() }).eq("id", shop.id);
+        if (ss.on_expiry_deactivate_bot && shop.bot_token_encrypted && encKey) {
+          try {
+            const { data: rawToken } = await db().rpc("decrypt_token", { p_encrypted: shop.bot_token_encrypted, p_key: encKey });
+            if (rawToken) await removeSellerWebhook(rawToken);
+          } catch {}
+        }
       }
-      await db().from("platform_users").update({ expiry_notified_at: new Date().toISOString() }).eq("telegram_id", telegramId);
+      // Send expiry notification (once)
+      if (ss.expired_notify && !user.expiry_notified_at) {
+        const token = Deno.env.get("PLATFORM_BOT_TOKEN");
+        if (token) {
+          const shopNames = (shops || []).map(s => s.name).join(", ") || "—";
+          const msg = `❌ <b>Подписка закончилась</b>\n\nВаша подписка на <b>${PLATFORM_NAME}</b> истекла.\n\n🏪 Магазины переведены в ограниченный режим:\n${shopNames}\n\n🤖 Боты магазинов деактивированы.\n\nДля возобновления работы продлите подписку.`;
+          try { await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: telegramId, text: msg, parse_mode: "HTML" }) }); } catch {}
+        }
+        await db().from("platform_users").update({ expiry_notified_at: new Date().toISOString() }).eq("telegram_id", telegramId);
+      }
+    }
+    return { status: "expired", expired: true };
+  }
+  if (daysLeft <= 0 && status === "grace_period") {
+    // Grace period also expired
+    await db().from("platform_users").update({ subscription_status: "expired", updated_at: new Date().toISOString() }).eq("telegram_id", telegramId);
+    if (ss.on_expiry_pause_shop) {
+      const { data: shops } = await db().from("shops").select("id, bot_token_encrypted, name").eq("owner_id", user.id).eq("status", "active");
+      const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
+      for (const shop of shops || []) {
+        await db().from("shops").update({ status: "paused", updated_at: new Date().toISOString() }).eq("id", shop.id);
+        if (ss.on_expiry_deactivate_bot && shop.bot_token_encrypted && encKey) {
+          try { const { data: rawToken } = await db().rpc("decrypt_token", { p_encrypted: shop.bot_token_encrypted, p_key: encKey }); if (rawToken) await removeSellerWebhook(rawToken); } catch {}
+        }
+      }
     }
     return { status: "expired", expired: true };
   }
@@ -149,11 +250,13 @@ async function checkAndEnforceSubscription(telegramId: number): Promise<{ status
 }
 
 async function sendTrialReminder(telegramId: number): Promise<void> {
+  const ss = await getSubSettings();
+  if (!ss.reminder_enabled) return;
   const { data: user } = await db().from("platform_users").select("subscription_status, subscription_expires_at, reminder_sent_at, billing_price_usd, pricing_tier").eq("telegram_id", telegramId).maybeSingle();
   if (!user || !user.subscription_expires_at) return;
-  if (user.reminder_sent_at) return; // already sent
+  if (user.reminder_sent_at) return;
   const daysLeft = subscriptionDaysLeft(user.subscription_expires_at);
-  if (daysLeft > 7 || daysLeft <= 0) return; // only remind within 7 days
+  if (daysLeft > ss.reminder_days_before || daysLeft <= 0) return;
   const priceInfo = await getSubscriptionPrice(telegramId);
   const token = Deno.env.get("PLATFORM_BOT_TOKEN");
   if (!token) return;
@@ -405,8 +508,9 @@ async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName:
 // ═══════════════════════════════════════════════
 // HOW IT WORKS
 // ═══════════════════════════════════════════════
-function howItWorks(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
-  const text = `📖 <b>Как это работает?</b>\n\n1️⃣ <b>Создай магазин</b> — пройди простой онбординг из 7 шагов\n\n2️⃣ <b>Добавь товары</b> — загрузи инвентарь прямо в бота\n\n3️⃣ <b>Подключи оплату</b> — CryptoBot принимает крипту автоматически\n\n4️⃣ <b>Поделись ссылкой</b> — клиенты покупают через твоего бота\n\n5️⃣ <b>Автовыдача 24/7</b> — товар доставляется мгновенно после оплаты\n\n💰 Стоимость: от <b>$${EARLY_BIRD_PRICE}/мес</b> — 1 магазин на пользователя\n🆓 7 дней бесплатного пробного периода`;
+async function howItWorks(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
+  const ss = await getSubSettings();
+  const text = `📖 <b>Как это работает?</b>\n\n1️⃣ <b>Создай магазин</b> — пройди простой онбординг из 7 шагов\n\n2️⃣ <b>Добавь товары</b> — загрузи инвентарь прямо в бота\n\n3️⃣ <b>Подключи оплату</b> — CryptoBot принимает крипту автоматически\n\n4️⃣ <b>Поделись ссылкой</b> — клиенты покупают через твоего бота\n\n5️⃣ <b>Автовыдача 24/7</b> — товар доставляется мгновенно после оплаты\n\n💰 Стоимость: от <b>$${ss.early_price_usd}/мес</b> — ${ss.max_shops_per_user} магазин на пользователя\n🆓 ${ss.trial_enabled ? `${ss.trial_days} дней бесплатного пробного периода` : "Пробный период недоступен"}`;
   return tg.edit(chatId, msgId, text, ikb([[urlBtn("📚 Подробная информация", `${WEBAPP_DOMAIN}/about`)], [btn("🏪 Создать магазин", "p:create")], [btn("◀️ Назад", "p:home")]]));
 }
 
@@ -430,7 +534,8 @@ async function showProfile(tg: ReturnType<typeof TG>, chatId: number, msgId?: nu
     }
   }
   if (user.subscription_status === "trial") {
-    subExtra += `\n\n🆓 <i>Пробный период — ${TRIAL_DAYS} дней после создания магазина.</i>`;
+    const ss = await getSubSettings();
+    subExtra += `\n\n🆓 <i>Пробный период — ${ss.trial_days} дней после создания магазина.</i>`;
     subExtra += `\n<i>После окончания потребуется подписка $${priceInfo.price}/мес.</i>`;
   }
   const text = `👤 <b>${esc(user.first_name)}${user.last_name ? " " + esc(user.last_name) : ""}</b>${user.username ? `\n🔗 @${esc(user.username)}` : ""}\n\n🏪 Магазинов: <b>${shopCount || 0}</b>\n📊 Подписка: <b>${subLabel}</b>${subExtra}`;
@@ -732,11 +837,12 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
   await tg.edit(chatId, msgId, "⏳ Создаю магазин...");
   const { data: user } = await db().from("platform_users").select("id, has_used_trial, subscription_status").eq("telegram_id", chatId).maybeSingle();
   if (!user) { await clearSession(chatId); return tg.edit(chatId, msgId, "❌ Ошибка: пользователь не найден.", ikb([[btn("◀️ Меню", "p:home")]])); }
-  // Double-check 1 shop limit on backend
+  // Double-check shop limit on backend
+  const ss = await getSubSettings();
   const { count: existingShops } = await db().from("shops").select("id", { count: "exact", head: true }).eq("owner_id", user.id);
-  if ((existingShops || 0) > 0) {
+  if ((existingShops || 0) >= ss.max_shops_per_user) {
     await clearSession(chatId);
-    return tg.edit(chatId, msgId, "❌ У вас уже есть магазин. На одного пользователя — 1 магазин.", ikb([[btn("🏪 Мои магазины", "p:myshops:0")], [btn("◀️ Меню", "p:home")]]));
+    return tg.edit(chatId, msgId, `❌ У вас уже есть магазин. Лимит: ${ss.max_shops_per_user} магазин(ов) на пользователя.`, ikb([[btn("🏪 Мои магазины", "p:myshops:0")], [btn("◀️ Меню", "p:home")]]));
   }
   const name = (sData.name as string) || "Мой магазин";
   const baseSlug = name.toLowerCase().replace(/[^a-zа-яё0-9]/gi, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "shop";
@@ -766,19 +872,21 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     await db().from("shops").update({ webhook_status: whResult.ok ? "active" : "failed", bot_validated_at: new Date().toISOString() }).eq("id", shop.id);
     botStatusMsg = whResult.ok ? `\n\n🤖 Бот @${botUsername} подключён и готов к работе!` : `\n\n⚠️ Бот @${botUsername} сохранён, но webhook не установлен: ${whResult.error}`;
   }
-  // ─── Activate trial if first shop and trial not used ───
+  // ─── Activate trial if enabled and not used ───
   let trialMsg = "";
-  if (!user.has_used_trial) {
-    const trialExpiresAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  if (ss.trial_enabled && ss.auto_trial_on_shop_create && (!ss.one_trial_per_user || !user.has_used_trial)) {
+    const trialExpiresAt = new Date(Date.now() + ss.trial_days * 24 * 60 * 60 * 1000).toISOString();
     await db().from("platform_users").update({
       subscription_status: "trial", trial_started_at: new Date().toISOString(),
       subscription_expires_at: trialExpiresAt, has_used_trial: true,
       reminder_sent_at: null, expiry_notified_at: null, updated_at: new Date().toISOString(),
     }).eq("telegram_id", chatId);
-    trialMsg = `\n\n🆓 <b>Пробный период активирован!</b>\n⏳ ${TRIAL_DAYS} дней бесплатного использования\n📅 До: ${new Date(trialExpiresAt).toLocaleDateString("ru")}\n\n<i>После окончания пробного периода потребуется подписка.</i>`;
+    trialMsg = `\n\n🆓 <b>Пробный период активирован!</b>\n⏳ ${ss.trial_days} дней бесплатного использования\n📅 До: ${new Date(trialExpiresAt).toLocaleDateString("ru")}\n\n<i>После окончания пробного периода потребуется подписка.</i>`;
     // Send separate trial notification
-    const trialNotification = `🎉 <b>Ваш пробный период начался!</b>\n\nВам доступен бесплатный пробный период <b>${TRIAL_DAYS} дней</b> на платформе <b>${PLATFORM_NAME}</b>.\n\n📅 Дата окончания: ${new Date(trialExpiresAt).toLocaleDateString("ru")}\n\n✅ В течение пробного периода магазин работает полноценно:\n• Бот принимает заказы\n• Автовыдача активна\n• Все функции доступны\n\n⚠️ После окончания пробного периода для продолжения работы магазина потребуется оформить подписку.`;
-    await tg.send(chatId, trialNotification);
+    if (ss.trial_started_notify) {
+      const trialNotification = `🎉 <b>Ваш пробный период начался!</b>\n\nВам доступен бесплатный пробный период <b>${ss.trial_days} дней</b> на платформе <b>${PLATFORM_NAME}</b>.\n\n📅 Дата окончания: ${new Date(trialExpiresAt).toLocaleDateString("ru")}\n\n✅ В течение пробного периода магазин работает полноценно:\n• Бот принимает заказы\n• Автовыдача активна\n• Все функции доступны\n\n⚠️ После окончания пробного периода для продолжения работы магазина потребуется оформить подписку.`;
+      await tg.send(chatId, trialNotification);
+    }
   }
   await deactivateWizardMessages(tg, chatId, finalizingData, msgId);
   await clearSession(chatId);
@@ -1134,7 +1242,8 @@ async function admHome(tg: ReturnType<typeof TG>, chatId: number, msgId?: number
     [btn("🎟 Промокоды", "adm:promo:platform:0"), btn("⭐ Отзывы", "adm:reviews:shop:0")],
     [btn("🎫 Промо подписки", "adm:subpromo:0"), btn("📢 Рассылки", "adm:broadcast")],
     [btn("🚨 Риски/блокировки", "adm:risks"), btn("📋 Логи", "adm:logs:0")],
-    [btn("⚙️ Настройки", "adm:settings"), btn("👮 Администраторы", "adm:admins")],
+    [btn("📋 Подписка (policy)", "adm:subconfig"), btn("⚙️ Настройки", "adm:settings")],
+    [btn("👮 Администраторы", "adm:admins")],
   ]);
   if (msgId) return tg.edit(chatId, msgId, text, kb);
   return tg.send(chatId, text, kb);
@@ -1715,7 +1824,129 @@ async function admLogsList(tg: ReturnType<typeof TG>, chatId: number, msgId: num
   return tg.edit(chatId, msgId, text, ikb(rows));
 }
 
-// ─── SETTINGS ─────────────────────────────────
+// ─── SUBSCRIPTION CONFIG (platform-wide policy) ─
+async function admSubConfig(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
+  const ss = await getSubSettings();
+  const { count: paidCount } = await db().from("platform_users").select("id", { count: "exact", head: true }).not("first_paid_at", "is", null);
+  const { count: trialCount } = await db().from("platform_users").select("id", { count: "exact", head: true }).eq("subscription_status", "trial");
+  const { count: activeCount } = await db().from("platform_users").select("id", { count: "exact", head: true }).eq("subscription_status", "active");
+  const { count: expiredCount } = await db().from("platform_users").select("id", { count: "exact", head: true }).eq("subscription_status", "expired");
+  const earlyRemaining = Math.max(0, ss.early_slots_limit - (paidCount || 0));
+
+  const text =
+    `📋 <b>Подписка — глобальные настройки</b>\n\n` +
+    `<b>💰 Цены:</b>\n` +
+    `  Стандарт: <b>$${ss.standard_price_usd}</b>/мес\n` +
+    `  Early Bird: <b>$${ss.early_price_usd}</b>/мес\n` +
+    `  Early слотов: ${ss.early_slots_limit} (осталось: ${earlyRemaining})\n` +
+    `  Pricing: ${ss.pricing_enabled ? "✅" : "❌"}\n\n` +
+    `<b>🆓 Trial:</b>\n` +
+    `  Trial: ${ss.trial_enabled ? "✅" : "❌"} (${ss.trial_days} дн.)\n` +
+    `  Один trial/user: ${ss.one_trial_per_user ? "✅" : "❌"}\n` +
+    `  Авто-trial: ${ss.auto_trial_on_shop_create ? "✅" : "❌"}\n\n` +
+    `<b>🏪 Лимиты:</b>\n` +
+    `  Магазинов на user: ${ss.max_shops_per_user}\n\n` +
+    `<b>⏰ Expiration:</b>\n` +
+    `  Grace period: ${ss.grace_period_enabled ? `✅ (${ss.grace_period_days} дн.)` : "❌"}\n` +
+    `  Пауза магазинов: ${ss.on_expiry_pause_shop ? "✅" : "❌"}\n` +
+    `  Деактивация ботов: ${ss.on_expiry_deactivate_bot ? "✅" : "❌"}\n\n` +
+    `<b>🔔 Уведомления:</b>\n` +
+    `  Reminder: ${ss.reminder_enabled ? `✅ (за ${ss.reminder_days_before} дн.)` : "❌"}\n` +
+    `  Trial started: ${ss.trial_started_notify ? "✅" : "❌"}\n` +
+    `  Expired: ${ss.expired_notify ? "✅" : "❌"}\n` +
+    `  Bot deactivated: ${ss.bot_deactivated_notify ? "✅" : "❌"}\n\n` +
+    `<b>📊 Текущее состояние:</b>\n` +
+    `  Trial: ${trialCount || 0} | Active: ${activeCount || 0} | Expired: ${expiredCount || 0}\n` +
+    `  Оплативших: ${paidCount || 0}`;
+
+  return tg.edit(chatId, msgId, text, ikb([
+    [btn("💰 Цены", "adm:sc:prices"), btn("🆓 Trial", "adm:sc:trial")],
+    [btn("🏪 Лимиты", "adm:sc:limits"), btn("⏰ Expiration", "adm:sc:expiry")],
+    [btn("🔔 Уведомления", "adm:sc:notify")],
+    [btn("🔄 Обновить", "adm:subconfig")],
+    [btn("◀️ Меню", "adm:home")],
+  ]));
+}
+
+async function admScPrices(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
+  const ss = await getSubSettings();
+  const { count: paidCount } = await db().from("platform_users").select("id", { count: "exact", head: true }).not("first_paid_at", "is", null);
+  const earlyRemaining = Math.max(0, ss.early_slots_limit - (paidCount || 0));
+  const text =
+    `💰 <b>Управление ценами</b>\n\n` +
+    `Стандартная цена: <b>$${ss.standard_price_usd}</b>/мес\n` +
+    `Early Bird цена: <b>$${ss.early_price_usd}</b>/мес\n` +
+    `Early слотов: <b>${ss.early_slots_limit}</b> (осталось: ${earlyRemaining})\n` +
+    `Pricing: ${ss.pricing_enabled ? "✅ Включён" : "❌ Выключен"}\n\n` +
+    `Оплативших пользователей: ${paidCount || 0}`;
+  return tg.edit(chatId, msgId, text, ikb([
+    [btn("✏️ Стандартная цена", "adm:sc:set:standard_price_usd"), btn("✏️ Early цена", "adm:sc:set:early_price_usd")],
+    [btn("✏️ Early слоты", "adm:sc:set:early_slots_limit")],
+    [btn(ss.pricing_enabled ? "❌ Выкл pricing" : "✅ Вкл pricing", "adm:sc:tog:pricing_enabled")],
+    [btn("◀️ Назад", "adm:subconfig")],
+  ]));
+}
+
+async function admScTrial(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
+  const ss = await getSubSettings();
+  const text =
+    `🆓 <b>Настройки Trial</b>\n\n` +
+    `Trial: ${ss.trial_enabled ? "✅ Включён" : "❌ Выключен"}\n` +
+    `Длительность: <b>${ss.trial_days}</b> дней\n` +
+    `Один trial на пользователя: ${ss.one_trial_per_user ? "✅" : "❌"}\n` +
+    `Авто-trial при создании магазина: ${ss.auto_trial_on_shop_create ? "✅" : "❌"}`;
+  return tg.edit(chatId, msgId, text, ikb([
+    [btn(ss.trial_enabled ? "❌ Выкл trial" : "✅ Вкл trial", "adm:sc:tog:trial_enabled")],
+    [btn("✏️ Дни trial", "adm:sc:set:trial_days")],
+    [btn(ss.one_trial_per_user ? "❌ Multi-trial" : "✅ Один trial", "adm:sc:tog:one_trial_per_user")],
+    [btn(ss.auto_trial_on_shop_create ? "❌ Авто-trial выкл" : "✅ Авто-trial вкл", "adm:sc:tog:auto_trial_on_shop_create")],
+    [btn("◀️ Назад", "adm:subconfig")],
+  ]));
+}
+
+async function admScLimits(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
+  const ss = await getSubSettings();
+  const text = `🏪 <b>Лимиты</b>\n\nМагазинов на пользователя: <b>${ss.max_shops_per_user}</b>`;
+  return tg.edit(chatId, msgId, text, ikb([
+    [btn("✏️ Макс. магазинов", "adm:sc:set:max_shops_per_user")],
+    [btn("◀️ Назад", "adm:subconfig")],
+  ]));
+}
+
+async function admScExpiry(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
+  const ss = await getSubSettings();
+  const text =
+    `⏰ <b>Логика окончания подписки</b>\n\n` +
+    `Grace period: ${ss.grace_period_enabled ? `✅ (${ss.grace_period_days} дн.)` : "❌"}\n` +
+    `Пауза магазинов при истечении: ${ss.on_expiry_pause_shop ? "✅" : "❌"}\n` +
+    `Деактивация ботов при истечении: ${ss.on_expiry_deactivate_bot ? "✅" : "❌"}`;
+  return tg.edit(chatId, msgId, text, ikb([
+    [btn(ss.grace_period_enabled ? "❌ Выкл grace" : "✅ Вкл grace", "adm:sc:tog:grace_period_enabled")],
+    [btn("✏️ Grace дни", "adm:sc:set:grace_period_days")],
+    [btn(ss.on_expiry_pause_shop ? "❌ Не паузить" : "✅ Паузить", "adm:sc:tog:on_expiry_pause_shop")],
+    [btn(ss.on_expiry_deactivate_bot ? "❌ Не деактивировать" : "✅ Деактивировать", "adm:sc:tog:on_expiry_deactivate_bot")],
+    [btn("◀️ Назад", "adm:subconfig")],
+  ]));
+}
+
+async function admScNotify(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
+  const ss = await getSubSettings();
+  const text =
+    `🔔 <b>Уведомления подписки</b>\n\n` +
+    `Reminder до истечения: ${ss.reminder_enabled ? `✅ (за ${ss.reminder_days_before} дн.)` : "❌"}\n` +
+    `Уведомление о начале trial: ${ss.trial_started_notify ? "✅" : "❌"}\n` +
+    `Уведомление об истечении: ${ss.expired_notify ? "✅" : "❌"}\n` +
+    `Уведомление о деактивации бота: ${ss.bot_deactivated_notify ? "✅" : "❌"}`;
+  return tg.edit(chatId, msgId, text, ikb([
+    [btn(ss.reminder_enabled ? "❌ Выкл reminder" : "✅ Вкл reminder", "adm:sc:tog:reminder_enabled")],
+    [btn("✏️ Reminder дни", "adm:sc:set:reminder_days_before")],
+    [btn(ss.trial_started_notify ? "❌" : "✅", "adm:sc:tog:trial_started_notify"), btn("Trial started", "adm:sc:notify")],
+    [btn(ss.expired_notify ? "❌" : "✅", "adm:sc:tog:expired_notify"), btn("Expired", "adm:sc:notify")],
+    [btn(ss.bot_deactivated_notify ? "❌" : "✅", "adm:sc:tog:bot_deactivated_notify"), btn("Bot deactivated", "adm:sc:notify")],
+    [btn("◀️ Назад", "adm:subconfig")],
+  ]));
+}
+
 async function admSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
   const { data: settings } = await db().from("shop_settings").select("*").order("key");
   // Filter out platform-managed keys from general settings display
@@ -2285,7 +2516,58 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
     return tg.edit(chatId, msgId, `📝 Введите заметку для промокода:`, ikb([[btn("❌ Отмена", `adm:spcard:${promoId}`)]]));
   }
 
-  // ─── Reviews ──────────────────────────────
+  // ─── Subscription Config (platform-wide) ──
+  if (cmd === "subconfig") return admSubConfig(tg, chatId, msgId);
+  if (cmd === "sc") {
+    const subCmd = parts[2]; // prices, trial, limits, expiry, notify, set, tog
+    if (subCmd === "prices") return admScPrices(tg, chatId, msgId);
+    if (subCmd === "trial") return admScTrial(tg, chatId, msgId);
+    if (subCmd === "limits") return admScLimits(tg, chatId, msgId);
+    if (subCmd === "expiry") return admScExpiry(tg, chatId, msgId);
+    if (subCmd === "notify") return admScNotify(tg, chatId, msgId);
+    if (subCmd === "tog") {
+      const key = parts[3]; // e.g. pricing_enabled
+      const ss = await getSubSettings();
+      const currentVal = (ss as any)[key];
+      if (typeof currentVal !== "boolean") return;
+      const newVal = !currentVal;
+      await db().from("shop_settings").upsert({ key: `sub_${key}`, value: String(newVal), updated_at: new Date().toISOString() }, { onConflict: "key" });
+      invalidateSubCache();
+      await admLog(adminTgId, "toggle_sub_setting", "sub_config", key, { old: currentVal, new: newVal });
+      // Navigate back to the parent section
+      const sectionMap: Record<string, string> = {
+        pricing_enabled: "prices", trial_enabled: "trial", one_trial_per_user: "trial",
+        auto_trial_on_shop_create: "trial", grace_period_enabled: "expiry",
+        on_expiry_pause_shop: "expiry", on_expiry_deactivate_bot: "expiry",
+        reminder_enabled: "notify", trial_started_notify: "notify",
+        expired_notify: "notify", bot_deactivated_notify: "notify",
+      };
+      const section = sectionMap[key] || "subconfig";
+      if (section === "prices") return admScPrices(tg, chatId, msgId);
+      if (section === "trial") return admScTrial(tg, chatId, msgId);
+      if (section === "expiry") return admScExpiry(tg, chatId, msgId);
+      if (section === "notify") return admScNotify(tg, chatId, msgId);
+      return admSubConfig(tg, chatId, msgId);
+    }
+    if (subCmd === "set") {
+      const key = parts[3]; // e.g. standard_price_usd
+      const labels: Record<string, string> = {
+        standard_price_usd: "стандартную цену (USD)", early_price_usd: "early bird цену (USD)",
+        early_slots_limit: "кол-во early слотов", trial_days: "дни trial",
+        max_shops_per_user: "макс. магазинов на user", grace_period_days: "дни grace period",
+        reminder_days_before: "за сколько дней reminder",
+      };
+      const backMap: Record<string, string> = {
+        standard_price_usd: "prices", early_price_usd: "prices", early_slots_limit: "prices",
+        trial_days: "trial", max_shops_per_user: "limits", grace_period_days: "expiry",
+        reminder_days_before: "notify",
+      };
+      await setSession(chatId, "adm_sc_set_value", { key, back: backMap[key] || "subconfig" });
+      return tg.edit(chatId, msgId, `✏️ Введите новое значение для <b>${labels[key] || key}</b>:`, ikb([[btn("❌ Отмена", `adm:sc:${backMap[key] || "subconfig"}`)]]));
+    }
+  }
+
+
   if (cmd === "reviews") return admReviewsList(tg, chatId, msgId, parts[2] || "shop", parseInt(parts[3]) || 0);
   if (cmd === "rapprove" || cmd === "rreject" || cmd === "rdelete") {
     const type = parts[2]; const reviewId = parts[3];
@@ -2561,7 +2843,23 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     return tg.send(chatId, text, ikb(rows));
   }
 
-  if (state === "adm_user_balance") {
+  // ─── Subscription Config: set numeric value ─
+  if (state === "adm_sc_set_value") {
+    const key = sData.key as string;
+    const back = sData.back as string || "subconfig";
+    const num = parseFloat(val);
+    if (isNaN(num) || num < 0) return tg.send(chatId, "❌ Введите число ≥ 0:");
+    const ss = await getSubSettings();
+    const oldVal = (ss as any)[key];
+    await clearSession(chatId);
+    await db().from("shop_settings").upsert({ key: `sub_${key}`, value: String(num), updated_at: new Date().toISOString() }, { onConflict: "key" });
+    invalidateSubCache();
+    await admLog(chatId, "update_sub_setting", "sub_config", key, { old: oldVal, new: num });
+    const resp = await tg.send(chatId, `✅ <b>${key}</b> обновлено: ${oldVal} → <b>${num}</b>`, ikb([[btn("◀️ Назад", `adm:sc:${back}`)]]));
+    return;
+  }
+
+
     const targetTgId = sData.target_tg_id as number;
     const match = val.match(/^([+-]?)(\d+(?:\.\d+)?)$/);
     if (!match) return tg.send(chatId, "❌ Формат: +10 или -5");
