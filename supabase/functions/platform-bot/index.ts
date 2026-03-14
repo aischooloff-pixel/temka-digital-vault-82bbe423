@@ -494,6 +494,14 @@ async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName:
   } else {
     await tg.send(chatId, welcomeText, kb);
   }
+
+  // If subscription expired, send a compact notice AFTER the welcome
+  if (subResult.expired) {
+    const priceInfo = await getSubscriptionPrice(chatId);
+    const notice = `⚠️ <b>Подписка истекла</b> — магазины приостановлены.\n💰 Продлите за <b>$${priceInfo.price}/мес</b>`;
+    await tg.send(chatId, notice, ikb([[btn("💳 Продлить подписку", "p:sub")]]));
+  }
+
   // Send/update persistent bottom panel keyboard
   await tg.send(chatId, "📋 Используйте кнопки ниже для навигации:", bottomPanel(hasShop));
 }
