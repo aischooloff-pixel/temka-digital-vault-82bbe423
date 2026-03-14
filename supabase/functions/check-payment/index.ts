@@ -315,13 +315,14 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { orderId, invoiceId, initData, shopId } = await req.json();
+    const { orderId, invoiceId, initData, shopId, platform, type } = await req.json();
     const isShop = !!shopId;
+    const isPlatform = !!platform;
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     let tokens;
-    try { tokens = await resolveTokens(supabase, shopId); }
+    try { tokens = await resolveTokens(supabase, shopId, isPlatform); }
     catch (e) { return jsonRes({ error: (e as Error).message }, 500); }
 
     if (!tokens.botToken) return jsonRes({ error: "Not configured" }, 500);
@@ -331,6 +332,13 @@ serve(async (req) => {
     if (!tgUser) return jsonRes({ error: "Invalid authentication" }, 401);
 
     if (!orderId && !invoiceId) return jsonRes({ error: "Missing orderId or invoiceId" }, 400);
+
+    // Subscription payment check
+    if (invoiceId && type === "subscription") {
+      return await checkSubscriptionPayment({
+        supabase, tokens, invoiceId: String(invoiceId), telegramId: tgUser.id,
+      });
+    }
 
     if (invoiceId) {
       return await checkTopupPayment({
