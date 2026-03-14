@@ -998,6 +998,30 @@ async function handleText(tg: ReturnType<typeof TG>, chatId: number, text: strin
   const sData = { ...(session.data || {}) } as Record<string, unknown>;
   const val = text.trim();
 
+  // ─── Subscription promo input ───────────
+  if (state === "sub_promo_input") {
+    const code = val.toUpperCase();
+    if (code.length < 2) return tg.send(chatId, "❌ Промокод слишком короткий. Попробуйте ещё:");
+    const { data: result } = await db().rpc("validate_platform_subscription_promo", { p_code: code, p_telegram_id: chatId });
+    const r = result as any;
+    await clearSession(chatId);
+    if (!r || !r.valid) {
+      return tg.send(chatId, `❌ ${r?.error || "Промокод не найден"}`, ikb([[btn("🔄 Попробовать снова", "p:sub_promo")], [btn("◀️ К подписке", "p:sub")]]));
+    }
+    const priceInfo = await getSubscriptionPrice(chatId);
+    let discountText = "";
+    if (r.discount_type === "percent") {
+      const da = Math.round(priceInfo.price * r.discount_value / 100 * 100) / 100;
+      discountText = `${r.discount_value}% (-$${da.toFixed(2)})`;
+    } else {
+      const da = Math.min(r.discount_value, priceInfo.price);
+      discountText = `-$${da.toFixed(2)}`;
+    }
+    return tg.send(chatId, `✅ <b>Промокод ${esc(r.code)} применён!</b>\n\n🎫 Скидка: <b>${discountText}</b>\n💰 Стоимость: $${priceInfo.price}/мес\n\nОткройте Mini App для оплаты со скидкой:`, ikb([
+      [webAppBtn("💳 Оплатить со скидкой", Deno.env.get("WEBAPP_URL") || "")],
+      [btn("◀️ К подписке", "p:sub")],
+    ]));
+  }
   // ─── ADM FSM states ─────────────────────
   if (state.startsWith("adm_")) return handleAdmText(tg, chatId, val, state, sData);
 
