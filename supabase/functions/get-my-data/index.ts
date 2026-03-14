@@ -191,6 +191,28 @@ serve(async (req) => {
           };
         }));
 
+        // Fetch subscription settings for context
+        const { data: settingsRows } = await supabase.from("shop_settings").select("key, value").like("key", "sub_%");
+        const settingsMap: Record<string, string> = {};
+        for (const r of settingsRows || []) settingsMap[r.key] = r.value;
+
+        // Get subscription price
+        let subPrice = pUser.billing_price_usd;
+        let subTier = pUser.pricing_tier;
+        if (subPrice == null) {
+          const earlyPrice = settingsMap.sub_early_price_usd ? parseFloat(settingsMap.sub_early_price_usd) : 3;
+          const standardPrice = settingsMap.sub_standard_price_usd ? parseFloat(settingsMap.sub_standard_price_usd) : 5;
+          const earlyLimit = settingsMap.sub_early_slots_limit ? parseInt(settingsMap.sub_early_slots_limit) : 10;
+          const { count: paidCount } = await supabase.from("platform_users").select("id", { count: "exact", head: true }).not("first_paid_at", "is", null);
+          if ((paidCount || 0) < earlyLimit) {
+            subPrice = earlyPrice;
+            subTier = "early_3";
+          } else {
+            subPrice = standardPrice;
+            subTier = "standard_5";
+          }
+        }
+
         return jsonRes({
           user: {
             id: pUser.id, telegram_id: pUser.telegram_id, first_name: pUser.first_name,
@@ -200,10 +222,10 @@ serve(async (req) => {
           subscription: {
             status: pUser.subscription_status, expires_at: pUser.subscription_expires_at,
             trial_started_at: pUser.trial_started_at, has_used_trial: pUser.has_used_trial,
-            pricing_tier: pUser.pricing_tier, billing_price_usd: pUser.billing_price_usd,
+            pricing_tier: subTier, billing_price_usd: subPrice,
             first_paid_at: pUser.first_paid_at,
           },
-          balance: 0,
+          balance: Number(pUser.balance) || 0,
           shops: shopsWithStats,
         });
       }

@@ -120,8 +120,8 @@ serve(async (req) => {
       body: JSON.stringify({
         currency_type: "fiat", fiat: "USD",
         amount: String(numAmount.toFixed(2)),
-        description: `Пополнение баланса на $${numAmount.toFixed(2)}`,
-        payload: JSON.stringify({ type: "topup", telegramUserId, amount: numAmount, shopId: resolvedShopId, shopSlug: resolvedShopSlug }),
+        description: isPlatform ? `Пополнение баланса платформы на $${numAmount.toFixed(2)}` : `Пополнение баланса на $${numAmount.toFixed(2)}`,
+        payload: JSON.stringify({ type: isPlatform ? "platform_topup" : "topup", telegramUserId, amount: numAmount, shopId: resolvedShopId, shopSlug: resolvedShopSlug }),
         paid_btn_name: "callback", paid_btn_url: btnUrl,
       }),
     });
