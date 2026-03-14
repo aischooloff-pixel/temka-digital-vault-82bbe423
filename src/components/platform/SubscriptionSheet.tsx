@@ -213,7 +213,7 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
           {subscription.status === 'trial' && (
             <div className="bg-blue-50 rounded-xl p-3 text-center">
               <p className="text-xs text-blue-700 font-medium">
-                🎉 Вы используете пробный период. Оформите подписку, чтобы продолжить.
+                ✅ Подписка активна по бесплатному периоду. Продлите после окончания, чтобы не было паузы.
               </p>
             </div>
           )}

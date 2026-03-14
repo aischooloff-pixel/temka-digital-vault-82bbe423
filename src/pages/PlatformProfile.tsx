@@ -351,7 +351,7 @@ const PlatformProfile: React.FC = () => {
             {subscription.status === 'trial' && (
               <div className="bg-blue-100/50 rounded-xl p-3 text-center">
                 <p className="text-xs text-blue-700 font-medium">
-                  🎉 Пробный период. Нажмите для оформления подписки.
+                  ✅ Подписка активна. Бесплатный период {daysLeft !== null ? `— осталось ${daysLeft > 0 ? `${daysLeft} дн.` : 'истекает сегодня'}` : ''}.
                 </p>
               </div>
             )}
