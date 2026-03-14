@@ -665,8 +665,6 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
     statusBlock = `\n\n✅ <b>Подписка активна</b>\n🆓 Сейчас действует бесплатный пробный период.\nПосле окончания потребуется продление.`;
   } else if (user.subscription_status === "none") {
     statusBlock = `\n\n⏳ <b>Подписка не активна</b>\nОформите подписку для работы магазина.`;
-  } else if (user.subscription_status === "none") {
-    statusBlock = `\n\n⏳ <b>Подписка не активна</b>\nОформите подписку для работы магазина.`;
   } else if (user.subscription_status === "cancelled") {
     statusBlock = `\n\n🚫 <b>Подписка отменена</b>\nМагазины приостановлены. Оформите подписку заново для возобновления.`;
   } else if (user.subscription_status === "expired") {
