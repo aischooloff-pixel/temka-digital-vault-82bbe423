@@ -433,8 +433,8 @@ async function showProfile(tg: ReturnType<typeof TG>, chatId: number, msgId?: nu
     subExtra += `\n<i>После окончания потребуется подписка $${priceInfo.price}/мес.</i>`;
   }
   const text = `👤 <b>${esc(user.first_name)}${user.last_name ? " " + esc(user.last_name) : ""}</b>${user.username ? `\n🔗 @${esc(user.username)}` : ""}\n\n🏪 Магазинов: <b>${shopCount || 0}</b>\n📊 Подписка: <b>${subLabel}</b>${subExtra}`;
-  const profileUrl = `${WEBAPP_DOMAIN}/account`;
-  const kb = ikb([[urlBtn("Открыть профиль", profileUrl)], [btn("Мои магазины", "p:myshops:0")], [btn("Подписка", "p:sub")], [btn("◀️ Назад", "p:home")]]);
+  const profileUrl = `${WEBAPP_DOMAIN}/platform/profile`;
+  const kb = ikb([[urlBtn("🌐 Открыть профиль", profileUrl)], [btn("💳 Подписка", "p:sub")], [btn("◀️ Назад", "p:home")]]);
   if (msgId) return tg.edit(chatId, msgId, text, kb);
   return tg.send(chatId, text, kb);
 }
