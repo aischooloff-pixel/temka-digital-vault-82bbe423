@@ -1524,7 +1524,7 @@ async function admUserCard(tg: ReturnType<typeof TG>, chatId: number, msgId: num
     `⭐ Premium: ${pu.is_premium ? "Да" : "Нет"}\n` +
     subDetails +
     `🔒 Статус: ${blocked}\n` +
-    (up ? `💰 Баланс: $${Number(up.balance || 0).toFixed(2)}\n` : "") +
+    `💰 Баланс (платформа): $${Number(pu.balance || 0).toFixed(2)}\n` +
     (up?.internal_note ? `📝 Заметка: ${esc(up.internal_note)}\n` : "") +
     `\n🏪 Магазинов: ${shopCount || 0}\n` +
     `🛍 Заказов: ${(platformOrders || 0) + (shopOrders || 0)}\n` +
