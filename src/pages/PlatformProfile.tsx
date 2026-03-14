@@ -362,6 +362,13 @@ const PlatformProfile: React.FC = () => {
                 </p>
               </div>
             )}
+            {subscription.status === 'none' && (
+              <div className="bg-gray-100/50 rounded-xl p-3 text-center">
+                <p className="text-xs text-gray-600 font-medium">
+                  ⏳ Подписка не активна. Нажмите для оформления.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
