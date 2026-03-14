@@ -164,8 +164,8 @@ serve(async (req) => {
   }
 });
 
-// ─── Topup handler (tenant-aware) ─────────────
-async function handleTopup(supabase: any, orderData: any, invoiceId: string, topupShopId: string | null) {
+// ─── Topup handler (tenant-aware + platform) ─────────────
+async function handleTopup(supabase: any, orderData: any, invoiceId: string, topupShopId: string | null, isPlatformTopup = false) {
   const topupAmount = Number(orderData.amount);
   const telegramUserId = Number(orderData.telegramUserId);
   if (!telegramUserId || !topupAmount || topupAmount <= 0) throw new Error(`[topup] invalid payload invoice=${invoiceId}`);
