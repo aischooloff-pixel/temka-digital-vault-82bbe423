@@ -1110,23 +1110,7 @@ async function handleCallback(tg: ReturnType<typeof TG>, chatId: number, msgId: 
   if (cmd === "howitworks") return howItWorks(tg, chatId, msgId);
   if (cmd === "profile") return showProfile(tg, chatId, msgId);
   if (cmd === "sub") return showSubscription(tg, chatId, msgId);
-  if (cmd === "pay_sub") {
-    // Create subscription invoice directly from bot
-    const priceInfo = await getSubscriptionPrice(chatId);
-    const { data: pUser } = await db().from("platform_users").select("id, subscription_status, subscription_expires_at, balance, billing_price_usd, pricing_tier").eq("telegram_id", chatId).maybeSingle();
-    if (!pUser) return tg.edit(chatId, msgId, "❌ Пользователь не найден.", ikb([[btn("◀️ Назад", "p:sub")]]));
-    // Redirect to Mini App for payment (since CryptoBot invoice requires initData verification)
-    const webAppUrl = Deno.env.get("WEBAPP_URL") || "";
-    return tg.edit(chatId, msgId, `💳 <b>Оплата подписки</b>\n\n💰 Стоимость: <b>$${priceInfo.price}/мес</b>\n\nДля оплаты откройте Mini App:`, ikb([
-      [webAppBtn("💳 Перейти к оплате", webAppUrl)],
-      [btn("◀️ Назад", "p:sub")],
-    ]));
-  }
-  if (cmd === "sub_promo") {
-    // Ask user to enter promo code via text input
-    await setSession(chatId, "sub_promo_input", {});
-    return tg.edit(chatId, msgId, "🎫 <b>Ввод промокода</b>\n\nВведите ваш промокод для скидки на подписку:", ikb([[btn("❌ Отмена", "p:sub")]]));
-  }
+  // p:pay_sub and p:sub_promo are handled below (after shop management callbacks)
   if (cmd === "myshops") return myShops(tg, chatId, msgId, parseInt(parts[2]) || 0);
   if (cmd === "shop") return shopView(tg, chatId, msgId, parts[2]);
   if (cmd === "settings") return shopSettings(tg, chatId, msgId, parts[2]);
