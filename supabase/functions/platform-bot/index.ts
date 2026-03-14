@@ -2859,7 +2859,7 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     return;
   }
 
-
+  if (state === "adm_user_balance") {
     const targetTgId = sData.target_tg_id as number;
     const match = val.match(/^([+-]?)(\d+(?:\.\d+)?)$/);
     if (!match) return tg.send(chatId, "❌ Формат: +10 или -5");
