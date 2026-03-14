@@ -437,11 +437,8 @@ async function upsertUser(from: { id: number; first_name: string; last_name?: st
   const { data: existing } = await db().from("platform_users").select("id").eq("telegram_id", from.id).maybeSingle();
   const fields = { first_name: from.first_name || "", last_name: from.last_name || null, username: from.username || null, is_premium: from.is_premium || false, language_code: from.language_code || null, updated_at: new Date().toISOString() };
   if (existing) { await db().from("platform_users").update(fields).eq("telegram_id", from.id); return existing; }
-  // For NEW users: set subscription_status based on global trial policy
-  // Don't default to 'trial' if trial is globally disabled
-  const ss = await getSubSettings();
-  const initialStatus = ss.trial_enabled ? "trial" : "none";
-  const { data } = await db().from("platform_users").insert({ telegram_id: from.id, ...fields, subscription_status: initialStatus }).select("id").single();
+  // NEW users always start with 'none' — trial activates only after first shop creation
+  const { data } = await db().from("platform_users").insert({ telegram_id: from.id, ...fields, subscription_status: "none" }).select("id").single();
   return data;
 }
 
@@ -875,7 +872,7 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
   const finalizingData = trackWizardMessage(sData, msgId);
   await setSession(chatId, "wiz_finalizing", finalizingData);
   await tg.edit(chatId, msgId, "⏳ Создаю магазин...");
-  const { data: user } = await db().from("platform_users").select("id, has_used_trial, subscription_status").eq("telegram_id", chatId).maybeSingle();
+  const { data: user } = await db().from("platform_users").select("id, has_used_trial, subscription_status, subscription_expires_at").eq("telegram_id", chatId).maybeSingle();
   if (!user) { await clearSession(chatId); return tg.edit(chatId, msgId, "❌ Ошибка: пользователь не найден.", ikb([[btn("◀️ Меню", "p:home")]])); }
   // Double-check shop limit on backend
   const ss = await getSubSettings();
@@ -913,8 +910,13 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     botStatusMsg = whResult.ok ? `\n\n🤖 Бот @${botUsername} подключён и готов к работе!` : `\n\n⚠️ Бот @${botUsername} сохранён, но webhook не установлен: ${whResult.error}`;
   }
   // ─── Activate trial if enabled and not used ───
+  // Don't replace an already active/paid subscription with trial
+  const isAlreadyActive = user.subscription_status === "active" && user.subscription_expires_at && new Date(user.subscription_expires_at) > new Date();
   let trialMsg = "";
-  if (ss.trial_enabled && ss.auto_trial_on_shop_create && (!ss.one_trial_per_user || !user.has_used_trial)) {
+  if (isAlreadyActive) {
+    // User already has an active subscription — no trial needed
+    trialMsg = "";
+  } else if (ss.trial_enabled && ss.auto_trial_on_shop_create && (!ss.one_trial_per_user || !user.has_used_trial)) {
     const trialExpiresAt = new Date(Date.now() + ss.trial_days * 24 * 60 * 60 * 1000).toISOString();
     await db().from("platform_users").update({
       subscription_status: "trial", trial_started_at: new Date().toISOString(),
@@ -929,7 +931,7 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     }
   } else if (!ss.trial_enabled || (ss.one_trial_per_user && user.has_used_trial)) {
     // Trial is disabled or user already used it — set status to 'none' so they must pay
-    if (user.subscription_status === "trial" || user.subscription_status === "none") {
+    if (user.subscription_status !== "active") {
       const priceInfo = await getSubscriptionPrice(chatId);
       await db().from("platform_users").update({
         subscription_status: "none", updated_at: new Date().toISOString(),
