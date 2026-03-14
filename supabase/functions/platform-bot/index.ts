@@ -1971,19 +1971,37 @@ async function admScPrices(tg: ReturnType<typeof TG>, chatId: number, msgId: num
 
 async function admScTrial(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
   const ss = await getSubSettings();
+  // Count active trial users (with actual trial expiry set)
+  const { count: activeTrialCount } = await db().from("platform_users").select("id", { count: "exact", head: true })
+    .eq("subscription_status", "trial").not("subscription_expires_at", "is", null);
+  // Count "trial" users without expiry (legacy/orphan)
+  const { count: orphanTrialCount } = await db().from("platform_users").select("id", { count: "exact", head: true })
+    .eq("subscription_status", "trial").is("subscription_expires_at", null);
   const text =
     `🆓 <b>Настройки Trial</b>\n\n` +
     `Trial: ${ss.trial_enabled ? "✅ Включён" : "❌ Выключен"}\n` +
     `Длительность: <b>${ss.trial_days}</b> дней\n` +
     `Один trial на пользователя: ${ss.one_trial_per_user ? "✅" : "❌"}\n` +
-    `Авто-trial при создании магазина: ${ss.auto_trial_on_shop_create ? "✅" : "❌"}`;
-  return tg.edit(chatId, msgId, text, ikb([
+    `Авто-trial при создании магазина: ${ss.auto_trial_on_shop_create ? "✅" : "❌"}\n\n` +
+    `<b>📊 Состояние:</b>\n` +
+    `  Активных trial: <b>${activeTrialCount || 0}</b>\n` +
+    `  Orphan trial (без даты): <b>${orphanTrialCount || 0}</b>\n\n` +
+    (!ss.trial_enabled ? `⚠️ <i>Trial выключен. Новые trial не выдаются.\n${(activeTrialCount || 0) > 0 ? "Уже выданные trial продолжают действовать до конца срока." : ""}</i>\n` : "") +
+    ((orphanTrialCount || 0) > 0 ? `⚠️ <i>Orphan trial — пользователи со статусом 'trial' без даты окончания. Можно очистить.</i>` : "");
+  const rows: Btn[][] = [
     [btn(ss.trial_enabled ? "❌ Выкл trial" : "✅ Вкл trial", "adm:sc:tog:trial_enabled")],
     [btn("✏️ Дни trial", "adm:sc:set:trial_days")],
     [btn(ss.one_trial_per_user ? "❌ Multi-trial" : "✅ Один trial", "adm:sc:tog:one_trial_per_user")],
     [btn(ss.auto_trial_on_shop_create ? "❌ Авто-trial выкл" : "✅ Авто-trial вкл", "adm:sc:tog:auto_trial_on_shop_create")],
-    [btn("◀️ Назад", "adm:subconfig")],
-  ]));
+  ];
+  if ((orphanTrialCount || 0) > 0) {
+    rows.push([btn("🧹 Очистить orphan trials", "adm:sc:clean_orphan_trials")]);
+  }
+  if ((activeTrialCount || 0) > 0 && !ss.trial_enabled) {
+    rows.push([btn("⏹ Завершить все active trials", "adm:sc:expire_all_trials")]);
+  }
+  rows.push([btn("◀️ Назад", "adm:subconfig")]);
+  return tg.edit(chatId, msgId, text, ikb(rows));
 }
 
 async function admScLimits(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
