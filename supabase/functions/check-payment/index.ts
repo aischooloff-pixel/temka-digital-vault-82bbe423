@@ -41,7 +41,14 @@ async function resolveShopByHint(supabase: any, shopHint?: string) {
   return bySlug || null;
 }
 
-async function resolveTokens(supabase: any, shopHint?: string) {
+async function resolveTokens(supabase: any, shopHint?: string, platform?: boolean) {
+  if (platform) {
+    return {
+      botToken: Deno.env.get("PLATFORM_BOT_TOKEN") || null,
+      cryptobotToken: Deno.env.get("CRYPTOBOT_API_TOKEN") || null,
+      resolvedShopId: undefined as string | undefined,
+    };
+  }
   if (!shopHint) {
     return {
       botToken: Deno.env.get("TELEGRAM_BOT_TOKEN") || null,
