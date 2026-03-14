@@ -72,7 +72,7 @@ function formatDate(dateStr: string | null): string {
 }
 
 const PlatformProfile: React.FC = () => {
-  const { user: tgUser, initData, isInTelegram, openTelegramLink } = useTelegram();
+  const { user: tgUser, initData, isInTelegram, openTelegramLink, webApp, haptic } = useTelegram();
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +83,17 @@ const PlatformProfile: React.FC = () => {
   const [shopSheetOpen, setShopSheetOpen] = useState(false);
   const [selectedShop, setSelectedShop] = useState<ShopData | null>(null);
   const [topupLoading, setTopupLoading] = useState(false);
+
+  // TMA: set header/background colors & hide back button
+  useEffect(() => {
+    if (!webApp) return;
+    try {
+      webApp.setHeaderColor('#2B7FFF');
+      webApp.setBackgroundColor('#F0F7FF');
+      webApp.BackButton.hide();
+      webApp.expand();
+    } catch {}
+  }, [webApp]);
 
   const mockData: ProfileData = {
     user: {
@@ -131,6 +142,10 @@ const PlatformProfile: React.FC = () => {
         });
         if (err) throw err;
         if (res?.error) throw new Error(res.error);
+        // Merge Telegram photo_url if backend doesn't have it
+        if (res?.user && !res.user.photo_url && tgUser?.photoUrl) {
+          res.user.photo_url = tgUser.photoUrl;
+        }
         setData(res);
       } catch (e: any) {
         setError(e.message || 'Ошибка загрузки');
