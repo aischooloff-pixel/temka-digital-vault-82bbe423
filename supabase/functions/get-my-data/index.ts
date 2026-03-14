@@ -69,7 +69,11 @@ serve(async (req) => {
     // Authenticated actions
     if (!initData) return jsonRes({ error: "Authentication required" }, 401);
 
-    const botToken = await resolveBotToken(supabase, shopId);
+    // For platform-profile, use PLATFORM_BOT_TOKEN since the Mini App is launched from the platform bot
+    const isPlatformAction = action === "platform-profile";
+    const botToken = isPlatformAction
+      ? (Deno.env.get("PLATFORM_BOT_TOKEN") || await resolveBotToken(supabase, shopId))
+      : await resolveBotToken(supabase, shopId);
     if (!botToken) return jsonRes({ error: "Bot not configured" }, 500);
 
     const tgUser = verifyAndExtractUser(initData, botToken);
