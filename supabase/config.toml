@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.seller-bot-webhook]
 verify_jwt = false
+
+[functions.get-my-data]
+verify_jwt = false
