@@ -547,8 +547,14 @@ async function showProfile(tg: ReturnType<typeof TG>, chatId: number, msgId?: nu
   }
   if (user.subscription_status === "trial") {
     const ss = await getSubSettings();
-    subExtra += `\n\n🆓 <i>Пробный период — ${ss.trial_days} дней после создания магазина.</i>`;
-    subExtra += `\n<i>После окончания потребуется подписка $${priceInfo.price}/мес.</i>`;
+    if (ss.trial_enabled) {
+      subExtra += `\n\n🆓 <i>Пробный период — ${ss.trial_days} дней после создания магазина.</i>`;
+      subExtra += `\n<i>После окончания потребуется подписка $${priceInfo.price}/мес.</i>`;
+    } else {
+      subExtra += `\n\n<i>Для работы магазина необходима подписка $${priceInfo.price}/мес.</i>`;
+    }
+  } else if (user.subscription_status === "none") {
+    subExtra += `\n\n<i>Для работы магазина оформите подписку $${priceInfo.price}/мес.</i>`;
   }
   const text = `👤 <b>${esc(user.first_name)}${user.last_name ? " " + esc(user.last_name) : ""}</b>${user.username ? `\n🔗 @${esc(user.username)}` : ""}\n\n🏪 Магазинов: <b>${shopCount || 0}</b>\n📊 Подписка: <b>${subLabel}</b>${subExtra}`;
   const kb = ikb([[webAppBtn("🌐 Открыть профиль", `${WEBAPP_DOMAIN}/platform/profile`)], [btn("💳 Подписка", "p:sub")], [btn("◀️ Назад", "p:home")]]);
