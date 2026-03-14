@@ -31,7 +31,7 @@ interface Props {
 
 const statusConfig: Record<string, { label: string; badgeVariant: 'default' | 'secondary' | 'destructive' }> = {
   active: { label: 'Активна', badgeVariant: 'default' },
-  trial: { label: 'Пробный период', badgeVariant: 'secondary' },
+  trial: { label: 'Активна', badgeVariant: 'secondary' },
   expired: { label: 'Истекла', badgeVariant: 'destructive' },
   grace_period: { label: 'Льготный период', badgeVariant: 'secondary' },
   cancelled: { label: 'Отменена', badgeVariant: 'secondary' },
