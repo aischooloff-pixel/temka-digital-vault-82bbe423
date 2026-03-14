@@ -668,8 +668,12 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
 
   const tierLabel = priceInfo.tier === "early_3" ? "🎉 Early Bird" : "Стандартный";
   let statusBlock = "";
-  if (user.subscription_status === "trial") {
+  if (user.subscription_status === "trial" && ss.trial_enabled) {
     statusBlock = `\n\n🆓 <b>Пробный период</b>\nВам доступны ${ss.trial_days} дней бесплатного использования.\nПосле окончания необходимо оформить подписку.`;
+  } else if (user.subscription_status === "trial" && !ss.trial_enabled) {
+    statusBlock = `\n\n⏳ <b>Подписка не активна</b>\nОформите подписку для работы магазина.`;
+  } else if (user.subscription_status === "none") {
+    statusBlock = `\n\n⏳ <b>Подписка не активна</b>\nОформите подписку для работы магазина.`;
   } else if (user.subscription_status === "expired") {
     statusBlock = `\n\n⚠️ <b>Подписка истекла</b>\nМагазины приостановлены. Продлите подписку для возобновления.`;
   } else if (user.subscription_status === "grace_period") {
@@ -679,7 +683,7 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
   const text = `💳 <b>Подписка</b>\n\n📊 Статус: <b>${status}</b>${daysLeftText}${statusBlock}\n\n💰 Ваша цена: <b>$${priceInfo.price}/мес</b> ${tierLabel}\n🏷 Тариф: ${tierLabel}\n\n<b>Включает:</b>\n• ${ss.max_shops_per_user} магазин\n• Приём платежей через CryptoBot\n• Собственный Telegram-бот\n• Авто-доставка цифровых товаров\n• ${ss.trial_enabled ? `${ss.trial_days} дней пробного периода` : "Пробный период недоступен"}`;
 
   const rows: Btn[][] = [];
-  const needsPayment = ["expired", "trial", "grace_period", "cancelled"].includes(user.subscription_status);
+  const needsPayment = ["expired", "trial", "grace_period", "cancelled", "none"].includes(user.subscription_status);
   const canRenew = needsPayment || (user.subscription_status === "active" && user.subscription_expires_at && subscriptionDaysLeft(user.subscription_expires_at) <= 7);
 
   if (canRenew) {
