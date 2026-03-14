@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Store, Crown, Wallet, Calendar, Clock, Bot, Wifi, ExternalLink, ShieldCheck, AlertTriangle, Sparkles } from 'lucide-react';
+import { Store, Crown, Wallet, Calendar, Clock, Bot, ShieldCheck, AlertTriangle, Sparkles } from 'lucide-react';
 
 interface ProfileData {
   user: {
@@ -308,21 +308,8 @@ const PlatformProfile: React.FC = () => {
                             <Bot className="w-2.5 h-2.5" /> @{shop.bot_username}
                           </span>
                         )}
-                        {shop.webhook_status === 'active' && (
-                          <span className="flex items-center gap-0.5 text-emerald-500">
-                            <Wifi className="w-2.5 h-2.5" /> Webhook
-                          </span>
-                        )}
                       </div>
                     </div>
-                    <a
-                      href={`/shop/${shop.slug}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2 rounded-lg hover:bg-blue-100 transition-colors"
-                    >
-                      <ExternalLink className="w-4 h-4 text-blue-400" />
-                    </a>
                   </div>
                 ))}
               </div>
