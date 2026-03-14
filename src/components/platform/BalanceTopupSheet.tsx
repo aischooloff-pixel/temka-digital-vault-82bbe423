@@ -207,7 +207,7 @@ const BalanceTopupSheet = ({ balance, open, onOpenChange, onBalanceUpdated }: Pr
         </div>
 
         <div className="p-4 pt-2 space-y-2">
-          {(state === 'idle' || state === 'error') && (
+          {state === 'idle' || state === 'error' || state === 'creating' ? (
             <Button
               onClick={handleSubmit}
               disabled={!isValid || state === 'creating'}
@@ -222,20 +222,18 @@ const BalanceTopupSheet = ({ balance, open, onOpenChange, onBalanceUpdated }: Pr
                 </>
               )}
             </Button>
-          )}
-          {(state === 'success' || state === 'expired') && (
+          ) : null}
+          {state === 'success' || state === 'expired' ? (
             <Button
               onClick={() => { setState('idle'); setPendingInvoiceId(null); }}
               className="w-full bg-[#2B7FFF] hover:bg-[#2070EE] text-white"
             >
               {state === 'success' ? 'Готово' : 'Попробовать снова'}
             </Button>
-          )}
-          {!isProcessing && (
+          ) : null}
+          {state !== 'creating' && state !== 'polling' && (
             <DrawerClose asChild>
-              <Button variant="outline" size="sm" className="w-full">
-                {state === 'polling' ? 'Скрыть' : 'Отмена'}
-              </Button>
+              <Button variant="outline" size="sm" className="w-full">Отмена</Button>
             </DrawerClose>
           )}
         </div>
