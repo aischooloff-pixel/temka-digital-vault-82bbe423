@@ -35,27 +35,58 @@ export const TelegramProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    const tg = window.Telegram?.WebApp;
-    if (tg) {
-      tg.ready();
-      tg.expand();
-      tg.enableClosingConfirmation();
-      setWebApp(tg);
+    let cancelled = false;
+    let timer: number | undefined;
+    let attempts = 0;
+    const maxAttempts = 25;
 
-      const tgUser = tg.initDataUnsafe?.user;
-      if (tgUser) {
-        setUser({
-          id: tgUser.id,
-          firstName: tgUser.first_name,
-          lastName: tgUser.last_name,
-          username: tgUser.username,
-          languageCode: tgUser.language_code,
-          isPremium: tgUser.is_premium,
-          photoUrl: tgUser.photo_url,
-        });
+    const hydrateTelegram = () => {
+      if (cancelled) return;
+
+      const tg = window.Telegram?.WebApp;
+      if (tg) {
+        try {
+          tg.ready();
+          tg.expand();
+          tg.enableClosingConfirmation();
+        } catch {}
+
+        setWebApp(tg);
+
+        const tgUser = tg.initDataUnsafe?.user;
+        if (tgUser) {
+          setUser({
+            id: tgUser.id,
+            firstName: tgUser.first_name,
+            lastName: tgUser.last_name,
+            username: tgUser.username,
+            languageCode: tgUser.language_code,
+            isPremium: tgUser.is_premium,
+            photoUrl: tgUser.photo_url,
+          });
+        }
+
+        if (tg.initData || tgUser || attempts >= maxAttempts) {
+          setIsReady(true);
+          return;
+        }
       }
-    }
-    setIsReady(true);
+
+      if (attempts >= maxAttempts) {
+        setIsReady(true);
+        return;
+      }
+
+      attempts += 1;
+      timer = window.setTimeout(hydrateTelegram, 120);
+    };
+
+    hydrateTelegram();
+
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
   }, []);
 
   const haptic = {
