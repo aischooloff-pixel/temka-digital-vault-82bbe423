@@ -685,7 +685,7 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
   }
 
   if (user.subscription_status === "active" || user.subscription_status === "trial") {
-    rows.push([webAppBtn("🌐 Профиль и подписка", "https://t.me/sazcawd2bot/app")]);
+    rows.push([webAppBtn("🌐 Профиль и подписка", `${WEBAPP_DOMAIN}/platform/profile`)]);
   }
 
   rows.push([btn("◀️ Назад", "p:profile")]);
