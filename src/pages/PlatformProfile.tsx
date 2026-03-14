@@ -96,16 +96,15 @@ const PlatformProfile: React.FC = () => {
   }, [webApp]);
 
   useEffect(() => {
-    // Wait for TelegramContext to finish initializing
     if (!isReady) return;
 
-    if (!initData || !tgUser) {
+    // Для загрузки профиля обязателен только initData (tgUser может прийти позже или отсутствовать)
+    if (!initData) {
       setError('Откройте профиль через Telegram');
       setLoading(false);
       return;
     }
 
-    // Clear any previous error when context becomes available
     setError(null);
     setLoading(true);
 
@@ -116,10 +115,11 @@ const PlatformProfile: React.FC = () => {
         });
         if (err) throw err;
         if (res?.error) throw new Error(res.error);
-        // Merge Telegram photo_url if backend doesn't have it
+
         if (res?.user && !res.user.photo_url && tgUser?.photoUrl) {
           res.user.photo_url = tgUser.photoUrl;
         }
+
         setData(res);
       } catch (e: any) {
         setError(e.message || 'Ошибка загрузки');
@@ -127,7 +127,7 @@ const PlatformProfile: React.FC = () => {
         setLoading(false);
       }
     })();
-  }, [isReady, initData, tgUser]);
+  }, [isReady, initData, tgUser?.photoUrl]);
 
   const handleRenewSubscription = () => {
     if (isInTelegram) {
