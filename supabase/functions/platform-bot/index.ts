@@ -2621,9 +2621,39 @@ async function handleAdmCallback(tg: ReturnType<typeof TG>, chatId: number, msgI
   // ─── Subscription Config (platform-wide) ──
   if (cmd === "subconfig") return admSubConfig(tg, chatId, msgId);
   if (cmd === "sc") {
-    const subCmd = parts[2]; // prices, trial, limits, expiry, notify, set, tog
+    const subCmd = parts[2]; // prices, trial, limits, expiry, notify, set, tog, clean_orphan_trials, expire_all_trials
     if (subCmd === "prices") return admScPrices(tg, chatId, msgId);
     if (subCmd === "trial") return admScTrial(tg, chatId, msgId);
+    if (subCmd === "clean_orphan_trials") {
+      // Set all orphan trial users (no expiry) to 'none'
+      const { data: orphans } = await db().from("platform_users").select("telegram_id").eq("subscription_status", "trial").is("subscription_expires_at", null);
+      const count = orphans?.length || 0;
+      for (const o of orphans || []) {
+        await db().from("platform_users").update({ subscription_status: "none", updated_at: new Date().toISOString() }).eq("telegram_id", o.telegram_id);
+      }
+      await admLog(adminTgId, "clean_orphan_trials", "sub_config", "trial", { cleaned: count });
+      await tg.answer(cbId, `✅ Очищено ${count} orphan trial(s)`);
+      return admScTrial(tg, chatId, msgId);
+    }
+    if (subCmd === "expire_all_trials") {
+      // Expire all active trials immediately
+      const { data: activeTrials } = await db().from("platform_users").select("telegram_id, id").eq("subscription_status", "trial").not("subscription_expires_at", "is", null);
+      const count = activeTrials?.length || 0;
+      for (const u of activeTrials || []) {
+        await db().from("platform_users").update({ subscription_status: "expired", updated_at: new Date().toISOString() }).eq("telegram_id", u.telegram_id);
+        // Pause shops
+        const ss2 = await getSubSettings();
+        if (ss2.on_expiry_pause_shop) {
+          const { data: shops } = await db().from("shops").select("id").eq("owner_id", u.id).eq("status", "active");
+          for (const shop of shops || []) {
+            await db().from("shops").update({ status: "paused", updated_at: new Date().toISOString() }).eq("id", shop.id);
+          }
+        }
+      }
+      await admLog(adminTgId, "expire_all_trials", "sub_config", "trial", { expired: count });
+      await tg.answer(cbId, `✅ Завершено ${count} trial(s)`);
+      return admScTrial(tg, chatId, msgId);
+    }
     if (subCmd === "limits") return admScLimits(tg, chatId, msgId);
     if (subCmd === "expiry") return admScExpiry(tg, chatId, msgId);
     if (subCmd === "notify") return admScNotify(tg, chatId, msgId);
