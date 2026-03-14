@@ -259,7 +259,7 @@ const PlatformProfile: React.FC = () => {
         {/* Block 2: Balance — clickable */}
         <Card
           className="border border-blue-100 bg-white shadow-sm cursor-pointer hover:shadow-md transition-shadow active:scale-[0.99]"
-          onClick={() => setBalanceSheetOpen(true)}
+          onClick={() => { haptic.impact('light'); setBalanceSheetOpen(true); }}
         >
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
