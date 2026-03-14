@@ -3027,24 +3027,33 @@ async function handleAdmText(tg: ReturnType<typeof TG>, chatId: number, val: str
     if (!match) return tg.send(chatId, "❌ Формат: +10 или -5");
     const sign = match[1] === "-" ? -1 : 1;
     const amount = parseFloat(match[2]) * sign;
-    if (amount > 0) {
-      await db().rpc("credit_balance", { p_telegram_id: targetTgId, p_amount: Math.abs(amount) });
-    } else {
-      await db().rpc("deduct_balance", { p_telegram_id: targetTgId, p_amount: Math.abs(amount) });
+    // Use platform_users balance (not user_profiles)
+    let newBal: number;
+    try {
+      if (amount > 0) {
+        const { data, error } = await db().rpc("platform_credit_balance", { p_telegram_id: targetTgId, p_amount: Math.abs(amount) });
+        if (error) throw error;
+        newBal = Number(data);
+      } else {
+        const { data, error } = await db().rpc("platform_deduct_balance", { p_telegram_id: targetTgId, p_amount: Math.abs(amount) });
+        if (error) throw error;
+        newBal = Number(data);
+      }
+    } catch (e: any) {
+      await clearSession(chatId);
+      return tg.send(chatId, `❌ Ошибка: ${e.message || "Недостаточно средств"}`, ikb([[btn("◀️ К пользователю", `adm:ucard:${targetTgId}`)]]));
     }
-    // Log to balance_history
-    const { data: up } = await db().from("user_profiles").select("balance").eq("telegram_id", targetTgId).maybeSingle();
-    await db().from("balance_history").insert({
+    // Log to platform_balance_history
+    await db().from("platform_balance_history").insert({
       telegram_id: targetTgId,
-      amount: Math.abs(amount),
+      amount: amount > 0 ? Math.abs(amount) : -Math.abs(amount),
       type: amount > 0 ? "credit" : "debit",
-      balance_after: Number(up?.balance || 0),
-      admin_telegram_id: chatId,
-      comment: `Superadmin ${amount > 0 ? "credit" : "debit"}`,
+      balance_after: newBal,
+      comment: `Superadmin ${amount > 0 ? "начисление" : "списание"}`,
     });
     await admLog(chatId, amount > 0 ? "credit_balance" : "debit_balance", "user", String(targetTgId), { amount });
     await clearSession(chatId);
-    return tg.send(chatId, `✅ Баланс обновлён: ${amount > 0 ? "+" : ""}${amount}`, ikb([[btn("◀️ К пользователю", `adm:ucard:${targetTgId}`)]]));
+    return tg.send(chatId, `✅ Баланс обновлён: ${amount > 0 ? "+" : ""}${amount}\n💰 Новый баланс: $${newBal.toFixed(2)}`, ikb([[btn("◀️ К пользователю", `adm:ucard:${targetTgId}`)]]));
   }
 
   if (state === "adm_user_note") {
