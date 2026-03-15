@@ -419,10 +419,10 @@ export default function Landing() {
           <div className="grid sm:grid-cols-2 gap-4 sm:gap-6">
             {/* Pains */}
             <AnimatedSection>
-              <motion.div variants={fadeUp} custom={0} className="bg-white rounded-2xl border border-[#fecaca]/60 p-6 sm:p-8 h-full">
-                <div className="flex items-center gap-2 mb-6">
-                  <XCircle className="w-6 h-6 text-[#ef4444]" />
-                  <h3 className="font-bold text-lg text-[#0f172a]">Без платформы</h3>
+              <motion.div variants={fadeUp} custom={0} className="bg-white rounded-xl sm:rounded-2xl border border-[#fecaca]/60 p-4 sm:p-8 h-full">
+                <div className="flex items-center gap-2 mb-4 sm:mb-6">
+                  <XCircle className="w-5 sm:w-6 h-5 sm:h-6 text-[#ef4444]" />
+                  <h3 className="font-bold text-sm sm:text-lg text-[#0f172a]">Без платформы</h3>
                 </div>
                 <ul className="space-y-3.5">
                   {[
