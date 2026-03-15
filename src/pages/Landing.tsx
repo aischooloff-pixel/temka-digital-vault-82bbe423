@@ -234,7 +234,7 @@ export default function Landing() {
                 </div>
               </div>
               {/* Slide indicators & labels */}
-              <div className="flex items-center justify-center gap-3 mt-5">
+              <div className="flex items-center justify-center gap-2 sm:gap-3 mt-4 sm:mt-5">
                 {slides.map((slide, i) => (
                   <button
                     key={i}
