@@ -637,24 +637,24 @@ export default function Landing() {
       </section>
 
       {/* ═══ 10. FINAL CTA ═══ */}
-      <section className="py-20 sm:py-28 px-4 sm:px-6">
+      <section className="py-12 sm:py-28 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto">
           <AnimatedSection className="text-center">
             <motion.div
               variants={fadeUp}
               custom={0}
-              className="bg-gradient-to-br from-[#1e3a8a] via-[#2563eb] to-[#3b82f6] rounded-3xl p-10 sm:p-16 relative overflow-hidden"
+              className="bg-gradient-to-br from-[#1e3a8a] via-[#2563eb] to-[#3b82f6] rounded-2xl sm:rounded-3xl p-6 sm:p-16 relative overflow-hidden"
             >
               {/* Decorative circles */}
               <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-white/5 -translate-y-1/2 translate-x-1/3" />
               <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full bg-white/5 translate-y-1/2 -translate-x-1/3" />
 
               <div className="relative">
-                <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4 leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                <h2 className="text-xl sm:text-4xl font-extrabold text-white mb-3 sm:mb-4 leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                   Запустите свой Telegram-магазин<br className="hidden sm:block" /> уже сегодня
                 </h2>
-                <p className="text-blue-100 text-lg max-w-xl mx-auto mb-8">
-                  Без кода. Без ручной выдачи. Без лишней инфраструктуры.<br />
+                <p className="text-blue-100 text-sm sm:text-lg max-w-xl mx-auto mb-5 sm:mb-8">
+                  Без кода. Без ручной выдачи. Без лишней инфраструктуры.<br className="hidden sm:block" />
                   Всё, что нужно — уже внутри платформы.
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
