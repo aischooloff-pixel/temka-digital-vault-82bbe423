@@ -567,7 +567,7 @@ export default function Landing() {
                   'Промокоды и рассылки',
                   'Поддержка платформы',
                 ].map((feature, i) => (
-                  <div key={i} className="flex items-center gap-2.5 text-sm text-[#1e293b]">
+                  <div key={i} className="flex items-center gap-2 text-xs sm:text-sm text-[#1e293b]">
                     <CheckCircle2 className="w-4.5 h-4.5 text-[#2563eb] shrink-0" />
                     {feature}
                   </div>
