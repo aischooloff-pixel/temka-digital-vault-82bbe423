@@ -161,7 +161,7 @@ export default function Landing() {
               цифровых товаров
             </motion.h1>
 
-            <motion.p variants={fadeUp} custom={2} className="text-lg sm:text-xl text-[#64748b] max-w-2xl mx-auto mb-8 leading-relaxed">
+            <motion.p variants={fadeUp} custom={2} className="text-sm sm:text-xl text-[#64748b] max-w-2xl mx-auto mb-6 sm:mb-8 leading-relaxed">
               Собственный бот, готовая витрина, приём оплаты через CryptoBot и автоматическая выдача товаров 24/7 — без кода, хостинга и ручной работы.
             </motion.p>
 
