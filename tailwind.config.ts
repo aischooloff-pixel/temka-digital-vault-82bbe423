@@ -101,8 +101,8 @@ export default {
           to: { transform: "translateX(0)" },
         },
         "pulse-glow": {
-          "0%, 100%": { boxShadow: "0 0 20px hsl(217, 91%, 60%, 0.2)" },
-          "50%": { boxShadow: "0 0 40px hsl(217, 91%, 60%, 0.4)" },
+          "0%, 100%": { boxShadow: "0 0 20px hsl(160, 84%, 50%, 0.2)" },
+          "50%": { boxShadow: "0 0 40px hsl(160, 84%, 50%, 0.4)" },
         },
         shimmer: {
           from: { backgroundPosition: "200% 0" },
