@@ -1,0 +1,654 @@
+import { useState } from 'react';
+import { motion, useInView } from 'framer-motion';
+import { useRef } from 'react';
+import {
+  Bot, Zap, ShoppingBag, CreditCard, Package, Settings, Users, Palette,
+  ChevronRight, ArrowRight, CheckCircle2, Shield, Clock, Rocket,
+  Store, Key, MonitorSmartphone, UserCheck, Code2, Headphones,
+  XCircle, ChevronDown, Send, Globe, LayoutDashboard, Boxes,
+  Sparkles, TrendingUp, Lock, MessageSquare
+} from 'lucide-react';
+
+const PLATFORM_BOT_URL = 'https://t.me/ShopBotPlatform_bot';
+const SUPPORT_URL = 'https://t.me/temka_support';
+
+// ─── Animation helpers ────────────────────────
+const fadeUp = {
+  hidden: { opacity: 0, y: 30 },
+  visible: (i: number) => ({
+    opacity: 1, y: 0,
+    transition: { delay: i * 0.1, duration: 0.5, ease: 'easeOut' }
+  })
+};
+
+const staggerContainer = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.08 } }
+};
+
+function AnimatedSection({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const isInView = useInView(ref, { once: true, margin: '-60px' });
+  return (
+    <motion.div
+      ref={ref}
+      initial="hidden"
+      animate={isInView ? 'visible' : 'hidden'}
+      variants={staggerContainer}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+// ─── FAQ Accordion ────────────────────────────
+function FAQItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-b border-[#e2e8f0]">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between py-5 text-left group"
+      >
+        <span className="font-semibold text-[#1e293b] text-[15px] sm:text-base pr-4 group-hover:text-[#2563eb] transition-colors">{q}</span>
+        <ChevronDown className={`w-5 h-5 text-[#94a3b8] shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          className="pb-5 text-[#64748b] text-sm leading-relaxed"
+        >
+          {a}
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Landing ─────────────────────────────
+export default function Landing() {
+  return (
+    <div
+      className="min-h-screen antialiased"
+      style={{
+        fontFamily: "'Inter', sans-serif",
+        background: 'linear-gradient(180deg, #f0f5ff 0%, #ffffff 30%, #f8fafc 100%)',
+        color: '#1e293b',
+      }}
+    >
+      {/* ═══ HEADER ═══ */}
+      <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/80 border-b border-[#e2e8f0]/60">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#2563eb] to-[#3b82f6] flex items-center justify-center shadow-md shadow-blue-500/20">
+              <Bot className="w-5 h-5 text-white" />
+            </div>
+            <span className="font-bold text-lg tracking-tight text-[#0f172a]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              ShopBot<span className="text-[#2563eb]"> Platform</span>
+            </span>
+          </div>
+          <a
+            href={PLATFORM_BOT_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white text-sm font-semibold shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.02] transition-all duration-200"
+          >
+            <Send className="w-4 h-4" /> Создать магазин
+          </a>
+        </div>
+      </header>
+
+      {/* ═══ 1. HERO ═══ */}
+      <section className="relative overflow-hidden pt-16 sm:pt-24 pb-20 sm:pb-28 px-4 sm:px-6">
+        {/* Background decorations */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 -right-32 w-96 h-96 rounded-full bg-blue-400/10 blur-3xl" />
+          <div className="absolute -top-20 -left-32 w-80 h-80 rounded-full bg-blue-500/8 blur-3xl" />
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-px bg-gradient-to-r from-transparent via-[#2563eb]/20 to-transparent" />
+        </div>
+
+        <div className="max-w-6xl mx-auto relative">
+          <AnimatedSection className="max-w-3xl mx-auto text-center">
+            <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#eff6ff] border border-[#bfdbfe] text-[#2563eb] text-sm font-medium mb-6">
+              <Sparkles className="w-4 h-4" /> Telegram-first платформа для продаж
+            </motion.div>
+
+            <motion.h1
+              variants={fadeUp} custom={1}
+              className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.1] tracking-tight text-[#0f172a] mb-6"
+              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              Создайте свой<br />
+              <span className="bg-gradient-to-r from-[#2563eb] to-[#60a5fa] bg-clip-text text-transparent">Telegram-магазин</span><br />
+              цифровых товаров
+            </motion.h1>
+
+            <motion.p variants={fadeUp} custom={2} className="text-lg sm:text-xl text-[#64748b] max-w-2xl mx-auto mb-8 leading-relaxed">
+              Собственный бот, готовая витрина, приём оплаты через CryptoBot и автоматическая выдача товаров 24/7 — без кода, хостинга и ручной работы.
+            </motion.p>
+
+            <motion.div variants={fadeUp} custom={3} className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-10">
+              <a
+                href={PLATFORM_BOT_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white text-base font-bold shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.02] transition-all duration-200 w-full sm:w-auto justify-center"
+              >
+                <Send className="w-5 h-5" /> Создать магазин
+              </a>
+              <a
+                href="#how-it-works"
+                className="inline-flex items-center gap-2 px-6 py-4 rounded-2xl border-2 border-[#e2e8f0] text-[#475569] text-base font-semibold hover:border-[#2563eb]/30 hover:text-[#2563eb] transition-all duration-200 w-full sm:w-auto justify-center"
+              >
+                Как это работает <ChevronRight className="w-4 h-4" />
+              </a>
+            </motion.div>
+
+            {/* Trust bullets */}
+            <motion.div variants={fadeUp} custom={4} className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-[#64748b]">
+              <span className="flex items-center gap-1.5"><Zap className="w-4 h-4 text-[#2563eb]" /> Запуск за 5 минут</span>
+              <span className="flex items-center gap-1.5"><Shield className="w-4 h-4 text-[#2563eb]" /> Без программирования</span>
+              <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-[#2563eb]" /> Автовыдача 24/7</span>
+              <span className="flex items-center gap-1.5"><CreditCard className="w-4 h-4 text-[#2563eb]" /> Оплата через CryptoBot</span>
+            </motion.div>
+          </AnimatedSection>
+
+          {/* Hero Visual — Platform mockup */}
+          <AnimatedSection className="mt-16 max-w-4xl mx-auto">
+            <motion.div variants={fadeUp} custom={5} className="relative">
+              <div className="absolute inset-0 bg-gradient-to-b from-[#2563eb]/5 to-transparent rounded-3xl" />
+              <div className="bg-white rounded-3xl shadow-2xl shadow-black/8 border border-[#e2e8f0] p-6 sm:p-8">
+                {/* Fake browser bar */}
+                <div className="flex items-center gap-2 mb-6">
+                  <div className="flex gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-[#fca5a5]" />
+                    <div className="w-3 h-3 rounded-full bg-[#fcd34d]" />
+                    <div className="w-3 h-3 rounded-full bg-[#86efac]" />
+                  </div>
+                  <div className="flex-1 h-8 bg-[#f1f5f9] rounded-lg flex items-center px-3 text-xs text-[#94a3b8]">
+                    t.me/YourShopBot
+                  </div>
+                </div>
+                {/* Mockup content */}
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <div className="bg-gradient-to-br from-[#eff6ff] to-[#f8fafc] rounded-2xl p-5 border border-[#e2e8f0]">
+                    <Bot className="w-8 h-8 text-[#2563eb] mb-3" />
+                    <div className="font-bold text-sm text-[#0f172a] mb-1">Ваш Telegram-бот</div>
+                    <div className="text-xs text-[#64748b]">Принимает заказы и выдаёт товары автоматически</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-[#f0fdf4] to-[#f8fafc] rounded-2xl p-5 border border-[#e2e8f0]">
+                    <ShoppingBag className="w-8 h-8 text-[#16a34a] mb-3" />
+                    <div className="font-bold text-sm text-[#0f172a] mb-1">Витрина магазина</div>
+                    <div className="text-xs text-[#64748b]">Красивый каталог с карточками товаров</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-[#fff7ed] to-[#f8fafc] rounded-2xl p-5 border border-[#e2e8f0]">
+                    <LayoutDashboard className="w-8 h-8 text-[#ea580c] mb-3" />
+                    <div className="font-bold text-sm text-[#0f172a] mb-1">Панель управления</div>
+                    <div className="text-xs text-[#64748b]">Товары, заказы, клиенты — всё через /admin</div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </AnimatedSection>
+        </div>
+      </section>
+
+      {/* ═══ 2. TRUST STRIP ═══ */}
+      <section className="border-y border-[#e2e8f0] bg-white">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-8">
+            {[
+              { icon: Rocket, label: 'Запуск за минуты', desc: 'Онбординг из 7 шагов' },
+              { icon: Zap, label: 'Автовыдача 24/7', desc: 'Мгновенная доставка' },
+              { icon: CreditCard, label: 'Приём крипты', desc: 'Через CryptoBot' },
+              { icon: Lock, label: 'Надёжная система', desc: 'Telegram-first' },
+            ].map((item, i) => (
+              <AnimatedSection key={i} className="text-center">
+                <motion.div variants={fadeUp} custom={i}>
+                  <item.icon className="w-7 h-7 text-[#2563eb] mx-auto mb-2.5" />
+                  <div className="font-bold text-sm text-[#0f172a]">{item.label}</div>
+                  <div className="text-xs text-[#94a3b8] mt-0.5">{item.desc}</div>
+                </motion.div>
+              </AnimatedSection>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ 3. HOW IT WORKS ═══ */}
+      <section id="how-it-works" className="py-20 sm:py-28 px-4 sm:px-6">
+        <div className="max-w-5xl mx-auto">
+          <AnimatedSection className="text-center mb-16">
+            <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#eff6ff] text-[#2563eb] text-xs font-semibold mb-4">
+              Просто и быстро
+            </motion.div>
+            <motion.h2 variants={fadeUp} custom={1} className="text-3xl sm:text-4xl font-extrabold text-[#0f172a] mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              Как это работает
+            </motion.h2>
+            <motion.p variants={fadeUp} custom={2} className="text-[#64748b] text-lg max-w-xl mx-auto">
+              От идеи до работающего магазина — 5 простых шагов
+            </motion.p>
+          </AnimatedSection>
+
+          <div className="grid sm:grid-cols-5 gap-6 sm:gap-4">
+            {[
+              { step: '1', icon: Store, title: 'Создайте магазин', desc: 'Пройдите онбординг в платформенном боте' },
+              { step: '2', icon: Bot, title: 'Подключите бота', desc: 'Привяжите своего Telegram-бота' },
+              { step: '3', icon: Palette, title: 'Настройте витрину', desc: 'Добавьте товары и оформление' },
+              { step: '4', icon: CreditCard, title: 'Подключите оплату', desc: 'Настройте CryptoBot для приёма платежей' },
+              { step: '5', icon: Package, title: 'Продавайте', desc: 'Товары выдаются автоматически 24/7' },
+            ].map((item, i) => (
+              <AnimatedSection key={i}>
+                <motion.div
+                  variants={fadeUp}
+                  custom={i}
+                  className="relative bg-white rounded-2xl p-6 border border-[#e2e8f0] shadow-sm hover:shadow-lg hover:border-[#bfdbfe] transition-all duration-300 text-center h-full"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#2563eb] to-[#3b82f6] text-white font-bold text-lg flex items-center justify-center mx-auto mb-4 shadow-md shadow-blue-500/20">
+                    {item.step}
+                  </div>
+                  <item.icon className="w-6 h-6 text-[#2563eb] mx-auto mb-3" />
+                  <h3 className="font-bold text-sm text-[#0f172a] mb-1.5">{item.title}</h3>
+                  <p className="text-xs text-[#64748b] leading-relaxed">{item.desc}</p>
+                </motion.div>
+              </AnimatedSection>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ 4. FEATURES ═══ */}
+      <section className="py-20 sm:py-28 px-4 sm:px-6 bg-gradient-to-b from-[#f8fafc] to-white">
+        <div className="max-w-6xl mx-auto">
+          <AnimatedSection className="text-center mb-16">
+            <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#eff6ff] text-[#2563eb] text-xs font-semibold mb-4">
+              Возможности
+            </motion.div>
+            <motion.h2 variants={fadeUp} custom={1} className="text-3xl sm:text-4xl font-extrabold text-[#0f172a] mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              Что вы получаете
+            </motion.h2>
+            <motion.p variants={fadeUp} custom={2} className="text-[#64748b] text-lg max-w-xl mx-auto">
+              Полноценная торговая система внутри Telegram
+            </motion.p>
+          </AnimatedSection>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[
+              { icon: Bot, title: 'Собственный Telegram-бот', desc: 'Ваш бот — ваш бренд. Полная кастомизация приветствия, команд и интерфейса.' },
+              { icon: Globe, title: 'Готовая витрина магазина', desc: 'Красивый каталог с карточками товаров, категориями и поиском — работает как Mini App.' },
+              { icon: CreditCard, title: 'Приём крипто-платежей', desc: 'Интеграция с CryptoBot. Клиенты оплачивают в крипте — вы получаете мгновенно.' },
+              { icon: Zap, title: 'Автовыдача после оплаты', desc: 'Цифровые товары доставляются покупателю автоматически — 24/7 без вашего участия.' },
+              { icon: LayoutDashboard, title: 'Управление через /admin', desc: 'Товары, заказы, клиенты, промокоды, рассылки — всё через удобную админку в боте.' },
+              { icon: Palette, title: 'Настройка под свой стиль', desc: 'Цвет, название, описание, приветствие — магазин полностью ваш.' },
+              { icon: Boxes, title: 'Инвентарь и товары', desc: 'Загружайте инвентарь пакетами. Система сама отслеживает наличие и резервирует.' },
+              { icon: UserCheck, title: 'Профиль и подписка', desc: 'Личный кабинет, баланс, история платежей и управление подпиской.' },
+              { icon: TrendingUp, title: 'Масштабируемость', desc: 'Платформа берёт на себя инфраструктуру. Вы фокусируетесь на продажах.' },
+            ].map((feature, i) => (
+              <AnimatedSection key={i}>
+                <motion.div
+                  variants={fadeUp}
+                  custom={i % 3}
+                  className="bg-white rounded-2xl p-6 border border-[#e2e8f0] shadow-sm hover:shadow-xl hover:border-[#bfdbfe] hover:-translate-y-1 transition-all duration-300 h-full"
+                >
+                  <div className="w-11 h-11 rounded-xl bg-[#eff6ff] flex items-center justify-center mb-4">
+                    <feature.icon className="w-5.5 h-5.5 text-[#2563eb]" />
+                  </div>
+                  <h3 className="font-bold text-[15px] text-[#0f172a] mb-2">{feature.title}</h3>
+                  <p className="text-sm text-[#64748b] leading-relaxed">{feature.desc}</p>
+                </motion.div>
+              </AnimatedSection>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ 5. TARGET AUDIENCE ═══ */}
+      <section className="py-20 sm:py-28 px-4 sm:px-6">
+        <div className="max-w-5xl mx-auto">
+          <AnimatedSection className="text-center mb-16">
+            <motion.h2 variants={fadeUp} custom={0} className="text-3xl sm:text-4xl font-extrabold text-[#0f172a] mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              Для кого это
+            </motion.h2>
+            <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-lg max-w-xl mx-auto">
+              ShopBot Platform подходит всем, кто продаёт цифровые товары в Telegram
+            </motion.p>
+          </AnimatedSection>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[
+              { icon: Key, title: 'Продавцы аккаунтов', desc: 'Игровые аккаунты, соцсети, сервисы — с автовыдачей и защитой.' },
+              { icon: MonitorSmartphone, title: 'Продавцы подписок', desc: 'VPN, стриминг, SaaS — продавайте ключи активации автоматически.' },
+              { icon: Users, title: 'Владельцы каналов', desc: 'Монетизируйте аудиторию — встроенный магазин прямо в экосистеме Telegram.' },
+              { icon: Code2, title: 'Продавцы софта', desc: 'Скрипты, боты, плагины — загрузите файлы и продавайте 24/7.' },
+              { icon: Package, title: 'Дропшипперы digital', desc: 'Масштабируйте продажи без ручной обработки каждого заказа.' },
+              { icon: Rocket, title: 'Стартаперы', desc: 'Запустите MVP магазина за минуты. Без разработчиков и серверов.' },
+            ].map((item, i) => (
+              <AnimatedSection key={i}>
+                <motion.div
+                  variants={fadeUp}
+                  custom={i % 3}
+                  className="flex gap-4 bg-white rounded-2xl p-5 border border-[#e2e8f0] shadow-sm hover:shadow-lg transition-all duration-300"
+                >
+                  <div className="w-11 h-11 rounded-xl bg-[#eff6ff] flex items-center justify-center shrink-0">
+                    <item.icon className="w-5 h-5 text-[#2563eb]" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-[#0f172a] mb-1">{item.title}</h3>
+                    <p className="text-xs text-[#64748b] leading-relaxed">{item.desc}</p>
+                  </div>
+                </motion.div>
+              </AnimatedSection>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ 6. PAIN SECTION ═══ */}
+      <section className="py-20 sm:py-28 px-4 sm:px-6 bg-gradient-to-b from-white to-[#f8fafc]">
+        <div className="max-w-5xl mx-auto">
+          <AnimatedSection className="text-center mb-16">
+            <motion.h2 variants={fadeUp} custom={0} className="text-3xl sm:text-4xl font-extrabold text-[#0f172a] mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              Зачем автоматизировать?
+            </motion.h2>
+            <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-lg max-w-xl mx-auto">
+              Ручные продажи в Telegram — это хаос. ShopBot Platform делает их системой.
+            </motion.p>
+          </AnimatedSection>
+
+          <div className="grid sm:grid-cols-2 gap-6">
+            {/* Pains */}
+            <AnimatedSection>
+              <motion.div variants={fadeUp} custom={0} className="bg-white rounded-2xl border border-[#fecaca]/60 p-6 sm:p-8 h-full">
+                <div className="flex items-center gap-2 mb-6">
+                  <XCircle className="w-6 h-6 text-[#ef4444]" />
+                  <h3 className="font-bold text-lg text-[#0f172a]">Без платформы</h3>
+                </div>
+                <ul className="space-y-3.5">
+                  {[
+                    'Вручную принимать оплату в каждом чате',
+                    'Копировать и отправлять товар руками',
+                    'Терять заказы и путаться в переписках',
+                    'Не спать, чтобы не пропустить покупателя',
+                    'Невозможно масштабироваться',
+                    'Нет статистики и контроля',
+                  ].map((pain, i) => (
+                    <li key={i} className="flex items-start gap-2.5 text-sm text-[#64748b]">
+                      <XCircle className="w-4 h-4 text-[#fca5a5] shrink-0 mt-0.5" />
+                      {pain}
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            </AnimatedSection>
+
+            {/* Solutions */}
+            <AnimatedSection>
+              <motion.div variants={fadeUp} custom={1} className="bg-white rounded-2xl border border-[#bbf7d0]/60 p-6 sm:p-8 h-full">
+                <div className="flex items-center gap-2 mb-6">
+                  <CheckCircle2 className="w-6 h-6 text-[#16a34a]" />
+                  <h3 className="font-bold text-lg text-[#0f172a]">С ShopBot Platform</h3>
+                </div>
+                <ul className="space-y-3.5">
+                  {[
+                    'Оплата через CryptoBot — автоматически',
+                    'Товар выдаётся сразу после оплаты',
+                    'Все заказы в одном месте с историей',
+                    'Магазин работает 24/7 без вашего участия',
+                    'Масштабируйте продажи без лимитов',
+                    'Полная статистика и аналитика',
+                  ].map((solution, i) => (
+                    <li key={i} className="flex items-start gap-2.5 text-sm text-[#1e293b]">
+                      <CheckCircle2 className="w-4 h-4 text-[#86efac] shrink-0 mt-0.5" />
+                      {solution}
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            </AnimatedSection>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ 7. PRODUCT SHOWCASE ═══ */}
+      <section className="py-20 sm:py-28 px-4 sm:px-6">
+        <div className="max-w-5xl mx-auto">
+          <AnimatedSection className="text-center mb-16">
+            <motion.h2 variants={fadeUp} custom={0} className="text-3xl sm:text-4xl font-extrabold text-[#0f172a] mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              Интерфейс, который продаёт
+            </motion.h2>
+            <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-lg max-w-xl mx-auto">
+              Готовый продукт — не прототип. Каждый экран продуман до деталей.
+            </motion.p>
+          </AnimatedSection>
+
+          <div className="grid sm:grid-cols-2 gap-6">
+            {[
+              {
+                title: 'Витрина магазина',
+                desc: 'Каталог товаров с категориями, фильтрами и корзиной — работает как Telegram Mini App',
+                gradient: 'from-[#eff6ff] to-[#dbeafe]',
+                icon: ShoppingBag,
+              },
+              {
+                title: 'Админ-панель в боте',
+                desc: 'Управляйте товарами, заказами, клиентами и промокодами через /admin в своём боте',
+                gradient: 'from-[#f0fdf4] to-[#dcfce7]',
+                icon: Settings,
+              },
+              {
+                title: 'Профиль владельца',
+                desc: 'Подписка, баланс, настройки магазина и статистика — всё в одном месте',
+                gradient: 'from-[#fff7ed] to-[#fed7aa]',
+                icon: UserCheck,
+              },
+              {
+                title: 'Telegram-бот покупателя',
+                desc: 'Покупатели получают товар сразу после оплаты. Автоматический чек и поддержка.',
+                gradient: 'from-[#fdf4ff] to-[#f5d0fe]',
+                icon: MessageSquare,
+              },
+            ].map((screen, i) => (
+              <AnimatedSection key={i}>
+                <motion.div
+                  variants={fadeUp}
+                  custom={i % 2}
+                  className={`bg-gradient-to-br ${screen.gradient} rounded-2xl p-6 sm:p-8 border border-white/60 shadow-sm hover:shadow-xl transition-all duration-300`}
+                >
+                  <screen.icon className="w-10 h-10 text-[#2563eb] mb-4" />
+                  <h3 className="font-bold text-lg text-[#0f172a] mb-2">{screen.title}</h3>
+                  <p className="text-sm text-[#475569] leading-relaxed">{screen.desc}</p>
+                </motion.div>
+              </AnimatedSection>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ 8. PRICING ═══ */}
+      <section className="py-20 sm:py-28 px-4 sm:px-6 bg-gradient-to-b from-[#f8fafc] to-white">
+        <div className="max-w-3xl mx-auto">
+          <AnimatedSection className="text-center mb-12">
+            <motion.h2 variants={fadeUp} custom={0} className="text-3xl sm:text-4xl font-extrabold text-[#0f172a] mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              Простая и честная цена
+            </motion.h2>
+            <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-lg max-w-xl mx-auto">
+              Вы платите не за абстрактную подписку, а за готовую торговую систему
+            </motion.p>
+          </AnimatedSection>
+
+          <AnimatedSection>
+            <motion.div
+              variants={fadeUp}
+              custom={0}
+              className="bg-white rounded-3xl border-2 border-[#2563eb]/20 shadow-xl shadow-blue-500/5 p-8 sm:p-10 relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 bg-gradient-to-l from-[#2563eb] to-[#3b82f6] text-white text-xs font-bold px-4 py-1.5 rounded-bl-xl">
+                Пробный период
+              </div>
+
+              <div className="text-center mb-8">
+                <h3 className="font-bold text-2xl text-[#0f172a] mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>ShopBot Platform</h3>
+                <div className="flex items-baseline justify-center gap-1">
+                  <span className="text-4xl font-extrabold text-[#0f172a]">от $3</span>
+                  <span className="text-[#94a3b8] text-lg">/мес</span>
+                </div>
+                <p className="text-sm text-[#64748b] mt-2">7 дней бесплатно для новых пользователей</p>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-3 mb-8">
+                {[
+                  '1 Telegram-магазин',
+                  'Собственный бот',
+                  'Готовая витрина',
+                  'Приём оплат через CryptoBot',
+                  'Автовыдача 24/7',
+                  'Управление через /admin',
+                  'Промокоды и рассылки',
+                  'Поддержка платформы',
+                ].map((feature, i) => (
+                  <div key={i} className="flex items-center gap-2.5 text-sm text-[#1e293b]">
+                    <CheckCircle2 className="w-4.5 h-4.5 text-[#2563eb] shrink-0" />
+                    {feature}
+                  </div>
+                ))}
+              </div>
+
+              <div className="text-center">
+                <a
+                  href={PLATFORM_BOT_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2.5 px-10 py-4 rounded-2xl bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white text-base font-bold shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.02] transition-all duration-200"
+                >
+                  <Send className="w-5 h-5" /> Начать бесплатно
+                </a>
+                <p className="text-xs text-[#94a3b8] mt-3">Без привязки карты · Отмена в любой момент</p>
+              </div>
+            </motion.div>
+          </AnimatedSection>
+        </div>
+      </section>
+
+      {/* ═══ 9. FAQ ═══ */}
+      <section className="py-20 sm:py-28 px-4 sm:px-6">
+        <div className="max-w-3xl mx-auto">
+          <AnimatedSection className="text-center mb-12">
+            <motion.h2 variants={fadeUp} custom={0} className="text-3xl sm:text-4xl font-extrabold text-[#0f172a] mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              Частые вопросы
+            </motion.h2>
+          </AnimatedSection>
+
+          <div className="bg-white rounded-2xl border border-[#e2e8f0] shadow-sm p-6 sm:p-8">
+            <FAQItem
+              q="Нужны ли навыки программирования?"
+              a="Нет. Весь процесс создания магазина — это пошаговый онбординг в Telegram-боте. Вам нужно только отвечать на вопросы и нажимать кнопки."
+            />
+            <FAQItem
+              q="Как быстро можно запустить магазин?"
+              a="От 5 до 15 минут. Вы проходите 7 шагов онбординга, подключаете бота и добавляете товары. После этого магазин сразу начинает работать."
+            />
+            <FAQItem
+              q="Нужен ли свой Telegram-бот?"
+              a="Да, вам понадобится создать бота через @BotFather в Telegram. Это занимает 2 минуты. Платформа подскажет каждый шаг."
+            />
+            <FAQItem
+              q="Как работает оплата?"
+              a="Покупатели оплачивают через CryptoBot — это надёжный платёжный сервис в Telegram. Вам нужно создать аккаунт в @CryptoBot и подключить API-токен."
+            />
+            <FAQItem
+              q="Как происходит выдача товара?"
+              a="После оплаты система автоматически резервирует товар из инвентаря и отправляет его покупателю в Telegram. Всё происходит за секунды."
+            />
+            <FAQItem
+              q="Какие товары можно продавать?"
+              a="Любые цифровые товары: аккаунты, ключи, подписки, лицензии, файлы, скрипты. Всё, что можно доставить в текстовом формате."
+            />
+            <FAQItem
+              q="Где управлять магазином?"
+              a="Через команду /admin в вашем подключённом Telegram-боте. Там доступны: товары, заказы, клиенты, промокоды, рассылки, настройки и статистика."
+            />
+            <FAQItem
+              q="Что делать, если нужна поддержка?"
+              a="Напишите в нашу поддержку через Telegram. Мы помогаем с настройкой, техническими вопросами и любыми проблемами."
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ 10. FINAL CTA ═══ */}
+      <section className="py-20 sm:py-28 px-4 sm:px-6">
+        <div className="max-w-4xl mx-auto">
+          <AnimatedSection className="text-center">
+            <motion.div
+              variants={fadeUp}
+              custom={0}
+              className="bg-gradient-to-br from-[#1e3a8a] via-[#2563eb] to-[#3b82f6] rounded-3xl p-10 sm:p-16 relative overflow-hidden"
+            >
+              {/* Decorative circles */}
+              <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-white/5 -translate-y-1/2 translate-x-1/3" />
+              <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full bg-white/5 translate-y-1/2 -translate-x-1/3" />
+
+              <div className="relative">
+                <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4 leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                  Запустите свой Telegram-магазин<br className="hidden sm:block" /> уже сегодня
+                </h2>
+                <p className="text-blue-100 text-lg max-w-xl mx-auto mb-8">
+                  Без кода. Без ручной выдачи. Без лишней инфраструктуры.<br />
+                  Всё, что нужно — уже внутри платформы.
+                </p>
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                  <a
+                    href={PLATFORM_BOT_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl bg-white text-[#2563eb] text-base font-bold shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-200 w-full sm:w-auto justify-center"
+                  >
+                    <Send className="w-5 h-5" /> Создать магазин
+                  </a>
+                  <a
+                    href={SUPPORT_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-6 py-4 rounded-2xl border-2 border-white/30 text-white text-base font-semibold hover:bg-white/10 transition-all duration-200 w-full sm:w-auto justify-center"
+                  >
+                    <Headphones className="w-4 h-4" /> Связаться с нами
+                  </a>
+                </div>
+              </div>
+            </motion.div>
+          </AnimatedSection>
+        </div>
+      </section>
+
+      {/* ═══ 11. FOOTER ═══ */}
+      <footer className="border-t border-[#e2e8f0] bg-white py-10 px-4 sm:px-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#2563eb] to-[#3b82f6] flex items-center justify-center">
+                <Bot className="w-4 h-4 text-white" />
+              </div>
+              <span className="font-bold text-sm text-[#0f172a]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                ShopBot Platform
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-[#94a3b8]">
+              <a href="/platform/terms" className="hover:text-[#2563eb] transition-colors">Условия</a>
+              <a href="/platform/privacy" className="hover:text-[#2563eb] transition-colors">Конфиденциальность</a>
+              <a href="/platform/disclaimer" className="hover:text-[#2563eb] transition-colors">Отказ от ответственности</a>
+              <a href={SUPPORT_URL} target="_blank" rel="noopener noreferrer" className="hover:text-[#2563eb] transition-colors">Поддержка</a>
+            </div>
+
+            <div className="text-xs text-[#cbd5e1]">
+              © {new Date().getFullYear()} ShopBot Platform
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
