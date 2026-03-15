@@ -458,7 +458,7 @@ export default function Landing() {
                     'Масштабируйте продажи без лимитов',
                     'Полная статистика и аналитика',
                   ].map((solution, i) => (
-                    <li key={i} className="flex items-start gap-2.5 text-sm text-[#1e293b]">
+                    <li key={i} className="flex items-start gap-2 text-xs sm:text-sm text-[#1e293b]">
                       <CheckCircle2 className="w-4 h-4 text-[#86efac] shrink-0 mt-0.5" />
                       {solution}
                     </li>
