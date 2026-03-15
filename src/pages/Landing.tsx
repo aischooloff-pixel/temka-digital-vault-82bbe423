@@ -216,7 +216,7 @@ export default function Landing() {
                   </div>
                 </div>
                 {/* Carousel */}
-                <div className="relative overflow-hidden cursor-zoom-in max-h-[600px]" onClick={() => { setLightboxImage(slides[activeSlide].src); setLightboxOpen(true); }}>
+                <div className="relative overflow-hidden cursor-zoom-in max-h-[400px] sm:max-h-[600px]" onClick={() => { setLightboxImage(slides[activeSlide].src); setLightboxOpen(true); }}>
                   <div
                     className="flex transition-transform duration-500 ease-in-out"
                     style={{ transform: `translateX(-${activeSlide * 100}%)` }}
