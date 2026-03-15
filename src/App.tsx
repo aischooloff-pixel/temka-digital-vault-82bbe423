@@ -74,7 +74,8 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <Routes>
-              {/* Platform legal pages — standalone, no layout */}
+              {/* Platform pages — standalone, no layout */}
+              <Route path="/landing" element={<Landing />} />
               <Route path="/platform/profile" element={<PlatformProfile />} />
               <Route path="/platform/terms" element={<PlatformTerms />} />
               <Route path="/platform/privacy" element={<PlatformPrivacy />} />
