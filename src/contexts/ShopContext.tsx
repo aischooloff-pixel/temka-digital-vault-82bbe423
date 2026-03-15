@@ -224,9 +224,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     fetchShop();
 
     return () => {
-      document.documentElement.style.setProperty('--primary', '160 84% 50%');
-      document.documentElement.style.setProperty('--ring', '160 84% 50%');
-      document.documentElement.style.setProperty('--accent', '160 60% 40%');
+      document.documentElement.style.removeProperty('--primary');
+      document.documentElement.style.removeProperty('--ring');
+      document.documentElement.style.removeProperty('--accent');
     };
   }, [shopId]);
 
