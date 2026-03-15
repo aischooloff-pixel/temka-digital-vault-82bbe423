@@ -5576,10 +5576,6 @@ serve(async (req) => {
         );
         return new Response("ok");
       }
-      if (text === "приветики") {
-        await tg.send(chatId, "👋 Приветики! Кнопка работает");
-        return new Response("ok");
-      }
       if (text === "🏪 Мои магазины") {
         if (!(await enforceSubscription(tg, chatId, from.first_name))) return new Response("ok");
         await myShops(tg, chatId);
