@@ -192,7 +192,7 @@ export default function Landing() {
           </AnimatedSection>
 
           {/* Hero Visual — Storefront screenshots carousel */}
-          <AnimatedSection className="mt-16 max-w-5xl mx-auto">
+          <AnimatedSection className="mt-10 sm:mt-16 max-w-5xl mx-auto">
             <motion.div variants={fadeUp} custom={5} className="relative">
               {/* Label */}
               <div className="text-center mb-4">
