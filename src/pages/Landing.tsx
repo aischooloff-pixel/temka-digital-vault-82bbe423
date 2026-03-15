@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import storefrontScreenshot from '@/assets/storefront-screenshot.png';
 import { motion, useInView, type Variants } from 'framer-motion';
 import {
@@ -70,7 +70,23 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 
 // ─── Main Landing ─────────────────────────────
 export default function Landing() {
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
   return (
+    <>
+    {/* Lightbox */}
+    {lightboxOpen && (
+      <div
+        className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out"
+        onClick={() => setLightboxOpen(false)}
+      >
+        <img
+          src={storefrontScreenshot}
+          alt="Интерфейс Telegram-магазина"
+          className="max-w-full max-h-[90vh] rounded-2xl shadow-2xl object-contain"
+        />
+      </div>
+    )}
     <div
       className="min-h-screen antialiased"
       style={{
@@ -168,7 +184,10 @@ export default function Landing() {
               {/* Glow behind */}
               <div className="absolute -inset-4 bg-gradient-to-b from-[#2563eb]/8 via-[#3b82f6]/5 to-transparent rounded-[2rem] blur-xl pointer-events-none" />
               {/* Browser frame */}
-              <div className="relative bg-[#1e1e2e] rounded-2xl sm:rounded-3xl shadow-2xl shadow-black/15 border border-[#334155]/50 overflow-hidden">
+              <div
+                className="relative bg-[#1e1e2e] rounded-2xl sm:rounded-3xl shadow-2xl shadow-black/15 border border-[#334155]/50 overflow-hidden cursor-zoom-in"
+                onClick={() => setLightboxOpen(true)}
+              >
                 {/* Browser bar */}
                 <div className="flex items-center gap-2 px-4 sm:px-5 py-3 bg-[#282838] border-b border-[#334155]/50">
                   <div className="flex gap-1.5">
@@ -647,5 +666,6 @@ export default function Landing() {
         </div>
       </footer>
     </div>
+    </>
   );
 }
