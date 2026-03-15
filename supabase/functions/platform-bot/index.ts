@@ -443,7 +443,15 @@ async function upsertUser(from: { id: number; first_name: string; last_name?: st
 }
 
 // ─── Bottom panel (keyboard) ──────────────────
-const bottomPanel = (hasShop: boolean) => ({ keyboard: [[{ text: "👤 Профиль" }, { text: "🆘 Поддержка" }], [{ text: hasShop ? "🏪 Мой магазин" : "🏪 Создать магазин" }]], resize_keyboard: true, is_persistent: true });
+const bottomPanel = (hasShop: boolean) => ({
+  keyboard: [
+    [{ text: "👤 Профиль" }, { text: "🆘 Поддержка" }],
+    [{ text: hasShop ? "🏪 Мой магазин" : "🏪 Создать магазин" }],
+    [{ text: "приветики" }],
+  ],
+  resize_keyboard: true,
+  is_persistent: true,
+});
 
 async function sendBottomPanel(tg: ReturnType<typeof TG>, chatId: number, hasShop: boolean): Promise<void> {
   await tg.send(chatId, "⬇️", bottomPanel(hasShop));
@@ -3554,6 +3562,10 @@ serve(async (req) => {
       if (text === "🆘 Поддержка") {
         const supportLink = await getSupportLink();
         await tg.send(chatId, `🆘 Свяжитесь с поддержкой:\n${supportLink}`, ikb([[urlBtn("🆘 Написать в поддержку", supportLink)]]));
+        return new Response("ok");
+      }
+      if (text === "приветики") {
+        await tg.send(chatId, "👋 Приветики! Кнопка работает");
         return new Response("ok");
       }
       if (text === "🏪 Мои магазины") {
