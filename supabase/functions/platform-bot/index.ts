@@ -637,7 +637,6 @@ const bottomPanel = (hasShop: boolean) => ({
   keyboard: [
     [{ text: "👤 Профиль" }, { text: "🆘 Поддержка" }],
     [{ text: hasShop ? "🏪 Мой магазин" : "🏪 Создать магазин" }],
-    [{ text: "приветики" }],
   ],
   resize_keyboard: true,
   is_persistent: true,
