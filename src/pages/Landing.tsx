@@ -266,9 +266,9 @@ export default function Landing() {
             ].map((item, i) => (
               <AnimatedSection key={i} className="text-center">
                 <motion.div variants={fadeUp} custom={i}>
-                  <item.icon className="w-7 h-7 text-[#2563eb] mx-auto mb-2.5" />
-                  <div className="font-bold text-sm text-[#0f172a]">{item.label}</div>
-                  <div className="text-xs text-[#94a3b8] mt-0.5">{item.desc}</div>
+                  <item.icon className="w-6 sm:w-7 h-6 sm:h-7 text-[#2563eb] mx-auto mb-2" />
+                  <div className="font-bold text-xs sm:text-sm text-[#0f172a]">{item.label}</div>
+                  <div className="text-[10px] sm:text-xs text-[#94a3b8] mt-0.5">{item.desc}</div>
                 </motion.div>
               </AnimatedSection>
             ))}
