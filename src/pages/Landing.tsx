@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import storefrontScreenshot from '@/assets/storefront-screenshot.png';
 import { motion, useInView, type Variants } from 'framer-motion';
 import {
   Bot, Zap, ShoppingBag, CreditCard, Package, Settings, Users, Palette,
