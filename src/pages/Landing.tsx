@@ -153,7 +153,7 @@ export default function Landing() {
 
             <motion.h1
               variants={fadeUp} custom={1}
-              className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.1] tracking-tight text-[#0f172a] mb-6"
+              className="text-[28px] sm:text-5xl lg:text-6xl font-extrabold leading-[1.15] tracking-tight text-[#0f172a] mb-4 sm:mb-6"
               style={{ fontFamily: "'Space Grotesk', sans-serif" }}
             >
               Создайте свой<br />
