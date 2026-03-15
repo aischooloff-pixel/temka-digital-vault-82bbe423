@@ -1293,6 +1293,29 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
       ikb([[btn("🏪 Мои магазины", "p:myshops:0")], [btn("◀️ Меню", "p:home")]]),
     );
   }
+  // ─── Bot token reuse check for free/trial users ───
+  if (sData.bot_id) {
+    const { data: existingShopWithBot } = await db()
+      .from("shops")
+      .select("id, name")
+      .eq("bot_id", sData.bot_id as number)
+      .maybeSingle();
+    if (existingShopWithBot) {
+      const isActiveSubscriber =
+        user.subscription_status === "active" &&
+        user.subscription_expires_at &&
+        new Date(user.subscription_expires_at) > new Date();
+      if (!isActiveSubscriber) {
+        await clearSession(chatId);
+        return tg.edit(
+          chatId,
+          msgId,
+          "❌ <b>Этот токен уже использовался.</b>\n\nДля повторного использования токена бота при создании магазина требуется активная подписка.\n\n💳 Оформите подписку через меню «💳 Подписка» в профиле.",
+          ikb([[btn("💳 Подписка", "p:sub")], [btn("◀️ Меню", "p:home")]]),
+        );
+      }
+    }
+  }
   const name = (sData.name as string) || "Мой магазин";
   const baseSlug =
     name
