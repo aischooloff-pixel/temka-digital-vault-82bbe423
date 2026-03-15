@@ -184,7 +184,10 @@ export default function Landing() {
               {/* Glow behind */}
               <div className="absolute -inset-4 bg-gradient-to-b from-[#2563eb]/8 via-[#3b82f6]/5 to-transparent rounded-[2rem] blur-xl pointer-events-none" />
               {/* Browser frame */}
-              <div className="relative bg-[#1e1e2e] rounded-2xl sm:rounded-3xl shadow-2xl shadow-black/15 border border-[#334155]/50 overflow-hidden">
+              <div
+                className="relative bg-[#1e1e2e] rounded-2xl sm:rounded-3xl shadow-2xl shadow-black/15 border border-[#334155]/50 overflow-hidden cursor-zoom-in"
+                onClick={() => setLightboxOpen(true)}
+              >
                 {/* Browser bar */}
                 <div className="flex items-center gap-2 px-4 sm:px-5 py-3 bg-[#282838] border-b border-[#334155]/50">
                   <div className="flex gap-1.5">
