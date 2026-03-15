@@ -165,7 +165,7 @@ export default function Landing() {
               Собственный бот, готовая витрина, приём оплаты через CryptoBot и автоматическая выдача товаров 24/7 — без кода, хостинга и ручной работы.
             </motion.p>
 
-            <motion.div variants={fadeUp} custom={3} className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-10">
+            <motion.div variants={fadeUp} custom={3} className="flex flex-col sm:flex-row items-center justify-center gap-2.5 sm:gap-3 mb-6 sm:mb-10">
               <a
                 href={PLATFORM_BOT_URL}
                 target="_blank"
