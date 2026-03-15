@@ -256,7 +256,7 @@ export default function Landing() {
 
       {/* ═══ 2. TRUST STRIP ═══ */}
       <section className="border-y border-[#e2e8f0] bg-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-8">
             {[
               { icon: Rocket, label: 'Запуск за минуты', desc: 'Онбординг из 7 шагов' },
