@@ -405,13 +405,13 @@ export default function Landing() {
       </section>
 
       {/* ═══ 6. PAIN SECTION ═══ */}
-      <section className="py-20 sm:py-28 px-4 sm:px-6 bg-gradient-to-b from-white to-[#f8fafc]">
+      <section className="py-12 sm:py-28 px-4 sm:px-6 bg-gradient-to-b from-white to-[#f8fafc]">
         <div className="max-w-5xl mx-auto">
-          <AnimatedSection className="text-center mb-16">
-            <motion.h2 variants={fadeUp} custom={0} className="text-3xl sm:text-4xl font-extrabold text-[#0f172a] mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+          <AnimatedSection className="text-center mb-8 sm:mb-16">
+            <motion.h2 variants={fadeUp} custom={0} className="text-2xl sm:text-4xl font-extrabold text-[#0f172a] mb-2 sm:mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
               Зачем автоматизировать?
             </motion.h2>
-            <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-lg max-w-xl mx-auto">
+            <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-sm sm:text-lg max-w-xl mx-auto">
               Ручные продажи в Telegram — это хаос. ShopBot Platform делает их системой.
             </motion.p>
           </AnimatedSection>
