@@ -1,5 +1,8 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import storefrontScreenshot from '@/assets/storefront-screenshot.png';
+import screenshotCatalog from '@/assets/screenshot-catalog.png';
+import screenshotCart from '@/assets/screenshot-cart.png';
+import screenshotProfile from '@/assets/screenshot-profile.png';
 import { motion, useInView, type Variants } from 'framer-motion';
 import {
   Bot, Zap, ShoppingBag, CreditCard, Package, Settings, Users, Palette,
@@ -71,6 +74,22 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 // ─── Main Landing ─────────────────────────────
 export default function Landing() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState('');
+  const [activeSlide, setActiveSlide] = useState(0);
+
+  const slides = [
+    { src: storefrontScreenshot, label: 'Главная', alt: 'Главная страница магазина' },
+    { src: screenshotCatalog, label: 'Каталог', alt: 'Каталог товаров' },
+    { src: screenshotCart, label: 'Корзина', alt: 'Корзина с товарами' },
+    { src: screenshotProfile, label: 'Профиль', alt: 'Профиль пользователя' },
+  ];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % slides.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [slides.length]);
 
   return (
     <>
@@ -81,7 +100,7 @@ export default function Landing() {
         onClick={() => setLightboxOpen(false)}
       >
         <img
-          src={storefrontScreenshot}
+          src={lightboxImage}
           alt="Интерфейс Telegram-магазина"
           className="max-w-full max-h-[90vh] rounded-2xl shadow-2xl object-contain"
         />
@@ -172,7 +191,7 @@ export default function Landing() {
             </motion.div>
           </AnimatedSection>
 
-          {/* Hero Visual — Real storefront screenshot */}
+          {/* Hero Visual — Storefront screenshots carousel */}
           <AnimatedSection className="mt-16 max-w-5xl mx-auto">
             <motion.div variants={fadeUp} custom={5} className="relative">
               {/* Label */}
@@ -184,10 +203,7 @@ export default function Landing() {
               {/* Glow behind */}
               <div className="absolute -inset-4 bg-gradient-to-b from-[#2563eb]/8 via-[#3b82f6]/5 to-transparent rounded-[2rem] blur-xl pointer-events-none" />
               {/* Browser frame */}
-              <div
-                className="relative bg-[#1e1e2e] rounded-2xl sm:rounded-3xl shadow-2xl shadow-black/15 border border-[#334155]/50 overflow-hidden cursor-zoom-in"
-                onClick={() => setLightboxOpen(true)}
-              >
+              <div className="relative bg-[#1e1e2e] rounded-2xl sm:rounded-3xl shadow-2xl shadow-black/15 border border-[#334155]/50 overflow-hidden">
                 {/* Browser bar */}
                 <div className="flex items-center gap-2 px-4 sm:px-5 py-3 bg-[#282838] border-b border-[#334155]/50">
                   <div className="flex gap-1.5">
@@ -199,13 +215,39 @@ export default function Landing() {
                     yourshop.shopbot.app
                   </div>
                 </div>
-                {/* Screenshot */}
-                <img
-                  src={storefrontScreenshot}
-                  alt="Интерфейс Telegram-магазина на платформе ShopBot — готовая витрина цифровых товаров"
-                  className="w-full block"
-                  loading="eager"
-                />
+                {/* Carousel */}
+                <div className="relative overflow-hidden cursor-zoom-in max-h-[600px]" onClick={() => { setLightboxImage(slides[activeSlide].src); setLightboxOpen(true); }}>
+                  <div
+                    className="flex transition-transform duration-500 ease-in-out"
+                    style={{ transform: `translateX(-${activeSlide * 100}%)` }}
+                  >
+                    {slides.map((slide, i) => (
+                      <img
+                        key={i}
+                        src={slide.src}
+                        alt={slide.alt}
+                        className="w-full shrink-0 block"
+                        loading={i === 0 ? 'eager' : 'lazy'}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+              {/* Slide indicators & labels */}
+              <div className="flex items-center justify-center gap-3 mt-5">
+                {slides.map((slide, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setActiveSlide(i)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
+                      activeSlide === i
+                        ? 'bg-[#2563eb] text-white shadow-md shadow-blue-500/25'
+                        : 'bg-[#f1f5f9] text-[#64748b] hover:bg-[#e2e8f0]'
+                    }`}
+                  >
+                    {slide.label}
+                  </button>
+                ))}
               </div>
             </motion.div>
           </AnimatedSection>
