@@ -541,7 +541,7 @@ export default function Landing() {
             <motion.div
               variants={fadeUp}
               custom={0}
-              className="bg-white rounded-3xl border-2 border-[#2563eb]/20 shadow-xl shadow-blue-500/5 p-8 sm:p-10 relative overflow-hidden"
+              className="bg-white rounded-2xl sm:rounded-3xl border-2 border-[#2563eb]/20 shadow-xl shadow-blue-500/5 p-5 sm:p-10 relative overflow-hidden"
             >
               <div className="absolute top-0 right-0 bg-gradient-to-l from-[#2563eb] to-[#3b82f6] text-white text-xs font-bold px-4 py-1.5 rounded-bl-xl">
                 Пробный период
