@@ -147,7 +147,7 @@ export default function Landing() {
 
         <div className="max-w-6xl mx-auto relative">
           <AnimatedSection className="max-w-3xl mx-auto text-center">
-            <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#eff6ff] border border-[#bfdbfe] text-[#2563eb] text-sm font-medium mb-6">
+            <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#eff6ff] border border-[#bfdbfe] text-[#2563eb] text-xs sm:text-sm font-medium mb-4 sm:mb-6">
               <Sparkles className="w-4 h-4" /> Telegram-first платформа для продаж
             </motion.div>
 
