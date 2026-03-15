@@ -3564,6 +3564,10 @@ serve(async (req) => {
         await tg.send(chatId, `🆘 Свяжитесь с поддержкой:\n${supportLink}`, ikb([[urlBtn("🆘 Написать в поддержку", supportLink)]]));
         return new Response("ok");
       }
+      if (text === "приветики") {
+        await tg.send(chatId, "👋 Приветики! Кнопка работает");
+        return new Response("ok");
+      }
       if (text === "🏪 Мои магазины") {
         if (!(await enforceSubscription(tg, chatId, from.first_name))) return new Response("ok");
         await myShops(tg, chatId);
