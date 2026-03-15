@@ -1,6 +1,5 @@
-import { useState } from 'react';
-import { motion, useInView } from 'framer-motion';
-import { useRef } from 'react';
+import { useState, useRef } from 'react';
+import { motion, useInView, type Variants } from 'framer-motion';
 import {
   Bot, Zap, ShoppingBag, CreditCard, Package, Settings, Users, Palette,
   ChevronRight, ArrowRight, CheckCircle2, Shield, Clock, Rocket,
