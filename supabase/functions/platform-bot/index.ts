@@ -224,6 +224,17 @@ function subscriptionDaysLeft(expiresAt: string | null): number {
   return Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000);
 }
 
+// Display version: uses calendar day boundaries (UTC) so the count decreases
+// at midnight UTC every day, matching user expectations ("day passed → number decreased").
+function subscriptionDaysLeftDisplay(expiresAt: string | null): number {
+  if (!expiresAt) return 0;
+  const now = new Date();
+  const end = new Date(expiresAt);
+  const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const endUTC = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
+  return Math.max(0, Math.round((endUTC - todayUTC) / 86400000));
+}
+
 function subStatusLabel(status: string): string {
   const map: Record<string, string> = {
     active: "✅ Активна",
@@ -740,7 +751,7 @@ async function showProfile(tg: ReturnType<typeof TG>, chatId: number, msgId?: nu
   const priceInfo = await getSubscriptionPrice(chatId);
   let subExtra = "";
   if (user.subscription_expires_at && !["cancelled", "blocked", "none"].includes(user.subscription_status)) {
-    const daysLeft = subscriptionDaysLeft(user.subscription_expires_at);
+    const daysLeft = subscriptionDaysLeftDisplay(user.subscription_expires_at);
     if (daysLeft > 0) {
       subExtra = `\n⏳ Осталось: <b>${daysLeft}</b> ${daysLeft === 1 ? "день" : daysLeft < 5 ? "дня" : "дней"}`;
       subExtra += `\n📅 До: ${new Date(user.subscription_expires_at).toLocaleDateString("ru")}`;
@@ -903,7 +914,7 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
   let daysLeftText = "";
   // Don't show days left / expiry for cancelled or blocked statuses
   if (user.subscription_expires_at && !["cancelled", "blocked", "none"].includes(user.subscription_status)) {
-    const dLeft = subscriptionDaysLeft(user.subscription_expires_at);
+    const dLeft = subscriptionDaysLeftDisplay(user.subscription_expires_at);
     if (dLeft > 0) {
       daysLeftText = `\n⏳ Осталось: <b>${dLeft}</b> ${dLeft === 1 ? "день" : dLeft < 5 ? "дня" : "дней"}`;
       daysLeftText += `\n📅 До: ${new Date(user.subscription_expires_at).toLocaleDateString("ru")}`;
@@ -1281,6 +1292,29 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
       `❌ У вас уже есть магазин. Лимит: ${ss.max_shops_per_user} магазин(ов) на пользователя.`,
       ikb([[btn("🏪 Мои магазины", "p:myshops:0")], [btn("◀️ Меню", "p:home")]]),
     );
+  }
+  // ─── Bot token reuse check for free/trial users ───
+  if (sData.bot_id) {
+    const { data: existingShopWithBot } = await db()
+      .from("shops")
+      .select("id, name")
+      .eq("bot_id", sData.bot_id as number)
+      .maybeSingle();
+    if (existingShopWithBot) {
+      const isActiveSubscriber =
+        user.subscription_status === "active" &&
+        user.subscription_expires_at &&
+        new Date(user.subscription_expires_at) > new Date();
+      if (!isActiveSubscriber) {
+        await clearSession(chatId);
+        return tg.edit(
+          chatId,
+          msgId,
+          "❌ <b>Этот токен уже использовался.</b>\n\nДля повторного использования токена бота при создании магазина требуется активная подписка.\n\n💳 Оформите подписку через меню «💳 Подписка» в профиле.",
+          ikb([[btn("💳 Подписка", "p:sub")], [btn("◀️ Меню", "p:home")]]),
+        );
+      }
+    }
   }
   const name = (sData.name as string) || "Мой магазин";
   const baseSlug =
