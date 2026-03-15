@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import storefrontScreenshot from '@/assets/storefront-screenshot.png';
 import { motion, useInView, type Variants } from 'framer-motion';
 import {
   Bot, Zap, ShoppingBag, CreditCard, Package, Settings, Users, Palette,
@@ -155,40 +156,37 @@ export default function Landing() {
             </motion.div>
           </AnimatedSection>
 
-          {/* Hero Visual — Platform mockup */}
-          <AnimatedSection className="mt-16 max-w-4xl mx-auto">
+          {/* Hero Visual — Real storefront screenshot */}
+          <AnimatedSection className="mt-16 max-w-5xl mx-auto">
             <motion.div variants={fadeUp} custom={5} className="relative">
-              <div className="absolute inset-0 bg-gradient-to-b from-[#2563eb]/5 to-transparent rounded-3xl" />
-              <div className="bg-white rounded-3xl shadow-2xl shadow-black/8 border border-[#e2e8f0] p-6 sm:p-8">
-                {/* Fake browser bar */}
-                <div className="flex items-center gap-2 mb-6">
+              {/* Label */}
+              <div className="text-center mb-4">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#eff6ff] border border-[#bfdbfe] text-[#2563eb] text-xs font-semibold">
+                  <MonitorSmartphone className="w-3.5 h-3.5" /> Готовая витрина магазина
+                </span>
+              </div>
+              {/* Glow behind */}
+              <div className="absolute -inset-4 bg-gradient-to-b from-[#2563eb]/8 via-[#3b82f6]/5 to-transparent rounded-[2rem] blur-xl pointer-events-none" />
+              {/* Browser frame */}
+              <div className="relative bg-[#1e1e2e] rounded-2xl sm:rounded-3xl shadow-2xl shadow-black/15 border border-[#334155]/50 overflow-hidden">
+                {/* Browser bar */}
+                <div className="flex items-center gap-2 px-4 sm:px-5 py-3 bg-[#282838] border-b border-[#334155]/50">
                   <div className="flex gap-1.5">
-                    <div className="w-3 h-3 rounded-full bg-[#fca5a5]" />
-                    <div className="w-3 h-3 rounded-full bg-[#fcd34d]" />
-                    <div className="w-3 h-3 rounded-full bg-[#86efac]" />
+                    <div className="w-3 h-3 rounded-full bg-[#ff5f57]" />
+                    <div className="w-3 h-3 rounded-full bg-[#febc2e]" />
+                    <div className="w-3 h-3 rounded-full bg-[#28c840]" />
                   </div>
-                  <div className="flex-1 h-8 bg-[#f1f5f9] rounded-lg flex items-center px-3 text-xs text-[#94a3b8]">
-                    t.me/YourShopBot
-                  </div>
-                </div>
-                {/* Mockup content */}
-                <div className="grid sm:grid-cols-3 gap-4">
-                  <div className="bg-gradient-to-br from-[#eff6ff] to-[#f8fafc] rounded-2xl p-5 border border-[#e2e8f0]">
-                    <Bot className="w-8 h-8 text-[#2563eb] mb-3" />
-                    <div className="font-bold text-sm text-[#0f172a] mb-1">Ваш Telegram-бот</div>
-                    <div className="text-xs text-[#64748b]">Принимает заказы и выдаёт товары автоматически</div>
-                  </div>
-                  <div className="bg-gradient-to-br from-[#f0fdf4] to-[#f8fafc] rounded-2xl p-5 border border-[#e2e8f0]">
-                    <ShoppingBag className="w-8 h-8 text-[#16a34a] mb-3" />
-                    <div className="font-bold text-sm text-[#0f172a] mb-1">Витрина магазина</div>
-                    <div className="text-xs text-[#64748b]">Красивый каталог с карточками товаров</div>
-                  </div>
-                  <div className="bg-gradient-to-br from-[#fff7ed] to-[#f8fafc] rounded-2xl p-5 border border-[#e2e8f0]">
-                    <LayoutDashboard className="w-8 h-8 text-[#ea580c] mb-3" />
-                    <div className="font-bold text-sm text-[#0f172a] mb-1">Панель управления</div>
-                    <div className="text-xs text-[#64748b]">Товары, заказы, клиенты — всё через /admin</div>
+                  <div className="flex-1 h-7 bg-[#1e1e2e] rounded-md flex items-center px-3 text-xs text-[#94a3b8] font-mono">
+                    yourshop.shopbot.app
                   </div>
                 </div>
+                {/* Screenshot */}
+                <img
+                  src={storefrontScreenshot}
+                  alt="Интерфейс Telegram-магазина на платформе ShopBot — готовая витрина цифровых товаров"
+                  className="w-full block"
+                  loading="eager"
+                />
               </div>
             </motion.div>
           </AnimatedSection>
