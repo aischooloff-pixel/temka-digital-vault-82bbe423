@@ -176,7 +176,7 @@ export default function Landing() {
               </a>
               <a
                 href="#how-it-works"
-                className="inline-flex items-center gap-2 px-6 py-4 rounded-2xl border-2 border-[#e2e8f0] text-[#475569] text-base font-semibold hover:border-[#2563eb]/30 hover:text-[#2563eb] transition-all duration-200 w-full sm:w-auto justify-center"
+                className="inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-4 rounded-2xl border-2 border-[#e2e8f0] text-[#475569] text-sm sm:text-base font-semibold hover:border-[#2563eb]/30 hover:text-[#2563eb] transition-all duration-200 w-full sm:w-auto justify-center"
               >
                 Как это работает <ChevronRight className="w-4 h-4" />
               </a>
