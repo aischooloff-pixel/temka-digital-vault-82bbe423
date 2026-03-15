@@ -183,7 +183,7 @@ export default function Landing() {
             </motion.div>
 
             {/* Trust bullets */}
-            <motion.div variants={fadeUp} custom={4} className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-[#64748b]">
+            <motion.div variants={fadeUp} custom={4} className="flex flex-wrap items-center justify-center gap-x-4 sm:gap-x-6 gap-y-1.5 text-xs sm:text-sm text-[#64748b]">
               <span className="flex items-center gap-1.5"><Zap className="w-4 h-4 text-[#2563eb]" /> Запуск за 5 минут</span>
               <span className="flex items-center gap-1.5"><Shield className="w-4 h-4 text-[#2563eb]" /> Без программирования</span>
               <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-[#2563eb]" /> Автовыдача 24/7</span>
