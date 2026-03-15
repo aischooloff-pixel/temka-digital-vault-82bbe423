@@ -1434,14 +1434,7 @@ serve(async (req) => {
       return new Response("ok");
     }
 
-    // ─── FSM text handler (admin) ───────────
-    const owner = await isShopOwner(shopId, chatId);
-    if (owner) {
-      const handled = await handleFSM(tg, chatId, text, photo, shopId, chatId);
-      if (handled) return new Response("ok");
-    }
-
-    // ─── /start command ─────────────────────
+    // ─── /start command — MUST be before FSM so commands always take priority ───
     if (text === "/start" || text.startsWith("/start ")) {
       // Create shop customer profile (tenant-scoped)
       if (msg.from) {
@@ -1454,6 +1447,9 @@ serve(async (req) => {
           language_code: msg.from.language_code,
         });
       }
+
+      // Clear any active admin FSM session so /start is a clean entry point
+      await clearSession(chatId, shopId);
 
       // ─── Subscription gate (OP check) ─────
       if (shop.is_subscription_required && shop.required_channel_id) {
@@ -1486,8 +1482,6 @@ serve(async (req) => {
       const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
 
       // Full welcome message replacement: use owner's text as-is (HTML supported)
-      // If welcome_message is set, it replaces the entire greeting.
-      // Support {name} placeholder for user's first name.
       let greeting: string;
       if (shop.welcome_message) {
         greeting = shop.welcome_message.replace(/{name}/gi, firstName);
@@ -1508,7 +1502,7 @@ serve(async (req) => {
       return new Response("ok");
     }
 
-    // ─── /help ──────────────────────────────
+    // ─── /help — before FSM ─────────────────
     if (text === "/help") {
       const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
       const supportUrl = shop.support_link
@@ -1527,13 +1521,21 @@ serve(async (req) => {
       return new Response("ok");
     }
 
-    // ─── /cancel ────────────────────────────
+    // ─── /cancel — before FSM ───────────────
     if (text === "/cancel") {
+      const owner = await isShopOwner(shopId, chatId);
       await clearSession(chatId, shopId);
       if (owner) {
         await tg.send(chatId, "❌ Отменено.", ikb([[btn("◀️ Меню", "s:m")]]));
       }
       return new Response("ok");
+    }
+
+    // ─── FSM text handler (admin) — AFTER command checks ───
+    const owner = await isShopOwner(shopId, chatId);
+    if (owner) {
+      const handled = await handleFSM(tg, chatId, text, photo, shopId, chatId);
+      if (handled) return new Response("ok");
     }
 
     // ─── Default ────────────────────────────
