@@ -73,6 +73,19 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 // ─── Main Landing ─────────────────────────────
 export default function Landing() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const slides = [
+    { src: demoCatalog, label: 'Каталог', alt: 'Каталог цифровых товаров Your.Store' },
+    { src: demoCart, label: 'Корзина', alt: 'Корзина с товарами Your.Store' },
+    { src: demoProfile, label: 'Профиль', alt: 'Профиль покупателя Your.Store' },
+  ];
+
+  // Auto-rotate
+  useEffect(() => {
+    if (lightboxOpen) return;
+    const timer = setInterval(() => setCurrentSlide(p => (p + 1) % slides.length), 4000);
+    return () => clearInterval(timer);
+  }, [lightboxOpen, slides.length]);
 
   return (
     <>
@@ -83,8 +96,8 @@ export default function Landing() {
         onClick={() => setLightboxOpen(false)}
       >
         <img
-          src={storefrontScreenshot}
-          alt="Интерфейс Telegram-магазина"
+          src={slides[currentSlide].src}
+          alt={slides[currentSlide].alt}
           className="max-w-full max-h-[90vh] rounded-2xl shadow-2xl object-contain"
         />
       </div>
