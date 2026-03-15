@@ -170,7 +170,7 @@ export default function Landing() {
                 href={PLATFORM_BOT_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white text-base font-bold shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.02] transition-all duration-200 w-full sm:w-auto justify-center"
+                className="inline-flex items-center gap-2.5 px-6 sm:px-8 py-3 sm:py-4 rounded-2xl bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white text-sm sm:text-base font-bold shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.02] transition-all duration-200 w-full sm:w-auto justify-center"
               >
                 <Send className="w-5 h-5" /> Создать магазин
               </a>
