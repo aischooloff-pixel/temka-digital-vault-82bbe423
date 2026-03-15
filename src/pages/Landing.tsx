@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import storefrontScreenshot from '@/assets/storefront-screenshot.png';
 import { motion, useInView, type Variants } from 'framer-motion';
 import {
