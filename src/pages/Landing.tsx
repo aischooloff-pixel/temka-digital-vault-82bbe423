@@ -319,43 +319,43 @@ export default function Landing() {
       </section>
 
       {/* ═══ 4. FEATURES ═══ */}
-      <section className="py-20 sm:py-28 px-4 sm:px-6 bg-gradient-to-b from-[#f8fafc] to-white">
+      <section className="py-12 sm:py-28 px-4 sm:px-6 bg-gradient-to-b from-[#f8fafc] to-white">
         <div className="max-w-6xl mx-auto">
-          <AnimatedSection className="text-center mb-16">
-            <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#eff6ff] text-[#2563eb] text-xs font-semibold mb-4">
+          <AnimatedSection className="text-center mb-8 sm:mb-16">
+            <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#eff6ff] text-[#2563eb] text-xs font-semibold mb-3 sm:mb-4">
               Возможности
             </motion.div>
-            <motion.h2 variants={fadeUp} custom={1} className="text-3xl sm:text-4xl font-extrabold text-[#0f172a] mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            <motion.h2 variants={fadeUp} custom={1} className="text-2xl sm:text-4xl font-extrabold text-[#0f172a] mb-2 sm:mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
               Что вы получаете
             </motion.h2>
-            <motion.p variants={fadeUp} custom={2} className="text-[#64748b] text-lg max-w-xl mx-auto">
+            <motion.p variants={fadeUp} custom={2} className="text-[#64748b] text-sm sm:text-lg max-w-xl mx-auto">
               Полноценная торговая система внутри Telegram
             </motion.p>
           </AnimatedSection>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
             {[
-              { icon: Bot, title: 'Собственный Telegram-бот', desc: 'Ваш бот — ваш бренд. Полная кастомизация приветствия, команд и интерфейса.' },
-              { icon: Globe, title: 'Готовая витрина магазина', desc: 'Красивый каталог с карточками товаров, категориями и поиском — работает как Mini App.' },
-              { icon: CreditCard, title: 'Приём крипто-платежей', desc: 'Интеграция с CryptoBot. Клиенты оплачивают в крипте — вы получаете мгновенно.' },
-              { icon: Zap, title: 'Автовыдача после оплаты', desc: 'Цифровые товары доставляются покупателю автоматически — 24/7 без вашего участия.' },
-              { icon: LayoutDashboard, title: 'Управление через /admin', desc: 'Товары, заказы, клиенты, промокоды, рассылки — всё через удобную админку в боте.' },
-              { icon: Palette, title: 'Настройка под свой стиль', desc: 'Цвет, название, описание, приветствие — магазин полностью ваш.' },
-              { icon: Boxes, title: 'Инвентарь и товары', desc: 'Загружайте инвентарь пакетами. Система сама отслеживает наличие и резервирует.' },
-              { icon: UserCheck, title: 'Профиль и подписка', desc: 'Личный кабинет, баланс, история платежей и управление подпиской.' },
-              { icon: TrendingUp, title: 'Масштабируемость', desc: 'Платформа берёт на себя инфраструктуру. Вы фокусируетесь на продажах.' },
+              { icon: Bot, title: 'Telegram-бот', desc: 'Ваш бот — ваш бренд. Полная кастомизация.' },
+              { icon: Globe, title: 'Витрина магазина', desc: 'Каталог с товарами, категориями и поиском.' },
+              { icon: CreditCard, title: 'Крипто-платежи', desc: 'CryptoBot — клиенты оплачивают мгновенно.' },
+              { icon: Zap, title: 'Автовыдача', desc: 'Товары доставляются автоматически 24/7.' },
+              { icon: LayoutDashboard, title: 'Админка в боте', desc: 'Товары, заказы, промокоды и рассылки.' },
+              { icon: Palette, title: 'Свой стиль', desc: 'Цвет, название, описание — ваш магазин.' },
+              { icon: Boxes, title: 'Инвентарь', desc: 'Загрузка пакетами, автотрекинг наличия.' },
+              { icon: UserCheck, title: 'Профиль', desc: 'Личный кабинет, баланс, история.' },
+              { icon: TrendingUp, title: 'Масштабируемость', desc: 'Инфраструктура на нас. Вы — продаёте.' },
             ].map((feature, i) => (
               <AnimatedSection key={i}>
                 <motion.div
                   variants={fadeUp}
                   custom={i % 3}
-                  className="bg-white rounded-2xl p-6 border border-[#e2e8f0] shadow-sm hover:shadow-xl hover:border-[#bfdbfe] hover:-translate-y-1 transition-all duration-300 h-full"
+                  className="bg-white rounded-xl sm:rounded-2xl p-3.5 sm:p-6 border border-[#e2e8f0] shadow-sm hover:shadow-xl hover:border-[#bfdbfe] hover:-translate-y-1 transition-all duration-300 h-full"
                 >
-                  <div className="w-11 h-11 rounded-xl bg-[#eff6ff] flex items-center justify-center mb-4">
-                    <feature.icon className="w-5.5 h-5.5 text-[#2563eb]" />
+                  <div className="w-9 sm:w-11 h-9 sm:h-11 rounded-lg sm:rounded-xl bg-[#eff6ff] flex items-center justify-center mb-2.5 sm:mb-4">
+                    <feature.icon className="w-4.5 sm:w-5.5 h-4.5 sm:h-5.5 text-[#2563eb]" />
                   </div>
-                  <h3 className="font-bold text-[15px] text-[#0f172a] mb-2">{feature.title}</h3>
-                  <p className="text-sm text-[#64748b] leading-relaxed">{feature.desc}</p>
+                  <h3 className="font-bold text-xs sm:text-[15px] text-[#0f172a] mb-1 sm:mb-2">{feature.title}</h3>
+                  <p className="text-[10px] sm:text-sm text-[#64748b] leading-relaxed">{feature.desc}</p>
                 </motion.div>
               </AnimatedSection>
             ))}
