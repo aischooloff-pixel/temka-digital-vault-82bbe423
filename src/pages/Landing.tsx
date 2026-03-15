@@ -449,7 +449,7 @@ export default function Landing() {
                   <CheckCircle2 className="w-5 sm:w-6 h-5 sm:h-6 text-[#16a34a]" />
                   <h3 className="font-bold text-sm sm:text-lg text-[#0f172a]">С ShopBot Platform</h3>
                 </div>
-                <ul className="space-y-3.5">
+                <ul className="space-y-2.5 sm:space-y-3.5">
                   {[
                     'Оплата через CryptoBot — автоматически',
                     'Товар выдаётся сразу после оплаты',
