@@ -1,7 +1,5 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import demoCatalog from '@/assets/demo-catalog.png';
-import demoCart from '@/assets/demo-cart.png';
-import demoProfile from '@/assets/demo-profile.png';
+import { useState, useRef, useCallback } from 'react';
+import storefrontScreenshot from '@/assets/storefront-screenshot.png';
 import { motion, useInView, type Variants } from 'framer-motion';
 import {
   Bot, Zap, ShoppingBag, CreditCard, Package, Settings, Users, Palette,
@@ -73,19 +71,6 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 // ─── Main Landing ─────────────────────────────
 export default function Landing() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const slides = [
-    { src: demoCatalog, label: 'Каталог', alt: 'Каталог цифровых товаров Your.Store' },
-    { src: demoCart, label: 'Корзина', alt: 'Корзина с товарами Your.Store' },
-    { src: demoProfile, label: 'Профиль', alt: 'Профиль покупателя Your.Store' },
-  ];
-
-  // Auto-rotate
-  useEffect(() => {
-    if (lightboxOpen) return;
-    const timer = setInterval(() => setCurrentSlide(p => (p + 1) % slides.length), 4000);
-    return () => clearInterval(timer);
-  }, [lightboxOpen, slides.length]);
 
   return (
     <>
@@ -96,8 +81,8 @@ export default function Landing() {
         onClick={() => setLightboxOpen(false)}
       >
         <img
-          src={slides[currentSlide].src}
-          alt={slides[currentSlide].alt}
+          src={storefrontScreenshot}
+          alt="Интерфейс Telegram-магазина"
           className="max-w-full max-h-[90vh] rounded-2xl shadow-2xl object-contain"
         />
       </div>
@@ -187,6 +172,7 @@ export default function Landing() {
             </motion.div>
           </AnimatedSection>
 
+          {/* Hero Visual — Real storefront screenshot */}
           <AnimatedSection className="mt-16 max-w-5xl mx-auto">
             <motion.div variants={fadeUp} custom={5} className="relative">
               {/* Label */}
@@ -198,7 +184,10 @@ export default function Landing() {
               {/* Glow behind */}
               <div className="absolute -inset-4 bg-gradient-to-b from-[#2563eb]/8 via-[#3b82f6]/5 to-transparent rounded-[2rem] blur-xl pointer-events-none" />
               {/* Browser frame */}
-              <div className="relative bg-[#1e1e2e] rounded-2xl sm:rounded-3xl shadow-2xl shadow-black/15 border border-[#334155]/50 overflow-hidden">
+              <div
+                className="relative bg-[#1e1e2e] rounded-2xl sm:rounded-3xl shadow-2xl shadow-black/15 border border-[#334155]/50 overflow-hidden cursor-zoom-in"
+                onClick={() => setLightboxOpen(true)}
+              >
                 {/* Browser bar */}
                 <div className="flex items-center gap-2 px-4 sm:px-5 py-3 bg-[#282838] border-b border-[#334155]/50">
                   <div className="flex gap-1.5">
@@ -207,60 +196,16 @@ export default function Landing() {
                     <div className="w-3 h-3 rounded-full bg-[#28c840]" />
                   </div>
                   <div className="flex-1 h-7 bg-[#1e1e2e] rounded-md flex items-center px-3 text-xs text-[#94a3b8] font-mono">
-                    your.store.shopbot.app
+                    yourshop.shopbot.app
                   </div>
                 </div>
-                {/* Carousel */}
-                <div className="relative overflow-hidden cursor-zoom-in" onClick={() => setLightboxOpen(true)}>
-                  <div
-                    className="flex transition-transform duration-500 ease-in-out"
-                    style={{ transform: `translateX(-${currentSlide * 100}%)` }}
-                  >
-                    {slides.map((slide, i) => (
-                      <img
-                        key={i}
-                        src={slide.src}
-                        alt={slide.alt}
-                        className="w-full shrink-0 block"
-                        loading={i === 0 ? 'eager' : 'lazy'}
-                      />
-                    ))}
-                  </div>
-                </div>
-                {/* Carousel controls */}
-                <div className="flex items-center justify-between px-4 sm:px-5 py-3 bg-[#282838] border-t border-[#334155]/50">
-                  {/* Dots */}
-                  <div className="flex items-center gap-2">
-                    {slides.map((slide, i) => (
-                      <button
-                        key={i}
-                        onClick={(e) => { e.stopPropagation(); setCurrentSlide(i); }}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
-                          i === currentSlide
-                            ? 'bg-[#2563eb] text-white'
-                            : 'bg-[#1e1e2e] text-[#94a3b8] hover:text-white'
-                        }`}
-                      >
-                        {slide.label}
-                      </button>
-                    ))}
-                  </div>
-                  {/* Arrows */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setCurrentSlide(p => (p - 1 + slides.length) % slides.length); }}
-                      className="w-7 h-7 rounded-full bg-[#1e1e2e] text-[#94a3b8] hover:text-white flex items-center justify-center transition-colors"
-                    >
-                      ‹
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setCurrentSlide(p => (p + 1) % slides.length); }}
-                      className="w-7 h-7 rounded-full bg-[#1e1e2e] text-[#94a3b8] hover:text-white flex items-center justify-center transition-colors"
-                    >
-                      ›
-                    </button>
-                  </div>
-                </div>
+                {/* Screenshot */}
+                <img
+                  src={storefrontScreenshot}
+                  alt="Интерфейс Telegram-магазина на платформе ShopBot — готовая витрина цифровых товаров"
+                  className="w-full block"
+                  loading="eager"
+                />
               </div>
             </motion.div>
           </AnimatedSection>
