@@ -556,7 +556,7 @@ export default function Landing() {
                 <p className="text-xs sm:text-sm text-[#64748b] mt-2">7 дней бесплатно для новых пользователей</p>
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-3 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 mb-6 sm:mb-8">
                 {[
                   '1 Telegram-магазин',
                   'Собственный бот',
