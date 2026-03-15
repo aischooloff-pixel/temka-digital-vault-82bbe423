@@ -277,21 +277,21 @@ export default function Landing() {
       </section>
 
       {/* ═══ 3. HOW IT WORKS ═══ */}
-      <section id="how-it-works" className="py-20 sm:py-28 px-4 sm:px-6">
+      <section id="how-it-works" className="py-12 sm:py-28 px-4 sm:px-6">
         <div className="max-w-5xl mx-auto">
-          <AnimatedSection className="text-center mb-16">
-            <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#eff6ff] text-[#2563eb] text-xs font-semibold mb-4">
+          <AnimatedSection className="text-center mb-8 sm:mb-16">
+            <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#eff6ff] text-[#2563eb] text-xs font-semibold mb-3 sm:mb-4">
               Просто и быстро
             </motion.div>
-            <motion.h2 variants={fadeUp} custom={1} className="text-3xl sm:text-4xl font-extrabold text-[#0f172a] mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            <motion.h2 variants={fadeUp} custom={1} className="text-2xl sm:text-4xl font-extrabold text-[#0f172a] mb-2 sm:mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
               Как это работает
             </motion.h2>
-            <motion.p variants={fadeUp} custom={2} className="text-[#64748b] text-lg max-w-xl mx-auto">
+            <motion.p variants={fadeUp} custom={2} className="text-[#64748b] text-sm sm:text-lg max-w-xl mx-auto">
               От идеи до работающего магазина — 5 простых шагов
             </motion.p>
           </AnimatedSection>
 
-          <div className="grid sm:grid-cols-5 gap-6 sm:gap-4">
+          <div className="flex sm:grid sm:grid-cols-5 gap-3 sm:gap-4 overflow-x-auto pb-2 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x snap-mandatory scrollbar-hide">
             {[
               { step: '1', icon: Store, title: 'Создайте магазин', desc: 'Пройдите онбординг в платформенном боте' },
               { step: '2', icon: Bot, title: 'Подключите бота', desc: 'Привяжите своего Telegram-бота' },
@@ -303,14 +303,14 @@ export default function Landing() {
                 <motion.div
                   variants={fadeUp}
                   custom={i}
-                  className="relative bg-white rounded-2xl p-6 border border-[#e2e8f0] shadow-sm hover:shadow-lg hover:border-[#bfdbfe] transition-all duration-300 text-center h-full"
+                  className="relative bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-[#e2e8f0] shadow-sm hover:shadow-lg hover:border-[#bfdbfe] transition-all duration-300 text-center h-full min-w-[140px] sm:min-w-0 snap-start"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#2563eb] to-[#3b82f6] text-white font-bold text-lg flex items-center justify-center mx-auto mb-4 shadow-md shadow-blue-500/20">
+                  <div className="w-8 sm:w-10 h-8 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-[#2563eb] to-[#3b82f6] text-white font-bold text-sm sm:text-lg flex items-center justify-center mx-auto mb-2 sm:mb-4 shadow-md shadow-blue-500/20">
                     {item.step}
                   </div>
-                  <item.icon className="w-6 h-6 text-[#2563eb] mx-auto mb-3" />
-                  <h3 className="font-bold text-sm text-[#0f172a] mb-1.5">{item.title}</h3>
-                  <p className="text-xs text-[#64748b] leading-relaxed">{item.desc}</p>
+                  <item.icon className="w-5 sm:w-6 h-5 sm:h-6 text-[#2563eb] mx-auto mb-2 sm:mb-3" />
+                  <h3 className="font-bold text-xs sm:text-sm text-[#0f172a] mb-1">{item.title}</h3>
+                  <p className="text-[10px] sm:text-xs text-[#64748b] leading-relaxed">{item.desc}</p>
                 </motion.div>
               </AnimatedSection>
             ))}
