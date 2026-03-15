@@ -513,11 +513,11 @@ export default function Landing() {
                 <motion.div
                   variants={fadeUp}
                   custom={i % 2}
-                  className={`bg-gradient-to-br ${screen.gradient} rounded-2xl p-6 sm:p-8 border border-white/60 shadow-sm hover:shadow-xl transition-all duration-300`}
+                  className={`bg-gradient-to-br ${screen.gradient} rounded-xl sm:rounded-2xl p-4 sm:p-8 border border-white/60 shadow-sm hover:shadow-xl transition-all duration-300`}
                 >
-                  <screen.icon className="w-10 h-10 text-[#2563eb] mb-4" />
-                  <h3 className="font-bold text-lg text-[#0f172a] mb-2">{screen.title}</h3>
-                  <p className="text-sm text-[#475569] leading-relaxed">{screen.desc}</p>
+                  <screen.icon className="w-7 sm:w-10 h-7 sm:h-10 text-[#2563eb] mb-2 sm:mb-4" />
+                  <h3 className="font-bold text-sm sm:text-lg text-[#0f172a] mb-1 sm:mb-2">{screen.title}</h3>
+                  <p className="text-[10px] sm:text-sm text-[#475569] leading-relaxed">{screen.desc}</p>
                 </motion.div>
               </AnimatedSection>
             ))}
