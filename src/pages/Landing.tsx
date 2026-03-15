@@ -74,6 +74,22 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 // ─── Main Landing ─────────────────────────────
 export default function Landing() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState('');
+  const [activeSlide, setActiveSlide] = useState(0);
+
+  const slides = [
+    { src: storefrontScreenshot, label: 'Главная', alt: 'Главная страница магазина' },
+    { src: screenshotCatalog, label: 'Каталог', alt: 'Каталог товаров' },
+    { src: screenshotCart, label: 'Корзина', alt: 'Корзина с товарами' },
+    { src: screenshotProfile, label: 'Профиль', alt: 'Профиль пользователя' },
+  ];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % slides.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [slides.length]);
 
   return (
     <>
