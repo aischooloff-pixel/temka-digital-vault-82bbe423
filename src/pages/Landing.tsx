@@ -364,38 +364,38 @@ export default function Landing() {
       </section>
 
       {/* ═══ 5. TARGET AUDIENCE ═══ */}
-      <section className="py-20 sm:py-28 px-4 sm:px-6">
+      <section className="py-12 sm:py-28 px-4 sm:px-6">
         <div className="max-w-5xl mx-auto">
-          <AnimatedSection className="text-center mb-16">
-            <motion.h2 variants={fadeUp} custom={0} className="text-3xl sm:text-4xl font-extrabold text-[#0f172a] mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+          <AnimatedSection className="text-center mb-8 sm:mb-16">
+            <motion.h2 variants={fadeUp} custom={0} className="text-2xl sm:text-4xl font-extrabold text-[#0f172a] mb-2 sm:mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
               Для кого это
             </motion.h2>
-            <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-lg max-w-xl mx-auto">
+            <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-sm sm:text-lg max-w-xl mx-auto">
               ShopBot Platform подходит всем, кто продаёт цифровые товары в Telegram
             </motion.p>
           </AnimatedSection>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
             {[
-              { icon: Key, title: 'Продавцы аккаунтов', desc: 'Игровые аккаунты, соцсети, сервисы — с автовыдачей и защитой.' },
-              { icon: MonitorSmartphone, title: 'Продавцы подписок', desc: 'VPN, стриминг, SaaS — продавайте ключи активации автоматически.' },
-              { icon: Users, title: 'Владельцы каналов', desc: 'Монетизируйте аудиторию — встроенный магазин прямо в экосистеме Telegram.' },
-              { icon: Code2, title: 'Продавцы софта', desc: 'Скрипты, боты, плагины — загрузите файлы и продавайте 24/7.' },
-              { icon: Package, title: 'Дропшипперы digital', desc: 'Масштабируйте продажи без ручной обработки каждого заказа.' },
-              { icon: Rocket, title: 'Стартаперы', desc: 'Запустите MVP магазина за минуты. Без разработчиков и серверов.' },
+              { icon: Key, title: 'Продавцы аккаунтов', desc: 'Игровые, соцсети, сервисы' },
+              { icon: MonitorSmartphone, title: 'Подписки', desc: 'VPN, стриминг, SaaS' },
+              { icon: Users, title: 'Владельцы каналов', desc: 'Монетизация аудитории' },
+              { icon: Code2, title: 'Софт', desc: 'Скрипты, боты, плагины' },
+              { icon: Package, title: 'Дропшипперы', desc: 'Масштаб без ручной работы' },
+              { icon: Rocket, title: 'Стартаперы', desc: 'MVP за минуты' },
             ].map((item, i) => (
               <AnimatedSection key={i}>
                 <motion.div
                   variants={fadeUp}
                   custom={i % 3}
-                  className="flex gap-4 bg-white rounded-2xl p-5 border border-[#e2e8f0] shadow-sm hover:shadow-lg transition-all duration-300"
+                  className="flex gap-3 sm:gap-4 bg-white rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-[#e2e8f0] shadow-sm hover:shadow-lg transition-all duration-300"
                 >
-                  <div className="w-11 h-11 rounded-xl bg-[#eff6ff] flex items-center justify-center shrink-0">
-                    <item.icon className="w-5 h-5 text-[#2563eb]" />
+                  <div className="w-9 sm:w-11 h-9 sm:h-11 rounded-lg sm:rounded-xl bg-[#eff6ff] flex items-center justify-center shrink-0">
+                    <item.icon className="w-4 sm:w-5 h-4 sm:h-5 text-[#2563eb]" />
                   </div>
-                  <div>
-                    <h3 className="font-bold text-sm text-[#0f172a] mb-1">{item.title}</h3>
-                    <p className="text-xs text-[#64748b] leading-relaxed">{item.desc}</p>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-xs sm:text-sm text-[#0f172a] mb-0.5">{item.title}</h3>
+                    <p className="text-[10px] sm:text-xs text-[#64748b] leading-relaxed">{item.desc}</p>
                   </div>
                 </motion.div>
               </AnimatedSection>
