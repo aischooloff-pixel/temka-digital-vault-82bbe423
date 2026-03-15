@@ -100,7 +100,7 @@ export default function Landing() {
         onClick={() => setLightboxOpen(false)}
       >
         <img
-          src={storefrontScreenshot}
+          src={lightboxImage}
           alt="Интерфейс Telegram-магазина"
           className="max-w-full max-h-[90vh] rounded-2xl shadow-2xl object-contain"
         />
