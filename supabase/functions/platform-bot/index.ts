@@ -773,7 +773,7 @@ async function myShops(tg: ReturnType<typeof TG>, chatId: number, msgId?: number
   const { data: shop } = await db().from("shops").select("*").eq("owner_id", user.id).maybeSingle();
   if (!shop) {
     const text =
-      "🏪 <b>Мой магазин</b>\n\n📭 У тебя пока нет магазина.\n\nСоздай свой первый Telegram магазин\nс автовыдачей за несколько минут!";
+      "🏪 <b>Мой магазин</b>\n\n📭 У тебя пока нет магазина.\n\nСоздай свой первый Telegram магазин\nс mini-app за несколько минут!";
     const kb = ikb([
       [btn("🏪 Создать магазин", "p:create")],
       [btn("📖 Как это работает", "p:howitworks")],
