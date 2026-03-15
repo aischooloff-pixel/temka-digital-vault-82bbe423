@@ -471,18 +471,18 @@ export default function Landing() {
       </section>
 
       {/* ═══ 7. PRODUCT SHOWCASE ═══ */}
-      <section className="py-20 sm:py-28 px-4 sm:px-6">
+      <section className="py-12 sm:py-28 px-4 sm:px-6">
         <div className="max-w-5xl mx-auto">
-          <AnimatedSection className="text-center mb-16">
-            <motion.h2 variants={fadeUp} custom={0} className="text-3xl sm:text-4xl font-extrabold text-[#0f172a] mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+          <AnimatedSection className="text-center mb-8 sm:mb-16">
+            <motion.h2 variants={fadeUp} custom={0} className="text-2xl sm:text-4xl font-extrabold text-[#0f172a] mb-2 sm:mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
               Интерфейс, который продаёт
             </motion.h2>
-            <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-lg max-w-xl mx-auto">
+            <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-sm sm:text-lg max-w-xl mx-auto">
               Готовый продукт — не прототип. Каждый экран продуман до деталей.
             </motion.p>
           </AnimatedSection>
 
-          <div className="grid sm:grid-cols-2 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 gap-3 sm:gap-6">
             {[
               {
                 title: 'Витрина магазина',
