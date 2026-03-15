@@ -20,7 +20,7 @@ const fadeUp: Variants = {
   })
 };
 
-const staggerContainer = {
+const staggerContainer: Variants = {
   hidden: {},
   visible: { transition: { staggerChildren: 0.08 } }
 };
