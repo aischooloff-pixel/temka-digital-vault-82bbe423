@@ -224,6 +224,17 @@ function subscriptionDaysLeft(expiresAt: string | null): number {
   return Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000);
 }
 
+// Display version: uses calendar day boundaries (UTC) so the count decreases
+// at midnight UTC every day, matching user expectations ("day passed → number decreased").
+function subscriptionDaysLeftDisplay(expiresAt: string | null): number {
+  if (!expiresAt) return 0;
+  const now = new Date();
+  const end = new Date(expiresAt);
+  const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const endUTC = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
+  return Math.max(0, Math.round((endUTC - todayUTC) / 86400000));
+}
+
 function subStatusLabel(status: string): string {
   const map: Record<string, string> = {
     active: "✅ Активна",
