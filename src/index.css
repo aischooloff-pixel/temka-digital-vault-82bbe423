@@ -84,9 +84,9 @@
 
   /* Scrollbar */
   ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: hsl(225, 15%, 8%); }
-  ::-webkit-scrollbar-thumb { background: hsl(225, 12%, 20%); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: hsl(225, 12%, 30%); }
+  ::-webkit-scrollbar-track { background: hsl(214, 25%, 95%); }
+  ::-webkit-scrollbar-thumb { background: hsl(214, 20%, 82%); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(214, 20%, 72%); }
 }
 
 @layer components {
