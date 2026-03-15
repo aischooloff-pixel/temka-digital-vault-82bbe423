@@ -591,15 +591,15 @@ export default function Landing() {
       </section>
 
       {/* ═══ 9. FAQ ═══ */}
-      <section className="py-20 sm:py-28 px-4 sm:px-6">
+      <section className="py-12 sm:py-28 px-4 sm:px-6">
         <div className="max-w-3xl mx-auto">
-          <AnimatedSection className="text-center mb-12">
-            <motion.h2 variants={fadeUp} custom={0} className="text-3xl sm:text-4xl font-extrabold text-[#0f172a] mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+          <AnimatedSection className="text-center mb-6 sm:mb-12">
+            <motion.h2 variants={fadeUp} custom={0} className="text-2xl sm:text-4xl font-extrabold text-[#0f172a] mb-2 sm:mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
               Частые вопросы
             </motion.h2>
           </AnimatedSection>
 
-          <div className="bg-white rounded-2xl border border-[#e2e8f0] shadow-sm p-6 sm:p-8">
+          <div className="bg-white rounded-xl sm:rounded-2xl border border-[#e2e8f0] shadow-sm p-4 sm:p-8">
             <FAQItem
               q="Нужны ли навыки программирования?"
               a="Нет. Весь процесс создания магазина — это пошаговый онбординг в Telegram-боте. Вам нужно только отвечать на вопросы и нажимать кнопки."
