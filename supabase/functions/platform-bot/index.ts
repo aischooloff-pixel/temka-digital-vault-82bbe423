@@ -719,7 +719,7 @@ async function howItWorks(tg: ReturnType<typeof TG>, chatId: number, msgId: numb
     msgId,
     text,
     ikb([
-      [urlBtn("📚 Подробная информация", `${WEBAPP_DOMAIN}/landing`)],
+      [urlBtn("📚 Подробная информация", `t.me/sazcawd2bot/landing`)],
       [btn("🏪 Создать магазин", "p:create")],
       [btn("◀️ Назад", "p:home")],
     ]),
