@@ -137,7 +137,7 @@ export default function Landing() {
       </header>
 
       {/* ═══ 1. HERO ═══ */}
-      <section className="relative overflow-hidden pt-16 sm:pt-24 pb-20 sm:pb-28 px-4 sm:px-6">
+      <section className="relative overflow-hidden pt-10 sm:pt-24 pb-12 sm:pb-28 px-4 sm:px-6">
         {/* Background decorations */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-20 -right-32 w-96 h-96 rounded-full bg-blue-400/10 blur-3xl" />
