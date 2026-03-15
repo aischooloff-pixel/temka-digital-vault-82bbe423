@@ -914,7 +914,7 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
   let daysLeftText = "";
   // Don't show days left / expiry for cancelled or blocked statuses
   if (user.subscription_expires_at && !["cancelled", "blocked", "none"].includes(user.subscription_status)) {
-    const dLeft = subscriptionDaysLeft(user.subscription_expires_at);
+    const dLeft = subscriptionDaysLeftDisplay(user.subscription_expires_at);
     if (dLeft > 0) {
       daysLeftText = `\n⏳ Осталось: <b>${dLeft}</b> ${dLeft === 1 ? "день" : dLeft < 5 ? "дня" : "дней"}`;
       daysLeftText += `\n📅 До: ${new Date(user.subscription_expires_at).toLocaleDateString("ru")}`;

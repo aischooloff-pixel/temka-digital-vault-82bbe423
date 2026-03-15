@@ -64,7 +64,12 @@ const statusConfig: Record<string, { label: string; color: string; bg: string; i
 
 function daysUntil(dateStr: string | null): number | null {
   if (!dateStr) return null;
-  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  // Use calendar day boundaries (UTC) so countdown decreases daily at midnight UTC
+  const now = new Date();
+  const end = new Date(dateStr);
+  const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const endUTC = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
+  return Math.max(0, Math.round((endUTC - todayUTC) / (1000 * 60 * 60 * 24)));
 }
 
 function formatDate(dateStr: string | null): string {
