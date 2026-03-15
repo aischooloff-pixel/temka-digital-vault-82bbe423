@@ -1,5 +1,8 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import storefrontScreenshot from '@/assets/storefront-screenshot.png';
+import screenshotCatalog from '@/assets/screenshot-catalog.png';
+import screenshotCart from '@/assets/screenshot-cart.png';
+import screenshotProfile from '@/assets/screenshot-profile.png';
 import { motion, useInView, type Variants } from 'framer-motion';
 import {
   Bot, Zap, ShoppingBag, CreditCard, Package, Settings, Users, Palette,
