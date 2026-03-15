@@ -416,7 +416,7 @@ export default function Landing() {
             </motion.p>
           </AnimatedSection>
 
-          <div className="grid sm:grid-cols-2 gap-6">
+          <div className="grid sm:grid-cols-2 gap-4 sm:gap-6">
             {/* Pains */}
             <AnimatedSection>
               <motion.div variants={fadeUp} custom={0} className="bg-white rounded-2xl border border-[#fecaca]/60 p-6 sm:p-8 h-full">
