@@ -424,7 +424,7 @@ export default function Landing() {
                   <XCircle className="w-5 sm:w-6 h-5 sm:h-6 text-[#ef4444]" />
                   <h3 className="font-bold text-sm sm:text-lg text-[#0f172a]">Без платформы</h3>
                 </div>
-                <ul className="space-y-3.5">
+                <ul className="space-y-2.5 sm:space-y-3.5">
                   {[
                     'Вручную принимать оплату в каждом чате',
                     'Копировать и отправлять товар руками',
