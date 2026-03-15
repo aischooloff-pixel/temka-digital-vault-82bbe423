@@ -70,7 +70,23 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 
 // ─── Main Landing ─────────────────────────────
 export default function Landing() {
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
   return (
+    <>
+    {/* Lightbox */}
+    {lightboxOpen && (
+      <div
+        className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out"
+        onClick={() => setLightboxOpen(false)}
+      >
+        <img
+          src={storefrontScreenshot}
+          alt="Интерфейс Telegram-магазина"
+          className="max-w-full max-h-[90vh] rounded-2xl shadow-2xl object-contain"
+        />
+      </div>
+    )}
     <div
       className="min-h-screen antialiased"
       style={{
