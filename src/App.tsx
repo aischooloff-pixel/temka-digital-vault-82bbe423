@@ -26,6 +26,7 @@ import PlatformPrivacy from "./pages/PlatformPrivacy";
 import PlatformDisclaimer from "./pages/PlatformDisclaimer";
 import PlatformProfile from "./pages/PlatformProfile";
 import NotFound from "./pages/NotFound";
+import Landing from "./pages/Landing";
 import { Outlet } from "react-router-dom";
 
 const MainLayoutInner = () => {
