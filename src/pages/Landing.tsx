@@ -137,7 +137,7 @@ export default function Landing() {
       </header>
 
       {/* ═══ 1. HERO ═══ */}
-      <section className="relative overflow-hidden pt-16 sm:pt-24 pb-20 sm:pb-28 px-4 sm:px-6">
+      <section className="relative overflow-hidden pt-10 sm:pt-24 pb-12 sm:pb-28 px-4 sm:px-6">
         {/* Background decorations */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-20 -right-32 w-96 h-96 rounded-full bg-blue-400/10 blur-3xl" />
@@ -147,13 +147,13 @@ export default function Landing() {
 
         <div className="max-w-6xl mx-auto relative">
           <AnimatedSection className="max-w-3xl mx-auto text-center">
-            <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#eff6ff] border border-[#bfdbfe] text-[#2563eb] text-sm font-medium mb-6">
+            <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#eff6ff] border border-[#bfdbfe] text-[#2563eb] text-xs sm:text-sm font-medium mb-4 sm:mb-6">
               <Sparkles className="w-4 h-4" /> Telegram-first платформа для продаж
             </motion.div>
 
             <motion.h1
               variants={fadeUp} custom={1}
-              className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.1] tracking-tight text-[#0f172a] mb-6"
+              className="text-[28px] sm:text-5xl lg:text-6xl font-extrabold leading-[1.15] tracking-tight text-[#0f172a] mb-4 sm:mb-6"
               style={{ fontFamily: "'Space Grotesk', sans-serif" }}
             >
               Создайте свой<br />
@@ -161,29 +161,29 @@ export default function Landing() {
               цифровых товаров
             </motion.h1>
 
-            <motion.p variants={fadeUp} custom={2} className="text-lg sm:text-xl text-[#64748b] max-w-2xl mx-auto mb-8 leading-relaxed">
+            <motion.p variants={fadeUp} custom={2} className="text-sm sm:text-xl text-[#64748b] max-w-2xl mx-auto mb-6 sm:mb-8 leading-relaxed">
               Собственный бот, готовая витрина, приём оплаты через CryptoBot и автоматическая выдача товаров 24/7 — без кода, хостинга и ручной работы.
             </motion.p>
 
-            <motion.div variants={fadeUp} custom={3} className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-10">
+            <motion.div variants={fadeUp} custom={3} className="flex flex-col sm:flex-row items-center justify-center gap-2.5 sm:gap-3 mb-6 sm:mb-10">
               <a
                 href={PLATFORM_BOT_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white text-base font-bold shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.02] transition-all duration-200 w-full sm:w-auto justify-center"
+                className="inline-flex items-center gap-2.5 px-6 sm:px-8 py-3 sm:py-4 rounded-2xl bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white text-sm sm:text-base font-bold shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.02] transition-all duration-200 w-full sm:w-auto justify-center"
               >
                 <Send className="w-5 h-5" /> Создать магазин
               </a>
               <a
                 href="#how-it-works"
-                className="inline-flex items-center gap-2 px-6 py-4 rounded-2xl border-2 border-[#e2e8f0] text-[#475569] text-base font-semibold hover:border-[#2563eb]/30 hover:text-[#2563eb] transition-all duration-200 w-full sm:w-auto justify-center"
+                className="inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-4 rounded-2xl border-2 border-[#e2e8f0] text-[#475569] text-sm sm:text-base font-semibold hover:border-[#2563eb]/30 hover:text-[#2563eb] transition-all duration-200 w-full sm:w-auto justify-center"
               >
                 Как это работает <ChevronRight className="w-4 h-4" />
               </a>
             </motion.div>
 
             {/* Trust bullets */}
-            <motion.div variants={fadeUp} custom={4} className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-[#64748b]">
+            <motion.div variants={fadeUp} custom={4} className="flex flex-wrap items-center justify-center gap-x-4 sm:gap-x-6 gap-y-1.5 text-xs sm:text-sm text-[#64748b]">
               <span className="flex items-center gap-1.5"><Zap className="w-4 h-4 text-[#2563eb]" /> Запуск за 5 минут</span>
               <span className="flex items-center gap-1.5"><Shield className="w-4 h-4 text-[#2563eb]" /> Без программирования</span>
               <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-[#2563eb]" /> Автовыдача 24/7</span>
@@ -192,7 +192,7 @@ export default function Landing() {
           </AnimatedSection>
 
           {/* Hero Visual — Storefront screenshots carousel */}
-          <AnimatedSection className="mt-16 max-w-5xl mx-auto">
+          <AnimatedSection className="mt-10 sm:mt-16 max-w-5xl mx-auto">
             <motion.div variants={fadeUp} custom={5} className="relative">
               {/* Label */}
               <div className="text-center mb-4">
@@ -216,7 +216,7 @@ export default function Landing() {
                   </div>
                 </div>
                 {/* Carousel */}
-                <div className="relative overflow-hidden cursor-zoom-in max-h-[600px]" onClick={() => { setLightboxImage(slides[activeSlide].src); setLightboxOpen(true); }}>
+                <div className="relative overflow-hidden cursor-zoom-in max-h-[400px] sm:max-h-[600px]" onClick={() => { setLightboxImage(slides[activeSlide].src); setLightboxOpen(true); }}>
                   <div
                     className="flex transition-transform duration-500 ease-in-out"
                     style={{ transform: `translateX(-${activeSlide * 100}%)` }}
@@ -234,7 +234,7 @@ export default function Landing() {
                 </div>
               </div>
               {/* Slide indicators & labels */}
-              <div className="flex items-center justify-center gap-3 mt-5">
+              <div className="flex items-center justify-center gap-2 sm:gap-3 mt-4 sm:mt-5">
                 {slides.map((slide, i) => (
                   <button
                     key={i}
@@ -256,7 +256,7 @@ export default function Landing() {
 
       {/* ═══ 2. TRUST STRIP ═══ */}
       <section className="border-y border-[#e2e8f0] bg-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-8">
             {[
               { icon: Rocket, label: 'Запуск за минуты', desc: 'Онбординг из 7 шагов' },
@@ -266,9 +266,9 @@ export default function Landing() {
             ].map((item, i) => (
               <AnimatedSection key={i} className="text-center">
                 <motion.div variants={fadeUp} custom={i}>
-                  <item.icon className="w-7 h-7 text-[#2563eb] mx-auto mb-2.5" />
-                  <div className="font-bold text-sm text-[#0f172a]">{item.label}</div>
-                  <div className="text-xs text-[#94a3b8] mt-0.5">{item.desc}</div>
+                  <item.icon className="w-6 sm:w-7 h-6 sm:h-7 text-[#2563eb] mx-auto mb-2" />
+                  <div className="font-bold text-xs sm:text-sm text-[#0f172a]">{item.label}</div>
+                  <div className="text-[10px] sm:text-xs text-[#94a3b8] mt-0.5">{item.desc}</div>
                 </motion.div>
               </AnimatedSection>
             ))}
@@ -277,21 +277,21 @@ export default function Landing() {
       </section>
 
       {/* ═══ 3. HOW IT WORKS ═══ */}
-      <section id="how-it-works" className="py-20 sm:py-28 px-4 sm:px-6">
+      <section id="how-it-works" className="py-12 sm:py-28 px-4 sm:px-6">
         <div className="max-w-5xl mx-auto">
-          <AnimatedSection className="text-center mb-16">
-            <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#eff6ff] text-[#2563eb] text-xs font-semibold mb-4">
+          <AnimatedSection className="text-center mb-8 sm:mb-16">
+            <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#eff6ff] text-[#2563eb] text-xs font-semibold mb-3 sm:mb-4">
               Просто и быстро
             </motion.div>
-            <motion.h2 variants={fadeUp} custom={1} className="text-3xl sm:text-4xl font-extrabold text-[#0f172a] mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            <motion.h2 variants={fadeUp} custom={1} className="text-2xl sm:text-4xl font-extrabold text-[#0f172a] mb-2 sm:mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
               Как это работает
             </motion.h2>
-            <motion.p variants={fadeUp} custom={2} className="text-[#64748b] text-lg max-w-xl mx-auto">
+            <motion.p variants={fadeUp} custom={2} className="text-[#64748b] text-sm sm:text-lg max-w-xl mx-auto">
               От идеи до работающего магазина — 5 простых шагов
             </motion.p>
           </AnimatedSection>
 
-          <div className="grid sm:grid-cols-5 gap-6 sm:gap-4">
+          <div className="flex sm:grid sm:grid-cols-5 gap-3 sm:gap-4 overflow-x-auto pb-2 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x snap-mandatory scrollbar-hide">
             {[
               { step: '1', icon: Store, title: 'Создайте магазин', desc: 'Пройдите онбординг в платформенном боте' },
               { step: '2', icon: Bot, title: 'Подключите бота', desc: 'Привяжите своего Telegram-бота' },
@@ -303,14 +303,14 @@ export default function Landing() {
                 <motion.div
                   variants={fadeUp}
                   custom={i}
-                  className="relative bg-white rounded-2xl p-6 border border-[#e2e8f0] shadow-sm hover:shadow-lg hover:border-[#bfdbfe] transition-all duration-300 text-center h-full"
+                  className="relative bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-[#e2e8f0] shadow-sm hover:shadow-lg hover:border-[#bfdbfe] transition-all duration-300 text-center h-full min-w-[140px] sm:min-w-0 snap-start"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#2563eb] to-[#3b82f6] text-white font-bold text-lg flex items-center justify-center mx-auto mb-4 shadow-md shadow-blue-500/20">
+                  <div className="w-8 sm:w-10 h-8 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-[#2563eb] to-[#3b82f6] text-white font-bold text-sm sm:text-lg flex items-center justify-center mx-auto mb-2 sm:mb-4 shadow-md shadow-blue-500/20">
                     {item.step}
                   </div>
-                  <item.icon className="w-6 h-6 text-[#2563eb] mx-auto mb-3" />
-                  <h3 className="font-bold text-sm text-[#0f172a] mb-1.5">{item.title}</h3>
-                  <p className="text-xs text-[#64748b] leading-relaxed">{item.desc}</p>
+                  <item.icon className="w-5 sm:w-6 h-5 sm:h-6 text-[#2563eb] mx-auto mb-2 sm:mb-3" />
+                  <h3 className="font-bold text-xs sm:text-sm text-[#0f172a] mb-1">{item.title}</h3>
+                  <p className="text-[10px] sm:text-xs text-[#64748b] leading-relaxed">{item.desc}</p>
                 </motion.div>
               </AnimatedSection>
             ))}
@@ -319,43 +319,43 @@ export default function Landing() {
       </section>
 
       {/* ═══ 4. FEATURES ═══ */}
-      <section className="py-20 sm:py-28 px-4 sm:px-6 bg-gradient-to-b from-[#f8fafc] to-white">
+      <section className="py-12 sm:py-28 px-4 sm:px-6 bg-gradient-to-b from-[#f8fafc] to-white">
         <div className="max-w-6xl mx-auto">
-          <AnimatedSection className="text-center mb-16">
-            <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#eff6ff] text-[#2563eb] text-xs font-semibold mb-4">
+          <AnimatedSection className="text-center mb-8 sm:mb-16">
+            <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#eff6ff] text-[#2563eb] text-xs font-semibold mb-3 sm:mb-4">
               Возможности
             </motion.div>
-            <motion.h2 variants={fadeUp} custom={1} className="text-3xl sm:text-4xl font-extrabold text-[#0f172a] mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            <motion.h2 variants={fadeUp} custom={1} className="text-2xl sm:text-4xl font-extrabold text-[#0f172a] mb-2 sm:mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
               Что вы получаете
             </motion.h2>
-            <motion.p variants={fadeUp} custom={2} className="text-[#64748b] text-lg max-w-xl mx-auto">
+            <motion.p variants={fadeUp} custom={2} className="text-[#64748b] text-sm sm:text-lg max-w-xl mx-auto">
               Полноценная торговая система внутри Telegram
             </motion.p>
           </AnimatedSection>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
             {[
-              { icon: Bot, title: 'Собственный Telegram-бот', desc: 'Ваш бот — ваш бренд. Полная кастомизация приветствия, команд и интерфейса.' },
-              { icon: Globe, title: 'Готовая витрина магазина', desc: 'Красивый каталог с карточками товаров, категориями и поиском — работает как Mini App.' },
-              { icon: CreditCard, title: 'Приём крипто-платежей', desc: 'Интеграция с CryptoBot. Клиенты оплачивают в крипте — вы получаете мгновенно.' },
-              { icon: Zap, title: 'Автовыдача после оплаты', desc: 'Цифровые товары доставляются покупателю автоматически — 24/7 без вашего участия.' },
-              { icon: LayoutDashboard, title: 'Управление через /admin', desc: 'Товары, заказы, клиенты, промокоды, рассылки — всё через удобную админку в боте.' },
-              { icon: Palette, title: 'Настройка под свой стиль', desc: 'Цвет, название, описание, приветствие — магазин полностью ваш.' },
-              { icon: Boxes, title: 'Инвентарь и товары', desc: 'Загружайте инвентарь пакетами. Система сама отслеживает наличие и резервирует.' },
-              { icon: UserCheck, title: 'Профиль и подписка', desc: 'Личный кабинет, баланс, история платежей и управление подпиской.' },
-              { icon: TrendingUp, title: 'Масштабируемость', desc: 'Платформа берёт на себя инфраструктуру. Вы фокусируетесь на продажах.' },
+              { icon: Bot, title: 'Telegram-бот', desc: 'Ваш бот — ваш бренд. Полная кастомизация.' },
+              { icon: Globe, title: 'Витрина магазина', desc: 'Каталог с товарами, категориями и поиском.' },
+              { icon: CreditCard, title: 'Крипто-платежи', desc: 'CryptoBot — клиенты оплачивают мгновенно.' },
+              { icon: Zap, title: 'Автовыдача', desc: 'Товары доставляются автоматически 24/7.' },
+              { icon: LayoutDashboard, title: 'Админка в боте', desc: 'Товары, заказы, промокоды и рассылки.' },
+              { icon: Palette, title: 'Свой стиль', desc: 'Цвет, название, описание — ваш магазин.' },
+              { icon: Boxes, title: 'Инвентарь', desc: 'Загрузка пакетами, автотрекинг наличия.' },
+              { icon: UserCheck, title: 'Профиль', desc: 'Личный кабинет, баланс, история.' },
+              { icon: TrendingUp, title: 'Масштабируемость', desc: 'Инфраструктура на нас. Вы — продаёте.' },
             ].map((feature, i) => (
               <AnimatedSection key={i}>
                 <motion.div
                   variants={fadeUp}
                   custom={i % 3}
-                  className="bg-white rounded-2xl p-6 border border-[#e2e8f0] shadow-sm hover:shadow-xl hover:border-[#bfdbfe] hover:-translate-y-1 transition-all duration-300 h-full"
+                  className="bg-white rounded-xl sm:rounded-2xl p-3.5 sm:p-6 border border-[#e2e8f0] shadow-sm hover:shadow-xl hover:border-[#bfdbfe] hover:-translate-y-1 transition-all duration-300 h-full"
                 >
-                  <div className="w-11 h-11 rounded-xl bg-[#eff6ff] flex items-center justify-center mb-4">
-                    <feature.icon className="w-5.5 h-5.5 text-[#2563eb]" />
+                  <div className="w-9 sm:w-11 h-9 sm:h-11 rounded-lg sm:rounded-xl bg-[#eff6ff] flex items-center justify-center mb-2.5 sm:mb-4">
+                    <feature.icon className="w-4.5 sm:w-5.5 h-4.5 sm:h-5.5 text-[#2563eb]" />
                   </div>
-                  <h3 className="font-bold text-[15px] text-[#0f172a] mb-2">{feature.title}</h3>
-                  <p className="text-sm text-[#64748b] leading-relaxed">{feature.desc}</p>
+                  <h3 className="font-bold text-xs sm:text-[15px] text-[#0f172a] mb-1 sm:mb-2">{feature.title}</h3>
+                  <p className="text-[10px] sm:text-sm text-[#64748b] leading-relaxed">{feature.desc}</p>
                 </motion.div>
               </AnimatedSection>
             ))}
@@ -364,38 +364,38 @@ export default function Landing() {
       </section>
 
       {/* ═══ 5. TARGET AUDIENCE ═══ */}
-      <section className="py-20 sm:py-28 px-4 sm:px-6">
+      <section className="py-12 sm:py-28 px-4 sm:px-6">
         <div className="max-w-5xl mx-auto">
-          <AnimatedSection className="text-center mb-16">
-            <motion.h2 variants={fadeUp} custom={0} className="text-3xl sm:text-4xl font-extrabold text-[#0f172a] mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+          <AnimatedSection className="text-center mb-8 sm:mb-16">
+            <motion.h2 variants={fadeUp} custom={0} className="text-2xl sm:text-4xl font-extrabold text-[#0f172a] mb-2 sm:mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
               Для кого это
             </motion.h2>
-            <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-lg max-w-xl mx-auto">
+            <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-sm sm:text-lg max-w-xl mx-auto">
               ShopBot Platform подходит всем, кто продаёт цифровые товары в Telegram
             </motion.p>
           </AnimatedSection>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
             {[
-              { icon: Key, title: 'Продавцы аккаунтов', desc: 'Игровые аккаунты, соцсети, сервисы — с автовыдачей и защитой.' },
-              { icon: MonitorSmartphone, title: 'Продавцы подписок', desc: 'VPN, стриминг, SaaS — продавайте ключи активации автоматически.' },
-              { icon: Users, title: 'Владельцы каналов', desc: 'Монетизируйте аудиторию — встроенный магазин прямо в экосистеме Telegram.' },
-              { icon: Code2, title: 'Продавцы софта', desc: 'Скрипты, боты, плагины — загрузите файлы и продавайте 24/7.' },
-              { icon: Package, title: 'Дропшипперы digital', desc: 'Масштабируйте продажи без ручной обработки каждого заказа.' },
-              { icon: Rocket, title: 'Стартаперы', desc: 'Запустите MVP магазина за минуты. Без разработчиков и серверов.' },
+              { icon: Key, title: 'Продавцы аккаунтов', desc: 'Игровые, соцсети, сервисы' },
+              { icon: MonitorSmartphone, title: 'Подписки', desc: 'VPN, стриминг, SaaS' },
+              { icon: Users, title: 'Владельцы каналов', desc: 'Монетизация аудитории' },
+              { icon: Code2, title: 'Софт', desc: 'Скрипты, боты, плагины' },
+              { icon: Package, title: 'Дропшипперы', desc: 'Масштаб без ручной работы' },
+              { icon: Rocket, title: 'Стартаперы', desc: 'MVP за минуты' },
             ].map((item, i) => (
               <AnimatedSection key={i}>
                 <motion.div
                   variants={fadeUp}
                   custom={i % 3}
-                  className="flex gap-4 bg-white rounded-2xl p-5 border border-[#e2e8f0] shadow-sm hover:shadow-lg transition-all duration-300"
+                  className="flex gap-3 sm:gap-4 bg-white rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-[#e2e8f0] shadow-sm hover:shadow-lg transition-all duration-300"
                 >
-                  <div className="w-11 h-11 rounded-xl bg-[#eff6ff] flex items-center justify-center shrink-0">
-                    <item.icon className="w-5 h-5 text-[#2563eb]" />
+                  <div className="w-9 sm:w-11 h-9 sm:h-11 rounded-lg sm:rounded-xl bg-[#eff6ff] flex items-center justify-center shrink-0">
+                    <item.icon className="w-4 sm:w-5 h-4 sm:h-5 text-[#2563eb]" />
                   </div>
-                  <div>
-                    <h3 className="font-bold text-sm text-[#0f172a] mb-1">{item.title}</h3>
-                    <p className="text-xs text-[#64748b] leading-relaxed">{item.desc}</p>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-xs sm:text-sm text-[#0f172a] mb-0.5">{item.title}</h3>
+                    <p className="text-[10px] sm:text-xs text-[#64748b] leading-relaxed">{item.desc}</p>
                   </div>
                 </motion.div>
               </AnimatedSection>
@@ -405,26 +405,26 @@ export default function Landing() {
       </section>
 
       {/* ═══ 6. PAIN SECTION ═══ */}
-      <section className="py-20 sm:py-28 px-4 sm:px-6 bg-gradient-to-b from-white to-[#f8fafc]">
+      <section className="py-12 sm:py-28 px-4 sm:px-6 bg-gradient-to-b from-white to-[#f8fafc]">
         <div className="max-w-5xl mx-auto">
-          <AnimatedSection className="text-center mb-16">
-            <motion.h2 variants={fadeUp} custom={0} className="text-3xl sm:text-4xl font-extrabold text-[#0f172a] mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+          <AnimatedSection className="text-center mb-8 sm:mb-16">
+            <motion.h2 variants={fadeUp} custom={0} className="text-2xl sm:text-4xl font-extrabold text-[#0f172a] mb-2 sm:mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
               Зачем автоматизировать?
             </motion.h2>
-            <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-lg max-w-xl mx-auto">
+            <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-sm sm:text-lg max-w-xl mx-auto">
               Ручные продажи в Telegram — это хаос. ShopBot Platform делает их системой.
             </motion.p>
           </AnimatedSection>
 
-          <div className="grid sm:grid-cols-2 gap-6">
+          <div className="grid sm:grid-cols-2 gap-4 sm:gap-6">
             {/* Pains */}
             <AnimatedSection>
-              <motion.div variants={fadeUp} custom={0} className="bg-white rounded-2xl border border-[#fecaca]/60 p-6 sm:p-8 h-full">
-                <div className="flex items-center gap-2 mb-6">
-                  <XCircle className="w-6 h-6 text-[#ef4444]" />
-                  <h3 className="font-bold text-lg text-[#0f172a]">Без платформы</h3>
+              <motion.div variants={fadeUp} custom={0} className="bg-white rounded-xl sm:rounded-2xl border border-[#fecaca]/60 p-4 sm:p-8 h-full">
+                <div className="flex items-center gap-2 mb-4 sm:mb-6">
+                  <XCircle className="w-5 sm:w-6 h-5 sm:h-6 text-[#ef4444]" />
+                  <h3 className="font-bold text-sm sm:text-lg text-[#0f172a]">Без платформы</h3>
                 </div>
-                <ul className="space-y-3.5">
+                <ul className="space-y-2.5 sm:space-y-3.5">
                   {[
                     'Вручную принимать оплату в каждом чате',
                     'Копировать и отправлять товар руками',
@@ -433,7 +433,7 @@ export default function Landing() {
                     'Невозможно масштабироваться',
                     'Нет статистики и контроля',
                   ].map((pain, i) => (
-                    <li key={i} className="flex items-start gap-2.5 text-sm text-[#64748b]">
+                    <li key={i} className="flex items-start gap-2 text-xs sm:text-sm text-[#64748b]">
                       <XCircle className="w-4 h-4 text-[#fca5a5] shrink-0 mt-0.5" />
                       {pain}
                     </li>
@@ -444,12 +444,12 @@ export default function Landing() {
 
             {/* Solutions */}
             <AnimatedSection>
-              <motion.div variants={fadeUp} custom={1} className="bg-white rounded-2xl border border-[#bbf7d0]/60 p-6 sm:p-8 h-full">
-                <div className="flex items-center gap-2 mb-6">
-                  <CheckCircle2 className="w-6 h-6 text-[#16a34a]" />
-                  <h3 className="font-bold text-lg text-[#0f172a]">С ShopBot Platform</h3>
+              <motion.div variants={fadeUp} custom={1} className="bg-white rounded-xl sm:rounded-2xl border border-[#bbf7d0]/60 p-4 sm:p-8 h-full">
+                <div className="flex items-center gap-2 mb-4 sm:mb-6">
+                  <CheckCircle2 className="w-5 sm:w-6 h-5 sm:h-6 text-[#16a34a]" />
+                  <h3 className="font-bold text-sm sm:text-lg text-[#0f172a]">С ShopBot Platform</h3>
                 </div>
-                <ul className="space-y-3.5">
+                <ul className="space-y-2.5 sm:space-y-3.5">
                   {[
                     'Оплата через CryptoBot — автоматически',
                     'Товар выдаётся сразу после оплаты',
@@ -458,7 +458,7 @@ export default function Landing() {
                     'Масштабируйте продажи без лимитов',
                     'Полная статистика и аналитика',
                   ].map((solution, i) => (
-                    <li key={i} className="flex items-start gap-2.5 text-sm text-[#1e293b]">
+                    <li key={i} className="flex items-start gap-2 text-xs sm:text-sm text-[#1e293b]">
                       <CheckCircle2 className="w-4 h-4 text-[#86efac] shrink-0 mt-0.5" />
                       {solution}
                     </li>
@@ -471,18 +471,18 @@ export default function Landing() {
       </section>
 
       {/* ═══ 7. PRODUCT SHOWCASE ═══ */}
-      <section className="py-20 sm:py-28 px-4 sm:px-6">
+      <section className="py-12 sm:py-28 px-4 sm:px-6">
         <div className="max-w-5xl mx-auto">
-          <AnimatedSection className="text-center mb-16">
-            <motion.h2 variants={fadeUp} custom={0} className="text-3xl sm:text-4xl font-extrabold text-[#0f172a] mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+          <AnimatedSection className="text-center mb-8 sm:mb-16">
+            <motion.h2 variants={fadeUp} custom={0} className="text-2xl sm:text-4xl font-extrabold text-[#0f172a] mb-2 sm:mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
               Интерфейс, который продаёт
             </motion.h2>
-            <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-lg max-w-xl mx-auto">
+            <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-sm sm:text-lg max-w-xl mx-auto">
               Готовый продукт — не прототип. Каждый экран продуман до деталей.
             </motion.p>
           </AnimatedSection>
 
-          <div className="grid sm:grid-cols-2 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 gap-3 sm:gap-6">
             {[
               {
                 title: 'Витрина магазина',
@@ -513,11 +513,11 @@ export default function Landing() {
                 <motion.div
                   variants={fadeUp}
                   custom={i % 2}
-                  className={`bg-gradient-to-br ${screen.gradient} rounded-2xl p-6 sm:p-8 border border-white/60 shadow-sm hover:shadow-xl transition-all duration-300`}
+                  className={`bg-gradient-to-br ${screen.gradient} rounded-xl sm:rounded-2xl p-4 sm:p-8 border border-white/60 shadow-sm hover:shadow-xl transition-all duration-300`}
                 >
-                  <screen.icon className="w-10 h-10 text-[#2563eb] mb-4" />
-                  <h3 className="font-bold text-lg text-[#0f172a] mb-2">{screen.title}</h3>
-                  <p className="text-sm text-[#475569] leading-relaxed">{screen.desc}</p>
+                  <screen.icon className="w-7 sm:w-10 h-7 sm:h-10 text-[#2563eb] mb-2 sm:mb-4" />
+                  <h3 className="font-bold text-sm sm:text-lg text-[#0f172a] mb-1 sm:mb-2">{screen.title}</h3>
+                  <p className="text-[10px] sm:text-sm text-[#475569] leading-relaxed">{screen.desc}</p>
                 </motion.div>
               </AnimatedSection>
             ))}
@@ -526,13 +526,13 @@ export default function Landing() {
       </section>
 
       {/* ═══ 8. PRICING ═══ */}
-      <section className="py-20 sm:py-28 px-4 sm:px-6 bg-gradient-to-b from-[#f8fafc] to-white">
+      <section className="py-12 sm:py-28 px-4 sm:px-6 bg-gradient-to-b from-[#f8fafc] to-white">
         <div className="max-w-3xl mx-auto">
-          <AnimatedSection className="text-center mb-12">
-            <motion.h2 variants={fadeUp} custom={0} className="text-3xl sm:text-4xl font-extrabold text-[#0f172a] mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+          <AnimatedSection className="text-center mb-8 sm:mb-12">
+            <motion.h2 variants={fadeUp} custom={0} className="text-2xl sm:text-4xl font-extrabold text-[#0f172a] mb-2 sm:mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
               Простая и честная цена
             </motion.h2>
-            <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-lg max-w-xl mx-auto">
+            <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-sm sm:text-lg max-w-xl mx-auto">
               Вы платите не за абстрактную подписку, а за готовую торговую систему
             </motion.p>
           </AnimatedSection>
@@ -541,22 +541,22 @@ export default function Landing() {
             <motion.div
               variants={fadeUp}
               custom={0}
-              className="bg-white rounded-3xl border-2 border-[#2563eb]/20 shadow-xl shadow-blue-500/5 p-8 sm:p-10 relative overflow-hidden"
+              className="bg-white rounded-2xl sm:rounded-3xl border-2 border-[#2563eb]/20 shadow-xl shadow-blue-500/5 p-5 sm:p-10 relative overflow-hidden"
             >
               <div className="absolute top-0 right-0 bg-gradient-to-l from-[#2563eb] to-[#3b82f6] text-white text-xs font-bold px-4 py-1.5 rounded-bl-xl">
                 Пробный период
               </div>
 
-              <div className="text-center mb-8">
-                <h3 className="font-bold text-2xl text-[#0f172a] mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>ShopBot Platform</h3>
+              <div className="text-center mb-5 sm:mb-8">
+                <h3 className="font-bold text-xl sm:text-2xl text-[#0f172a] mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>ShopBot Platform</h3>
                 <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-4xl font-extrabold text-[#0f172a]">от $3</span>
-                  <span className="text-[#94a3b8] text-lg">/мес</span>
+                  <span className="text-3xl sm:text-4xl font-extrabold text-[#0f172a]">от $3</span>
+                  <span className="text-[#94a3b8] text-base sm:text-lg">/мес</span>
                 </div>
-                <p className="text-sm text-[#64748b] mt-2">7 дней бесплатно для новых пользователей</p>
+                <p className="text-xs sm:text-sm text-[#64748b] mt-2">7 дней бесплатно для новых пользователей</p>
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-3 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 mb-6 sm:mb-8">
                 {[
                   '1 Telegram-магазин',
                   'Собственный бот',
@@ -567,7 +567,7 @@ export default function Landing() {
                   'Промокоды и рассылки',
                   'Поддержка платформы',
                 ].map((feature, i) => (
-                  <div key={i} className="flex items-center gap-2.5 text-sm text-[#1e293b]">
+                  <div key={i} className="flex items-center gap-2 text-xs sm:text-sm text-[#1e293b]">
                     <CheckCircle2 className="w-4.5 h-4.5 text-[#2563eb] shrink-0" />
                     {feature}
                   </div>
@@ -579,7 +579,7 @@ export default function Landing() {
                   href={PLATFORM_BOT_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2.5 px-10 py-4 rounded-2xl bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white text-base font-bold shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.02] transition-all duration-200"
+                  className="inline-flex items-center gap-2.5 px-6 sm:px-10 py-3 sm:py-4 rounded-2xl bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white text-sm sm:text-base font-bold shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.02] transition-all duration-200"
                 >
                   <Send className="w-5 h-5" /> Начать бесплатно
                 </a>
@@ -591,15 +591,15 @@ export default function Landing() {
       </section>
 
       {/* ═══ 9. FAQ ═══ */}
-      <section className="py-20 sm:py-28 px-4 sm:px-6">
+      <section className="py-12 sm:py-28 px-4 sm:px-6">
         <div className="max-w-3xl mx-auto">
-          <AnimatedSection className="text-center mb-12">
-            <motion.h2 variants={fadeUp} custom={0} className="text-3xl sm:text-4xl font-extrabold text-[#0f172a] mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+          <AnimatedSection className="text-center mb-6 sm:mb-12">
+            <motion.h2 variants={fadeUp} custom={0} className="text-2xl sm:text-4xl font-extrabold text-[#0f172a] mb-2 sm:mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
               Частые вопросы
             </motion.h2>
           </AnimatedSection>
 
-          <div className="bg-white rounded-2xl border border-[#e2e8f0] shadow-sm p-6 sm:p-8">
+          <div className="bg-white rounded-xl sm:rounded-2xl border border-[#e2e8f0] shadow-sm p-4 sm:p-8">
             <FAQItem
               q="Нужны ли навыки программирования?"
               a="Нет. Весь процесс создания магазина — это пошаговый онбординг в Telegram-боте. Вам нужно только отвечать на вопросы и нажимать кнопки."
@@ -637,24 +637,24 @@ export default function Landing() {
       </section>
 
       {/* ═══ 10. FINAL CTA ═══ */}
-      <section className="py-20 sm:py-28 px-4 sm:px-6">
+      <section className="py-12 sm:py-28 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto">
           <AnimatedSection className="text-center">
             <motion.div
               variants={fadeUp}
               custom={0}
-              className="bg-gradient-to-br from-[#1e3a8a] via-[#2563eb] to-[#3b82f6] rounded-3xl p-10 sm:p-16 relative overflow-hidden"
+              className="bg-gradient-to-br from-[#1e3a8a] via-[#2563eb] to-[#3b82f6] rounded-2xl sm:rounded-3xl p-6 sm:p-16 relative overflow-hidden"
             >
               {/* Decorative circles */}
               <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-white/5 -translate-y-1/2 translate-x-1/3" />
               <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full bg-white/5 translate-y-1/2 -translate-x-1/3" />
 
               <div className="relative">
-                <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4 leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                <h2 className="text-xl sm:text-4xl font-extrabold text-white mb-3 sm:mb-4 leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                   Запустите свой Telegram-магазин<br className="hidden sm:block" /> уже сегодня
                 </h2>
-                <p className="text-blue-100 text-lg max-w-xl mx-auto mb-8">
-                  Без кода. Без ручной выдачи. Без лишней инфраструктуры.<br />
+                <p className="text-blue-100 text-sm sm:text-lg max-w-xl mx-auto mb-5 sm:mb-8">
+                  Без кода. Без ручной выдачи. Без лишней инфраструктуры.<br className="hidden sm:block" />
                   Всё, что нужно — уже внутри платформы.
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -682,7 +682,7 @@ export default function Landing() {
       </section>
 
       {/* ═══ 11. FOOTER ═══ */}
-      <footer className="border-t border-[#e2e8f0] bg-white py-10 px-4 sm:px-6">
+      <footer className="border-t border-[#e2e8f0] bg-white py-6 sm:py-10 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-2.5">
