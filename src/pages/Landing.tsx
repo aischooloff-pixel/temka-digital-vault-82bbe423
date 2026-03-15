@@ -433,7 +433,7 @@ export default function Landing() {
                     'Невозможно масштабироваться',
                     'Нет статистики и контроля',
                   ].map((pain, i) => (
-                    <li key={i} className="flex items-start gap-2.5 text-sm text-[#64748b]">
+                    <li key={i} className="flex items-start gap-2 text-xs sm:text-sm text-[#64748b]">
                       <XCircle className="w-4 h-4 text-[#fca5a5] shrink-0 mt-0.5" />
                       {pain}
                     </li>
