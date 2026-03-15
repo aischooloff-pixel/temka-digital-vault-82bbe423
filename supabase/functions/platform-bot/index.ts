@@ -637,7 +637,6 @@ const bottomPanel = (hasShop: boolean) => ({
   keyboard: [
     [{ text: "👤 Профиль" }, { text: "🆘 Поддержка" }],
     [{ text: hasShop ? "🏪 Мой магазин" : "🏪 Создать магазин" }],
-    [{ text: "приветики" }],
   ],
   resize_keyboard: true,
   is_persistent: true,
@@ -5575,10 +5574,6 @@ serve(async (req) => {
           `🆘 Свяжитесь с поддержкой:\n${supportLink}`,
           ikb([[urlBtn("🆘 Написать в поддержку", supportLink)]]),
         );
-        return new Response("ok");
-      }
-      if (text === "приветики") {
-        await tg.send(chatId, "👋 Приветики! Кнопка работает");
         return new Response("ok");
       }
       if (text === "🏪 Мои магазины") {
