@@ -382,7 +382,7 @@ export default function Landing() {
               { icon: Users, title: 'Владельцы каналов', desc: 'Монетизация аудитории' },
               { icon: Code2, title: 'Софт', desc: 'Скрипты, боты, плагины' },
               { icon: Package, title: 'Дропшипперы', desc: 'Масштаб без ручной работы' },
-              { icon: Rocket, title: 'Стартаперы', desc: 'MVP за минуты' }].
+              { icon: Rocket, title: 'Магазины', desc: 'Множество товаров' }].
               map((item, i) =>
               <AnimatedSection key={i}>
                 <motion.div
