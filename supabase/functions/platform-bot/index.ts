@@ -1871,7 +1871,13 @@ async function handleCallback(
     return tg.edit(
       chatId,
       msgId,
-      "💰 <b>Подключение CryptoBot</b>\n\nОтправь API-токен от @CryptoBot:\n\n⚠️ Токен будет зашифрован.",
+      "💰 <b>Подключение CryptoBot</b>\n\n" +
+        "Отправь API-токен от @CryptoBot:\n\n" +
+        "━━━━━━━━━━━━━━━━━━━━\n" +
+        "📖 <b>Инструкция — всего 3 минуты!</b>\n" +
+        "👉 <a href=\"https://telegra.ph/Nastrojka-oplaty--3-minuty-03-16\">Открыть инструкцию</a>\n" +
+        "━━━━━━━━━━━━━━━━━━━━\n\n" +
+        "⚠️ Токен будет зашифрован.",
       ikb([[btn("❌ Отмена", `p:settings:${shopId}`)]]),
     );
   }
