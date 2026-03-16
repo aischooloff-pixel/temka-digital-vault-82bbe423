@@ -291,7 +291,7 @@ export default function Landing() {
             </motion.p>
           </AnimatedSection>
 
-          <div className="flex sm:grid sm:grid-cols-5 gap-3 sm:gap-4 overflow-x-auto pb-2 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x snap-mandatory scrollbar-hide">
+          <div className="flex sm:grid sm:grid-cols-5 gap-3 sm:gap-4 overflow-x-auto pb-2 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x snap-mandatory scrollbar-hide" style={{ touchAction: 'pan-x', overscrollBehaviorY: 'contain' }}>
             {[
               { step: '1', icon: Store, title: 'Создайте магазин', desc: 'Пройдите онбординг в платформенном боте' },
               { step: '2', icon: Bot, title: 'Подключите бота', desc: 'Привяжите своего Telegram-бота' },
