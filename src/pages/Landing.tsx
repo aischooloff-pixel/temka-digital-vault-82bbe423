@@ -447,7 +447,7 @@ export default function Landing() {
               <motion.div variants={fadeUp} custom={1} className="bg-white rounded-xl sm:rounded-2xl border border-[#bbf7d0]/60 p-4 sm:p-8 h-full">
                 <div className="flex items-center gap-2 mb-4 sm:mb-6">
                   <CheckCircle2 className="w-5 sm:w-6 h-5 sm:h-6 text-[#16a34a]" />
-                  <h3 className="font-bold text-sm sm:text-lg text-[#0f172a]">С ShopBot Platform</h3>
+                  <h3 className="font-bold text-sm sm:text-lg text-[#0f172a]">С TeleStore</h3>
                 </div>
                 <ul className="space-y-2.5 sm:space-y-3.5">
                   {[
