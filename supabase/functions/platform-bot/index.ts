@@ -5520,7 +5520,34 @@ async function handleAdmText(
     );
   }
 
-  // ─── User: enter subscription promo code ──
+  // ─── Retention FSM states ─────────────────
+  if (state === "adm_ret_delay") {
+    await clearSession(chatId);
+    let minutes = 0;
+    const trimmed = val.trim().toLowerCase();
+    if (/^\d+d$/.test(trimmed)) minutes = parseInt(trimmed) * 1440;
+    else if (/^\d+h$/.test(trimmed)) minutes = parseInt(trimmed) * 60;
+    else if (/^\d+$/.test(trimmed)) minutes = parseInt(trimmed);
+    else return tg.send(chatId, "❌ Формат: число, число+h или число+d", ikb([[btn("◀️ Retention", "adm:retention")]]));
+    if (minutes < 1) return tg.send(chatId, "❌ Минимум 1 минута.", ikb([[btn("◀️ Retention", "adm:retention")]]));
+    await db().from("shop_settings").upsert({ key: "retention_delay_minutes", value: String(minutes), updated_at: new Date().toISOString() }, { onConflict: "key" });
+    const label = minutes >= 1440 ? `${Math.round(minutes / 1440)} дн.` : minutes >= 60 ? `${Math.round(minutes / 60)} ч.` : `${minutes} мин.`;
+    return tg.send(chatId, `✅ Задержка обновлена: <b>${label}</b>`, ikb([[btn("◀️ Retention", "adm:retention")]]));
+  }
+  if (state === "adm_ret_text") {
+    await clearSession(chatId);
+    if (val.length < 5) return tg.send(chatId, "❌ Минимум 5 символов.", ikb([[btn("◀️ Retention", "adm:retention")]]));
+    await db().from("shop_settings").upsert({ key: "retention_message_text", value: val, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    return tg.send(chatId, `✅ Текст retention-сообщения обновлён.`, ikb([[btn("◀️ Retention", "adm:retention")]]));
+  }
+  if (state === "adm_ret_btn") {
+    await clearSession(chatId);
+    if (val.length < 1 || val.length > 64) return tg.send(chatId, "❌ От 1 до 64 символов.", ikb([[btn("◀️ Retention", "adm:retention")]]));
+    await db().from("shop_settings").upsert({ key: "retention_button_text", value: val, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    return tg.send(chatId, `✅ Текст кнопки обновлён: <b>${esc(val)}</b>`, ikb([[btn("◀️ Retention", "adm:retention")]]));
+  }
+
+
   if (state === "sub_enter_promo") {
     await clearSession(chatId);
     const code = val.trim().toUpperCase();
