@@ -485,7 +485,7 @@ export default function Landing() {
                   <motion.div
                     variants={fadeUp}
                     custom={i % 3}
-                    className="flex gap-3 sm:gap-4 bg-white rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-[#e2e8f0] shadow-sm hover:shadow-lg transition-all duration-300 h-full"
+                    className="flex gap-3 sm:gap-4 bg-white rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-[#e2e8f0] shadow-sm hover:shadow-lg transition-all duration-300"
                   >
                     <div className="w-9 sm:w-11 h-9 sm:h-11 rounded-lg sm:rounded-xl bg-[#eff6ff] flex items-center justify-center shrink-0">
                       <item.icon className="w-4 sm:w-5 h-4 sm:h-5 text-[#2563eb]" />
@@ -678,7 +678,7 @@ export default function Landing() {
                     <span className="text-3xl sm:text-4xl font-extrabold text-[#0f172a]">от $5</span>
                     <span className="text-[#94a3b8] text-base sm:text-lg">/мес</span>
                   </div>
-                  <p className="text-xs sm:text-sm text-[#64748b] mt-2">7 дней бесплатно для новых пользователей</p>
+                  <p className="text-xs sm:text-sm text-[#64748b] mt-2">3 дня бесплатно для новых пользователей</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 mb-6 sm:mb-8">
