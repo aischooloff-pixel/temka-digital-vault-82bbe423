@@ -212,7 +212,7 @@ export default function Landing() {
                     <div className="w-3 h-3 rounded-full bg-[#28c840]" />
                   </div>
                   <div className="flex-1 h-7 bg-[#1e1e2e] rounded-md flex items-center px-3 text-xs text-[#94a3b8] font-mono">
-                    yourshop.shopbot.app
+                    yourshop.telestore.app
                   </div>
                 </div>
                 {/* Carousel */}
