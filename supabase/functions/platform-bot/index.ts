@@ -1244,7 +1244,8 @@ async function showLegalAgreement(
   const legalUrl = `${WEBAPP_DOMAIN}/platform/terms`;
   const privacyUrl = `${WEBAPP_DOMAIN}/platform/privacy`;
   const disclaimerUrl = `${WEBAPP_DOMAIN}/platform/disclaimer`;
-  const text = `📜 <b>Правовое соглашение</b>\n\nПеред созданием магазина ознакомьтесь:\n\n📋 <a href="${legalUrl}">Условия использования</a>\n🔒 <a href="${privacyUrl}">Политика конфиденциальности</a>\n⚠️ <a href="${disclaimerUrl}">Отказ от ответственности</a>\n\nНажимая «Принимаю», вы подтверждаете согласие.`;
+  const rulesUrl = `${WEBAPP_DOMAIN}/platform/rules`;
+  const text = `📜 <b>Правовое соглашение</b>\n\nПеред созданием магазина ознакомьтесь:\n\n📋 <a href="${legalUrl}">Условия использования</a>\n🔒 <a href="${privacyUrl}">Политика конфиденциальности</a>\n⚠️ <a href="${disclaimerUrl}">Отказ от ответственности</a>\n📌 <a href="${rulesUrl}">Правила платформы</a>\n\nНажимая «Принимаю», вы подтверждаете согласие со всеми документами, включая правила платформы.`;
   if (msgId) {
     const res = await tg.edit(
       chatId,

@@ -24,6 +24,7 @@ import { Delivery, Guarantees } from "./pages/InfoPages";
 import PlatformTerms from "./pages/PlatformTerms";
 import PlatformPrivacy from "./pages/PlatformPrivacy";
 import PlatformDisclaimer from "./pages/PlatformDisclaimer";
+import PlatformRules from "./pages/PlatformRules";
 import PlatformProfile from "./pages/PlatformProfile";
 import NotFound from "./pages/NotFound";
 import Landing from "./pages/Landing";
@@ -80,6 +81,7 @@ const App = () => (
               <Route path="/platform/terms" element={<PlatformTerms />} />
               <Route path="/platform/privacy" element={<PlatformPrivacy />} />
               <Route path="/platform/disclaimer" element={<PlatformDisclaimer />} />
+              <Route path="/platform/rules" element={<PlatformRules />} />
 
               {/* Seller shop storefront */}
               <Route path="/shop/:shopId" element={<ShopLayout />}>
