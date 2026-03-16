@@ -26,7 +26,7 @@ export const StorefrontProvider: React.FC<{
     : undefined;
 
   return (
-    <StorefrontContext.Provider value={{ basePath, cartCount, shopName, supportLink: normalizedSupportLink }}>
+    <StorefrontContext.Provider value={{ basePath, cartCount, shopName, supportLink: normalizedSupportLink, botUsername }}>
       {children}
     </StorefrontContext.Provider>
   );

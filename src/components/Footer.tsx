@@ -4,14 +4,18 @@ import cryptobotLogo from '@/assets/cryptobot-logo.jpeg';
 import { Flag } from 'lucide-react';
 
 const Footer = () => {
-  const { shopName, basePath } = useStorefront();
+  const { shopName, basePath, botUsername } = useStorefront();
   const buildPath = useStorefrontPath();
   const displayName = shopName || 'TEMKA.STORE';
 
   const isShopStorefront = basePath.startsWith('/shop/');
 
+  const shopIdentifier = botUsername
+    ? `@${botUsername}`
+    : `${window.location.origin}${basePath}`;
+
   const reportText = encodeURIComponent(
-    `Здравствуйте. Магазин «${displayName}» нарушает правила платформы. Ссылка: ${window.location.origin}${basePath}\nПрошу проверить.`
+    `Здравствуйте. Магазин «${displayName}» (${shopIdentifier}) нарушает правила платформы.\nПрошу проверить.\nВ следующем сообщении опишу причину нарушения.`
   );
 
   return (
