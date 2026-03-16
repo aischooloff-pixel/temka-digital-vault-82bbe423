@@ -48,7 +48,7 @@ const Footer = () => {
                 rel="noopener noreferrer"
                 className="text-primary/80 hover:text-primary transition-colors underline underline-offset-2 font-medium"
               >
-                ShopBot Platform
+                TeleStore
               </a>
             </p>
             <a
