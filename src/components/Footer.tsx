@@ -5,7 +5,7 @@ import { Flag } from 'lucide-react';
 const Footer = () => {
   const { shopName, basePath, botUsername } = useStorefront();
   const buildPath = useStorefrontPath();
-  const displayName = shopName || 'TEMKA.STORE';
+  const displayName = shopName || 'TeleStore';
 
   const isShopStorefront = basePath.startsWith('/shop/');
 
