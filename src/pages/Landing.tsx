@@ -336,7 +336,7 @@ export default function Landing() {
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
             {[
               { icon: Bot, title: 'Telegram-бот', desc: 'Ваш бот — ваш бренд. Полная кастомизация.' },
-              { icon: Globe, title: 'Витрина магазина', desc: 'Каталог с товарами, категориями и поиском.' },
+              { icon: Globe, title: 'Mini App витрина', desc: 'Полноценное приложение внутри Telegram.' },
               { icon: CreditCard, title: 'Крипто-платежи', desc: 'CryptoBot — клиенты оплачивают мгновенно.' },
               { icon: Zap, title: 'Автовыдача', desc: 'Товары доставляются автоматически 24/7.' },
               { icon: LayoutDashboard, title: 'Админка в боте', desc: 'Товары, заказы, промокоды и рассылки.' },
