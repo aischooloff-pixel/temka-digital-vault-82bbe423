@@ -550,7 +550,7 @@ export default function Landing() {
               <div className="text-center mb-5 sm:mb-8">
                 <h3 className="font-bold text-xl sm:text-2xl text-[#0f172a] mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>TeleStore</h3>
                 <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-3xl sm:text-4xl font-extrabold text-[#0f172a]">от $3</span>
+                  <span className="text-3xl sm:text-4xl font-extrabold text-[#0f172a]">от $5</span>
                   <span className="text-[#94a3b8] text-base sm:text-lg">/мес</span>
                 </div>
                 <p className="text-xs sm:text-sm text-[#64748b] mt-2">7 дней бесплатно для новых пользователей</p>
