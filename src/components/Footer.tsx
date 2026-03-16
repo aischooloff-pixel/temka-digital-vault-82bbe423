@@ -1,11 +1,18 @@
 import { Link } from 'react-router-dom';
 import { useStorefront, useStorefrontPath } from '@/contexts/StorefrontContext';
 import cryptobotLogo from '@/assets/cryptobot-logo.jpeg';
+import { Flag } from 'lucide-react';
 
 const Footer = () => {
-  const { shopName } = useStorefront();
+  const { shopName, basePath } = useStorefront();
   const buildPath = useStorefrontPath();
   const displayName = shopName || 'TEMKA.STORE';
+
+  const isShopStorefront = basePath.startsWith('/shop/');
+
+  const reportText = encodeURIComponent(
+    `Здравствуйте. Магазин «${displayName}» нарушает правила платформы. Ссылка: ${window.location.origin}${basePath}\nПрошу проверить.`
+  );
 
   return (
     <footer className="border-t border-border/30 bg-card/30 pb-20">
@@ -33,6 +40,31 @@ const Footer = () => {
             {displayName} · Оплата через <img src={cryptobotLogo} alt="CryptoBot" className="w-3.5 h-3.5 rounded-sm inline-block" /> CryptoBot
           </p>
         </div>
+
+        {isShopStorefront && (
+          <div className="mt-3 pt-3 border-t border-border/20 flex flex-col items-center gap-1.5">
+            <p className="text-[10px] text-muted-foreground/60">
+              Магазин создан через{' '}
+              <a
+                href="https://t.me/sazcawd2bot?start=platform"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary/70 hover:text-primary transition-colors underline underline-offset-2"
+              >
+                ShopBot Platform
+              </a>
+            </p>
+            <a
+              href={`https://t.me/sfnanstnsgmsg?text=${reportText}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/40 hover:text-destructive/70 transition-colors"
+            >
+              <Flag className="w-2.5 h-2.5" />
+              Пожаловаться на магазин
+            </a>
+          </div>
+        )}
       </div>
     </footer>
   );
