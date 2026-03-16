@@ -3243,6 +3243,11 @@ async function admSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: num
     "platform_welcome_text",
     "platform_welcome_media_type",
     "platform_welcome_media_url",
+    "retention_enabled",
+    "retention_delay_minutes",
+    "retention_message_text",
+    "retention_button_text",
+    "retention_sent_count",
   ];
   const generalSettings = (settings || []).filter((s) => !platformKeys.includes(s.key));
   let settingsText = "";
