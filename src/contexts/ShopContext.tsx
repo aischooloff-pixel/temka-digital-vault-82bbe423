@@ -13,6 +13,7 @@ export interface ShopData {
   welcome_message: string;
   support_link: string;
   status: string;
+  bot_username: string | null;
   paymentsConfigured?: boolean;
 }
 
