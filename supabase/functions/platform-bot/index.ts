@@ -4448,7 +4448,7 @@ async function handleAdmCallback(
     };
     const enabled = (await getSetting("retention_enabled")) === "true";
     const delayMin = parseInt(await getSetting("retention_delay_minutes") || "1440") || 1440;
-    const msgText = await getSetting("retention_message_text") || "Вы зарегистрировались в ShopBot Platform, но ещё не создали магазин.\n\nЗапустите свой Telegram-магазин за несколько минут — бот, витрина и автопродажи уже готовы.";
+    const msgText = await getSetting("retention_message_text") || "Вы зарегистрировались в TeleStore, но ещё не создали магазин.\n\nЗапустите свой Telegram-магазин за несколько минут — бот, витрина и автопродажи уже готовы.";
     const btnText = await getSetting("retention_button_text") || "🚀 Создать магазин";
     const { count: sentCount } = await db().from("platform_retention_log").select("id", { count: "exact", head: true });
     // Count eligible users (registered, no shop, not yet notified)
