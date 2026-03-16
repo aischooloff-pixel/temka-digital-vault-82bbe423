@@ -196,8 +196,8 @@ export default function Landing() {
             <motion.div variants={fadeUp} custom={5} className="relative">
               {/* Label */}
               <div className="text-center mb-4">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#eff6ff] border border-[#bfdbfe] text-[#2563eb] text-xs font-semibold">Пример готового магазина  
-                    <MonitorSmartphone className="w-3.5 h-3.5" /> Готовая витрина магазина
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#eff6ff] border border-[#bfdbfe] text-[#2563eb] text-xs font-semibold">
+                  Пример готового магазина
                 </span>
               </div>
               {/* Glow behind */}
