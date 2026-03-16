@@ -1177,7 +1177,7 @@ async function wizardStep(
       nextState = "wiz_5";
       break;
     case 6:
-      text = `🔗 <b>Шаг 6 из 7</b>\n\nВведи ссылку на поддержку\n\nНапример: <i>https://t.me/nickname</i>`;
+      text = `🔗 <b>Шаг 6 из 7</b>\n\nВведи ссылку на поддержку\n\nНапример: <i>https://t.me/nickname</i>\n\n⚠️ <i>Укажи корректную ссылку — если она невалидна, приветственное сообщение бота перестанет работать.</i>`;
       kb = [[btn("◀️ Назад", "p:wback:5")], cancelRow];
       nextState = "wiz_6";
       break;
