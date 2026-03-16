@@ -24,6 +24,7 @@ import { Delivery, Guarantees } from "./pages/InfoPages";
 import PlatformTerms from "./pages/PlatformTerms";
 import PlatformPrivacy from "./pages/PlatformPrivacy";
 import PlatformDisclaimer from "./pages/PlatformDisclaimer";
+import PlatformRules from "./pages/PlatformRules";
 import PlatformProfile from "./pages/PlatformProfile";
 import NotFound from "./pages/NotFound";
 import Landing from "./pages/Landing";
