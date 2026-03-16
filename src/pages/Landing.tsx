@@ -378,11 +378,11 @@ export default function Landing() {
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
             {[
               { icon: Key, title: 'Продавцы аккаунтов', desc: 'Игровые, соцсети, сервисы' },
-              { icon: MonitorSmartphone, title: 'Подписки', desc: 'VPN, стриминг, SaaS' },
+              { icon: MonitorSmartphone, title: 'Подписки', desc: 'VPN, прокси, SaaS' },
               { icon: Users, title: 'Владельцы каналов', desc: 'Монетизация аудитории' },
               { icon: Code2, title: 'Софт', desc: 'Скрипты, боты, плагины' },
               { icon: Package, title: 'Дропшипперы', desc: 'Масштаб без ручной работы' },
-              { icon: Rocket, title: 'Стартаперы', desc: 'MVP за минуты' }].
+              { icon: Rocket, title: 'Магазины', desc: 'Множество товаров' }].
               map((item, i) =>
               <AnimatedSection key={i}>
                 <motion.div
