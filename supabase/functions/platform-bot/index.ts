@@ -1868,17 +1868,14 @@ async function handleCallback(
   if (cmd === "setcb") {
     const shopId = parts[2];
     await setSession(chatId, "set_cryptobot_token", { shop_id: shopId });
-    return tg.edit(
+    await tg.deleteMessage(chatId, msgId).catch(() => null);
+    return tg.send(
       chatId,
-      msgId,
-      "💰 <b>Подключение CryptoBot</b>\n\n" +
-        "Отправь API-токен от @CryptoBot:\n\n" +
-        "━━━━━━━━━━━━━━━━━━━━\n" +
-        "📖 <b>Инструкция — всего 3 минуты!</b>\n" +
-        "👉 <a href=\"https://telegra.ph/Nastrojka-oplaty--3-minuty-03-16\">Открыть инструкцию</a>\n" +
-        "━━━━━━━━━━━━━━━━━━━━\n\n" +
-        "⚠️ Токен будет зашифрован.",
-      ikb([[btn("❌ Отмена", `p:settings:${shopId}`)]]),
+      "💰 <b>Подключение CryptoBot</b>\n\nОтправь API-токен от @CryptoBot:\n\n⏱ <b>Настройка займёт всего 3 минуты.</b>\n\n⚠️ Токен будет зашифрован.",
+      ikb([
+        [urlBtn("📖 Инструкция — 3 минуты", "https://telegra.ph/Nastrojka-oplaty--3-minuty-03-16")],
+        [btn("❌ Отмена", `p:settings:${shopId}`)],
+      ]),
     );
   }
   if (cmd === "opsettings") {
