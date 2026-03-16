@@ -81,7 +81,7 @@ serve(async (req) => {
     } else {
       botToken = Deno.env.get("TELEGRAM_BOT_TOKEN") || null;
       cryptobotToken = Deno.env.get("CRYPTOBOT_API_TOKEN") || null;
-      paidBtnBotUsername = Deno.env.get("BOT_USERNAME") || "temkastore_bot";
+      paidBtnBotUsername = Deno.env.get("BOT_USERNAME") || "Tele_Store_Robot";
     }
 
     if (!botToken) return new Response(JSON.stringify({ error: "Бот не настроен." }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
