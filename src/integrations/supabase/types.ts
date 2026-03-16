@@ -389,6 +389,27 @@ export type Database = {
           },
         ]
       }
+      platform_retention_log: {
+        Row: {
+          id: string
+          message_text: string
+          sent_at: string
+          telegram_id: number
+        }
+        Insert: {
+          id?: string
+          message_text?: string
+          sent_at?: string
+          telegram_id: number
+        }
+        Update: {
+          id?: string
+          message_text?: string
+          sent_at?: string
+          telegram_id?: number
+        }
+        Relationships: []
+      }
       platform_sessions: {
         Row: {
           data: Json | null
