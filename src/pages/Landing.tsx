@@ -378,11 +378,11 @@ export default function Landing() {
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
             {[
               { icon: Key, title: 'Продавцы аккаунтов', desc: 'Игровые, соцсети, сервисы' },
-              { icon: MonitorSmartphone, title: 'Подписки', desc: 'VPN, прокси, SaaS' },
+              { icon: MonitorSmartphone, title: 'Подписки', desc: 'VPN, стриминг, SaaS' },
               { icon: Users, title: 'Владельцы каналов', desc: 'Монетизация аудитории' },
               { icon: Code2, title: 'Софт', desc: 'Скрипты, боты, плагины' },
               { icon: Package, title: 'Дропшипперы', desc: 'Масштаб без ручной работы' },
-              { icon: Rocket, title: 'Магазины', desc: 'Множество товаров' }].
+              { icon: Rocket, title: 'Стартаперы', desc: 'MVP за минуты' }].
               map((item, i) =>
               <AnimatedSection key={i}>
                 <motion.div
@@ -583,7 +583,7 @@ export default function Landing() {
                     
                   <Send className="w-5 h-5" /> Начать бесплатно
                 </a>
-                <p className="text-xs text-[#94a3b8] mt-3">Без привязки карты · Отмена в любой момент</p>
+                
               </div>
             </motion.div>
           </AnimatedSection>
