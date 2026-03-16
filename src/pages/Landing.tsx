@@ -690,7 +690,7 @@ export default function Landing() {
                 <Bot className="w-4 h-4 text-white" />
               </div>
               <span className="font-bold text-sm text-[#0f172a]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                ShopBot Platform
+                TeleStore
               </span>
             </div>
 
