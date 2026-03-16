@@ -43,7 +43,7 @@ const Footer = () => {
             <p className="text-xs text-muted-foreground/70">
               Магазин создан через{' '}
               <a
-                href="https://t.me/sazcawd2bot?start=platform"
+                href="https://t.me/Tele_Store_Robot?start=platform"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary/80 hover:text-primary transition-colors underline underline-offset-2 font-medium"
