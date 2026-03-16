@@ -15,8 +15,9 @@ export const StorefrontProvider: React.FC<{
   cartCount: number;
   shopName?: string;
   supportLink?: string;
+  botUsername?: string | null;
   children: React.ReactNode;
-}> = ({ basePath, cartCount, shopName, supportLink, children }) => {
+}> = ({ basePath, cartCount, shopName, supportLink, botUsername, children }) => {
   // Normalize support link: ensure it's an absolute URL
   const normalizedSupportLink = supportLink
     ? supportLink.startsWith('http://') || supportLink.startsWith('https://')
