@@ -4503,7 +4503,7 @@ async function handleAdmCallback(
   }
   if (cmd === "ret_preview") {
     const getSetting = async (k: string) => { const { data } = await db().from("shop_settings").select("value").eq("key", k).maybeSingle(); return data?.value || null; };
-    const msgText = await getSetting("retention_message_text") || "Вы зарегистрировались в ShopBot Platform, но ещё не создали магазин.\n\nЗапустите свой Telegram-магазин за несколько минут — бот, витрина и автопродажи уже готовы.";
+    const msgText = await getSetting("retention_message_text") || "Вы зарегистрировались в TeleStore, но ещё не создали магазин.\n\nЗапустите свой Telegram-магазин за несколько минут — бот, витрина и автопродажи уже готовы.";
     const btnText = await getSetting("retention_button_text") || "🚀 Создать магазин";
     await tg.send(chatId, msgText, ikb([[btn(btnText, "adm:retention")]]));
     return tg.edit(chatId, msgId, `👆 Превью отправлено выше.`, ikb([[btn("◀️ Retention", "adm:retention")]]));

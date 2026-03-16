@@ -36,7 +36,7 @@ interface StoreContextType {
   totalAfterDiscount: number;
 }
 
-const CART_STORAGE_KEY = 'temka-cart';
+const CART_STORAGE_KEY = 'telestore-cart';
 
 const loadCart = (): CartItem[] => {
   try {

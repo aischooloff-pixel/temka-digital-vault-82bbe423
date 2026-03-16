@@ -1200,7 +1200,7 @@ serve(async (req) => {
         webAppUrl = `https://${webAppUrl}`;
       }
       const { data: supportSetting } = await db().from("shop_settings").select("value").eq("key", "support_username").maybeSingle();
-      const support = supportSetting?.value || "paveldurov";
+      const support = supportSetting?.value || "TeleStoreHelp";
 
       console.log("Sending /start message to", chatId, "webAppUrl:", webAppUrl);
       const sendResult = await tg.send(chatId,

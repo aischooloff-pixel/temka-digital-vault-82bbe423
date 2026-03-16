@@ -31,7 +31,7 @@ async function resolveTokens(supabase: any, shopId?: string) {
     return {
       botToken: Deno.env.get("TELEGRAM_BOT_TOKEN") || null,
       cryptobotToken: Deno.env.get("CRYPTOBOT_API_TOKEN") || null,
-      botUsername: Deno.env.get("BOT_USERNAME") || "temkastore_bot",
+      botUsername: Deno.env.get("BOT_USERNAME") || "Tele_Store_Robot",
     };
   }
   const ek = Deno.env.get("TOKEN_ENCRYPTION_KEY");

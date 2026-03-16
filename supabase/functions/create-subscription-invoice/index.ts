@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 const CRYPTOBOT_API_URL = "https://pay.crypt.bot/api";
-const PLATFORM_NAME = "ShopBot Platform";
+const PLATFORM_NAME = "TeleStore";
 
 const jsonRes = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });

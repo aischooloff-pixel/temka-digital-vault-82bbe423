@@ -112,7 +112,7 @@ serve(async (req) => {
 
     if (!cryptobotToken) return new Response(JSON.stringify({ error: "Платёжная система не настроена." }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const btnUrl = paidBtnBotUsername ? `https://t.me/${paidBtnBotUsername}` : `https://t.me/temkastore_bot`;
+    const btnUrl = paidBtnBotUsername ? `https://t.me/${paidBtnBotUsername}` : `https://t.me/Tele_Store_Robot`;
 
     const response = await fetch(`${CRYPTOBOT_API_URL}/createInvoice`, {
       method: "POST",

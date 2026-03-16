@@ -52,7 +52,7 @@ const Footer = () => {
               </a>
             </p>
             <a
-              href={`https://t.me/sfnanstnsgmsg?text=${reportText}`}
+              href={`https://t.me/TeleStoreHelp?text=${reportText}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/50 hover:text-destructive/70 transition-colors"
