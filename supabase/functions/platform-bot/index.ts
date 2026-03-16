@@ -5633,7 +5633,11 @@ serve(async (req) => {
             await tg.answer(cb.id, "🚫 Ваш аккаунт заблокирован.");
             return new Response("ok");
           }
-          await handleCallback(tg, chatId, msgId, data, cb.id, cb.from);
+          try {
+            await handleCallback(tg, chatId, msgId, data, cb.id, cb.from);
+          } catch (e) {
+            console.error("handleCallback error:", data, e);
+          }
         }
       }
       return new Response("ok");
