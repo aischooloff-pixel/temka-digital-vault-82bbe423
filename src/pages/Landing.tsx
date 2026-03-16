@@ -702,7 +702,7 @@ export default function Landing() {
             </div>
 
             <div className="text-xs text-[#cbd5e1]">
-              © {new Date().getFullYear()} ShopBot Platform
+              © {new Date().getFullYear()} TeleStore
             </div>
           </div>
         </div>
