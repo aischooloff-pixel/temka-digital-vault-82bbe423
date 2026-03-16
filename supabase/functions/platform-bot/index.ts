@@ -4435,6 +4435,90 @@ async function handleAdmCallback(
     return tg.edit(chatId, msgId, text, ikb(rows));
   }
 
+  // ─── Retention ─────────────────────────────
+  if (cmd === "retention") {
+    const getSetting = async (k: string) => {
+      const { data } = await db().from("shop_settings").select("value").eq("key", k).maybeSingle();
+      return data?.value || null;
+    };
+    const enabled = (await getSetting("retention_enabled")) === "true";
+    const delayMin = parseInt(await getSetting("retention_delay_minutes") || "1440") || 1440;
+    const msgText = await getSetting("retention_message_text") || "Вы зарегистрировались в ShopBot Platform, но ещё не создали магазин.\n\nЗапустите свой Telegram-магазин за несколько минут — бот, витрина и автопродажи уже готовы.";
+    const btnText = await getSetting("retention_button_text") || "🚀 Создать магазин";
+    const { count: sentCount } = await db().from("platform_retention_log").select("id", { count: "exact", head: true });
+    // Count eligible users (registered, no shop, not yet notified)
+    const { data: eligibleUsers } = await db().rpc("retention_eligible_count" as any) as any;
+    // Fallback: manual count
+    let eligibleCount = 0;
+    const { data: allPlatUsers } = await db().from("platform_users").select("id").limit(5000);
+    if (allPlatUsers) {
+      const { data: ownerIds } = await db().from("shops").select("owner_id");
+      const ownerSet = new Set((ownerIds || []).map(o => o.owner_id));
+      const { data: notifiedIds } = await db().from("platform_retention_log").select("telegram_id");
+      const notifiedSet = new Set((notifiedIds || []).map(n => n.telegram_id));
+      const { data: fullUsers } = await db().from("platform_users").select("id, telegram_id").limit(5000);
+      for (const u of fullUsers || []) {
+        if (!ownerSet.has(u.id) && !notifiedSet.has(u.telegram_id)) eligibleCount++;
+      }
+    }
+    const delayLabel = delayMin >= 1440 ? `${Math.round(delayMin / 1440)} дн.` : delayMin >= 60 ? `${Math.round(delayMin / 60)} ч.` : `${delayMin} мин.`;
+    let text = `⏰ <b>Retention-сообщение</b>\n\n`;
+    text += `Статус: ${enabled ? "✅ Активно" : "❌ Выключено"}\n`;
+    text += `Задержка: <b>${delayLabel}</b> после регистрации\n`;
+    text += `Отправлено: <b>${sentCount || 0}</b>\n`;
+    text += `В очереди: <b>${eligibleCount}</b>\n\n`;
+    text += `📝 <b>Текст:</b>\n<i>${esc(msgText.slice(0, 200))}${msgText.length > 200 ? "…" : ""}</i>\n`;
+    text += `🔘 Кнопка: <b>${esc(btnText)}</b>`;
+    return tg.edit(chatId, msgId, text, ikb([
+      [btn(enabled ? "❌ Выключить" : "✅ Включить", "adm:ret_toggle")],
+      [btn("⏱ Изменить задержку", "adm:ret_delay"), btn("✏️ Изменить текст", "adm:ret_text")],
+      [btn("🔘 Изменить кнопку", "adm:ret_btn"), btn("👁 Превью", "adm:ret_preview")],
+      [btn("🔄 Запустить сейчас", "adm:ret_run")],
+      [btn("◀️ Меню", "adm:home")],
+    ]));
+  }
+  if (cmd === "ret_toggle") {
+    const { data: cur } = await db().from("shop_settings").select("value").eq("key", "retention_enabled").maybeSingle();
+    const newVal = cur?.value === "true" ? "false" : "true";
+    await db().from("shop_settings").upsert({ key: "retention_enabled", value: newVal, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    await admLog(adminTgId, newVal === "true" ? "enable_retention" : "disable_retention", "settings", "retention");
+    return tg.edit(chatId, msgId, `✅ Retention ${newVal === "true" ? "включён" : "выключен"}.`, ikb([[btn("◀️ Retention", "adm:retention")], [btn("◀️ Меню", "adm:home")]]));
+  }
+  if (cmd === "ret_delay") {
+    await setSession(chatId, "adm_ret_delay", {});
+    return tg.edit(chatId, msgId, `⏱ <b>Изменить задержку</b>\n\nВведите задержку в минутах, часах или днях:\n\n<i>Примеры: 60, 2h, 1d</i>`, ikb([[btn("❌ Отмена", "adm:retention")]]));
+  }
+  if (cmd === "ret_text") {
+    await setSession(chatId, "adm_ret_text", {});
+    return tg.edit(chatId, msgId, `✏️ <b>Изменить текст</b>\n\nВведите новый текст retention-сообщения (поддерживается HTML):`, ikb([[btn("❌ Отмена", "adm:retention")]]));
+  }
+  if (cmd === "ret_btn") {
+    await setSession(chatId, "adm_ret_btn", {});
+    return tg.edit(chatId, msgId, `🔘 <b>Изменить кнопку</b>\n\nВведите текст кнопки:\n\n<i>Например: 🚀 Создать магазин</i>`, ikb([[btn("❌ Отмена", "adm:retention")]]));
+  }
+  if (cmd === "ret_preview") {
+    const getSetting = async (k: string) => { const { data } = await db().from("shop_settings").select("value").eq("key", k).maybeSingle(); return data?.value || null; };
+    const msgText = await getSetting("retention_message_text") || "Вы зарегистрировались в ShopBot Platform, но ещё не создали магазин.\n\nЗапустите свой Telegram-магазин за несколько минут — бот, витрина и автопродажи уже готовы.";
+    const btnText = await getSetting("retention_button_text") || "🚀 Создать магазин";
+    await tg.send(chatId, msgText, ikb([[btn(btnText, "adm:retention")]]));
+    return tg.edit(chatId, msgId, `👆 Превью отправлено выше.`, ikb([[btn("◀️ Retention", "adm:retention")]]));
+  }
+  if (cmd === "ret_run") {
+    // Trigger the retention-check function manually
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || "";
+      await fetch(`${supabaseUrl}/functions/v1/retention-check`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${anonKey}` },
+        body: JSON.stringify({ manual: true }),
+      });
+      return tg.edit(chatId, msgId, `✅ Retention-проверка запущена вручную.`, ikb([[btn("◀️ Retention", "adm:retention")]]));
+    } catch (e) {
+      return tg.edit(chatId, msgId, `❌ Ошибка запуска: ${(e as Error).message}`, ikb([[btn("◀️ Retention", "adm:retention")]]));
+    }
+  }
+
   // ─── Logs ─────────────────────────────────
   if (cmd === "logs") return admLogsList(tg, chatId, msgId, parseInt(parts[2]) || 0);
 
