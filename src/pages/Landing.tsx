@@ -122,7 +122,7 @@ export default function Landing() {
               <Bot className="w-5 h-5 text-white" />
             </div>
             <span className="font-bold text-lg tracking-tight text-[#0f172a]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-              ShopBot<span className="text-[#2563eb]"> Platform</span>
+              Tele<span className="text-[#2563eb]">Store</span>
             </span>
           </div>
           <a
