@@ -5,6 +5,7 @@ interface StorefrontContextType {
   cartCount: number;
   shopName?: string;
   supportLink?: string;
+  botUsername?: string | null;
 }
 
 const StorefrontContext = createContext<StorefrontContextType>({ basePath: '', cartCount: 0 });
