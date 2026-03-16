@@ -725,7 +725,7 @@ async function howItWorks(tg: ReturnType<typeof TG>, chatId: number, msgId: numb
   const ss = await getSubSettings();
   const text = `📖 <b>Как это работает?</b>\n\n1️⃣ <b>Создай магазин</b> — пройди простой онбординг из 7 шагов\n\n2️⃣ <b>Добавь товары</b> — загрузи инвентарь прямо в бота\n\n3️⃣ <b>Подключи оплату</b> — CryptoBot принимает крипту автоматически\n\n4️⃣ <b>Поделись ссылкой</b> — клиенты покупают через mini-app\n\n5️⃣ <b>Автовыдача 24/7</b> — товар доставляется мгновенно после оплаты\n\n💰 Стоимость: от <b>$${ss.early_price_usd}/мес</b> — ${ss.max_shops_per_user} магазин на пользователя\n🆓 ${ss.trial_enabled ? `${ss.trial_days} дней бесплатного пробного периода` : "Пробный период недоступен"}`;
   const photoUrl = `${Deno.env.get("SUPABASE_URL")}/storage/v1/object/public/product-images/platform/how-it-works.png`;
-  await tg.deleteMessage(chatId, msgId);
+  try { await tg.deleteMessage(chatId, msgId); } catch { /* ignore */ }
   return tg.sendPhoto(
     chatId,
     photoUrl,
@@ -5633,7 +5633,11 @@ serve(async (req) => {
             await tg.answer(cb.id, "🚫 Ваш аккаунт заблокирован.");
             return new Response("ok");
           }
-          await handleCallback(tg, chatId, msgId, data, cb.id, cb.from);
+          try {
+            await handleCallback(tg, chatId, msgId, data, cb.id, cb.from);
+          } catch (e) {
+            console.error("handleCallback error:", data, e);
+          }
         }
       }
       return new Response("ok");
