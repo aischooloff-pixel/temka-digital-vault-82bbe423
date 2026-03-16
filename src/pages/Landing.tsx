@@ -685,7 +685,7 @@ export default function Landing() {
                   {[
                     "1 Telegram-магазин",
                     "Собственный бот",
-                    "Готовая витрина",
+                    "Свое Mini-App",
                     "Приём оплат через CryptoBot",
                     "Автовыдача 24/7",
                     "Управление через /admin",
