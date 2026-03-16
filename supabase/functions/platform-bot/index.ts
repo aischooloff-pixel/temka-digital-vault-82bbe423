@@ -7,7 +7,8 @@ async function setupWebhook(): Promise<Response> {
   if (!token) return new Response(JSON.stringify({ error: "PLATFORM_BOT_TOKEN not set" }), { status: 500 });
   const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/platform-bot`;
   const secret = Deno.env.get("TELEGRAM_WEBHOOK_SECRET") || "";
-  const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+
+  const setRes = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -17,9 +18,17 @@ async function setupWebhook(): Promise<Response> {
       ...(secret ? { secret_token: secret } : {}),
     }),
   });
-  const data = await res.json();
-  console.log("setWebhook result:", data);
-  return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
+  const setData = await setRes.json();
+
+  const infoRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
+  const infoData = await infoRes.json();
+
+  console.log("setWebhook result:", setData);
+  console.log("getWebhookInfo result:", infoData);
+
+  return new Response(JSON.stringify({ setWebhook: setData, webhookInfo: infoData }), {
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 // ─── Telegram API ─────────────────────────────
