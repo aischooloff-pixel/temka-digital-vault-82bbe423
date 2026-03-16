@@ -9,11 +9,11 @@ import {
   ChevronRight, ArrowRight, CheckCircle2, Shield, Clock, Rocket,
   Store, Key, MonitorSmartphone, UserCheck, Code2, Headphones,
   XCircle, ChevronDown, Send, Globe, LayoutDashboard, Boxes,
-  Sparkles, TrendingUp, Lock, MessageSquare
-} from 'lucide-react';
+  Sparkles, TrendingUp, Lock, MessageSquare } from
+'lucide-react';
 
-const PLATFORM_BOT_URL = 'https://t.me/Tele_Store_Robot';
-const SUPPORT_URL = 'https://t.me/TeleStoreHelp';
+const PLATFORM_BOT_URL = 'https://t.me/ShopBotPlatform_bot';
+const SUPPORT_URL = 'https://t.me/temka_support';
 
 // ─── Animation helpers ────────────────────────
 const fadeUp: Variants = {
@@ -29,7 +29,7 @@ const staggerContainer: Variants = {
   visible: { transition: { staggerChildren: 0.08 } }
 };
 
-function AnimatedSection({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+function AnimatedSection({ children, className = '' }: {children: React.ReactNode;className?: string;}) {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: '-60px' });
   return (
@@ -38,37 +38,37 @@ function AnimatedSection({ children, className = '' }: { children: React.ReactNo
       initial="hidden"
       animate={isInView ? 'visible' : 'hidden'}
       variants={staggerContainer}
-      className={className}
-    >
+      className={className}>
+      
       {children}
-    </motion.div>
-  );
+    </motion.div>);
+
 }
 
 // ─── FAQ Accordion ────────────────────────────
-function FAQItem({ q, a }: { q: string; a: string }) {
+function FAQItem({ q, a }: {q: string;a: string;}) {
   const [open, setOpen] = useState(false);
   return (
     <div className="border-b border-[#e2e8f0]">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between py-5 text-left group"
-      >
+        className="w-full flex items-center justify-between py-5 text-left group">
+        
         <span className="font-semibold text-[#1e293b] text-[15px] sm:text-base pr-4 group-hover:text-[#2563eb] transition-colors">{q}</span>
         <ChevronDown className={`w-5 h-5 text-[#94a3b8] shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>
-      {open && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          exit={{ opacity: 0, height: 0 }}
-          className="pb-5 text-[#64748b] text-sm leading-relaxed"
-        >
+      {open &&
+      <motion.div
+        initial={{ opacity: 0, height: 0 }}
+        animate={{ opacity: 1, height: 'auto' }}
+        exit={{ opacity: 0, height: 0 }}
+        className="pb-5 text-[#64748b] text-sm leading-relaxed">
+        
           {a}
         </motion.div>
-      )}
-    </div>
-  );
+      }
+    </div>);
+
 }
 
 // ─── Main Landing ─────────────────────────────
@@ -78,11 +78,11 @@ export default function Landing() {
   const [activeSlide, setActiveSlide] = useState(0);
 
   const slides = [
-    { src: storefrontScreenshot, label: 'Главная', alt: 'Главная страница магазина' },
-    { src: screenshotCatalog, label: 'Каталог', alt: 'Каталог товаров' },
-    { src: screenshotCart, label: 'Корзина', alt: 'Корзина с товарами' },
-    { src: screenshotProfile, label: 'Профиль', alt: 'Профиль пользователя' },
-  ];
+  { src: storefrontScreenshot, label: 'Главная', alt: 'Главная страница магазина' },
+  { src: screenshotCatalog, label: 'Каталог', alt: 'Каталог товаров' },
+  { src: screenshotCart, label: 'Корзина', alt: 'Корзина с товарами' },
+  { src: screenshotProfile, label: 'Профиль', alt: 'Профиль пользователя' }];
+
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -94,26 +94,26 @@ export default function Landing() {
   return (
     <>
     {/* Lightbox */}
-    {lightboxOpen && (
+    {lightboxOpen &&
       <div
         className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out"
-        onClick={() => setLightboxOpen(false)}
-      >
+        onClick={() => setLightboxOpen(false)}>
+        
         <img
           src={lightboxImage}
           alt="Интерфейс Telegram-магазина"
-          className="max-w-full max-h-[90vh] rounded-2xl shadow-2xl object-contain"
-        />
+          className="max-w-full max-h-[90vh] rounded-2xl shadow-2xl object-contain" />
+        
       </div>
-    )}
+      }
     <div
-      className="min-h-screen antialiased"
-      style={{
-        fontFamily: "'Inter', sans-serif",
-        background: 'linear-gradient(180deg, #f0f5ff 0%, #ffffff 30%, #f8fafc 100%)',
-        color: '#1e293b',
-      }}
-    >
+        className="min-h-screen antialiased"
+        style={{
+          fontFamily: "'Inter', sans-serif",
+          background: 'linear-gradient(180deg, #f0f5ff 0%, #ffffff 30%, #f8fafc 100%)',
+          color: '#1e293b'
+        }}>
+        
       {/* ═══ HEADER ═══ */}
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/80 border-b border-[#e2e8f0]/60">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
@@ -122,15 +122,15 @@ export default function Landing() {
               <Bot className="w-5 h-5 text-white" />
             </div>
             <span className="font-bold text-lg tracking-tight text-[#0f172a]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-              Tele<span className="text-[#2563eb]">Store</span>
+              ShopBot<span className="text-[#2563eb]"> Platform</span>
             </span>
           </div>
           <a
-            href={PLATFORM_BOT_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white text-sm font-semibold shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.02] transition-all duration-200"
-          >
+              href={PLATFORM_BOT_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white text-sm font-semibold shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.02] transition-all duration-200">
+              
             <Send className="w-4 h-4" /> Создать магазин
           </a>
         </div>
@@ -152,32 +152,32 @@ export default function Landing() {
             </motion.div>
 
             <motion.h1
-              variants={fadeUp} custom={1}
-              className="text-[28px] sm:text-5xl lg:text-6xl font-extrabold leading-[1.15] tracking-tight text-[#0f172a] mb-4 sm:mb-6"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-            >
+                variants={fadeUp} custom={1}
+                className="text-[28px] sm:text-5xl lg:text-6xl font-extrabold leading-[1.15] tracking-tight text-[#0f172a] mb-4 sm:mb-6"
+                style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                
               Создайте свой<br />
               <span className="bg-gradient-to-r from-[#2563eb] to-[#60a5fa] bg-clip-text text-transparent">Telegram-магазин</span><br />
               цифровых товаров
             </motion.h1>
 
             <motion.p variants={fadeUp} custom={2} className="text-sm sm:text-xl text-[#64748b] max-w-2xl mx-auto mb-6 sm:mb-8 leading-relaxed">
-              Собственный бот, готовая витрина, приём оплаты через CryptoBot и автоматическая выдача товаров 24/7 — без кода, хостинга и ручной работы.
+              Собственный бот с Mini-App,  приём оплаты через CryptoBot и автоматическая выдача товаров 24/7 — без кода, хостинга и ручной работы.
             </motion.p>
 
             <motion.div variants={fadeUp} custom={3} className="flex flex-col sm:flex-row items-center justify-center gap-2.5 sm:gap-3 mb-6 sm:mb-10">
               <a
-                href={PLATFORM_BOT_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2.5 px-6 sm:px-8 py-3 sm:py-4 rounded-2xl bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white text-sm sm:text-base font-bold shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.02] transition-all duration-200 w-full sm:w-auto justify-center"
-              >
+                  href={PLATFORM_BOT_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2.5 px-6 sm:px-8 py-3 sm:py-4 rounded-2xl bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white text-sm sm:text-base font-bold shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.02] transition-all duration-200 w-full sm:w-auto justify-center">
+                  
                 <Send className="w-5 h-5" /> Создать магазин
               </a>
               <a
-                href="#how-it-works"
-                className="inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-4 rounded-2xl border-2 border-[#e2e8f0] text-[#475569] text-sm sm:text-base font-semibold hover:border-[#2563eb]/30 hover:text-[#2563eb] transition-all duration-200 w-full sm:w-auto justify-center"
-              >
+                  href="#how-it-works"
+                  className="inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-4 rounded-2xl border-2 border-[#e2e8f0] text-[#475569] text-sm sm:text-base font-semibold hover:border-[#2563eb]/30 hover:text-[#2563eb] transition-all duration-200 w-full sm:w-auto justify-center">
+                  
                 Как это работает <ChevronRight className="w-4 h-4" />
               </a>
             </motion.div>
@@ -212,42 +212,42 @@ export default function Landing() {
                     <div className="w-3 h-3 rounded-full bg-[#28c840]" />
                   </div>
                   <div className="flex-1 h-7 bg-[#1e1e2e] rounded-md flex items-center px-3 text-xs text-[#94a3b8] font-mono">
-                    yourshop.telestore.app
+                    yourshop.shopbot.app
                   </div>
                 </div>
                 {/* Carousel */}
-                <div className="relative overflow-hidden cursor-zoom-in max-h-[400px] sm:max-h-[600px]" onClick={() => { setLightboxImage(slides[activeSlide].src); setLightboxOpen(true); }}>
+                <div className="relative overflow-hidden cursor-zoom-in max-h-[400px] sm:max-h-[600px]" onClick={() => {setLightboxImage(slides[activeSlide].src);setLightboxOpen(true);}}>
                   <div
-                    className="flex transition-transform duration-500 ease-in-out"
-                    style={{ transform: `translateX(-${activeSlide * 100}%)` }}
-                  >
-                    {slides.map((slide, i) => (
+                      className="flex transition-transform duration-500 ease-in-out"
+                      style={{ transform: `translateX(-${activeSlide * 100}%)` }}>
+                      
+                    {slides.map((slide, i) =>
                       <img
                         key={i}
                         src={slide.src}
                         alt={slide.alt}
                         className="w-full shrink-0 block"
-                        loading={i === 0 ? 'eager' : 'lazy'}
-                      />
-                    ))}
+                        loading={i === 0 ? 'eager' : 'lazy'} />
+
+                      )}
                   </div>
                 </div>
               </div>
               {/* Slide indicators & labels */}
               <div className="flex items-center justify-center gap-2 sm:gap-3 mt-4 sm:mt-5">
-                {slides.map((slide, i) => (
+                {slides.map((slide, i) =>
                   <button
                     key={i}
                     onClick={() => setActiveSlide(i)}
                     className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
-                      activeSlide === i
-                        ? 'bg-[#2563eb] text-white shadow-md shadow-blue-500/25'
-                        : 'bg-[#f1f5f9] text-[#64748b] hover:bg-[#e2e8f0]'
-                    }`}
-                  >
+                    activeSlide === i ?
+                    'bg-[#2563eb] text-white shadow-md shadow-blue-500/25' :
+                    'bg-[#f1f5f9] text-[#64748b] hover:bg-[#e2e8f0]'}`
+                    }>
+                    
                     {slide.label}
                   </button>
-                ))}
+                  )}
               </div>
             </motion.div>
           </AnimatedSection>
@@ -262,8 +262,8 @@ export default function Landing() {
               { icon: Rocket, label: 'Запуск за минуты', desc: 'Онбординг из 7 шагов' },
               { icon: Zap, label: 'Автовыдача 24/7', desc: 'Мгновенная доставка' },
               { icon: CreditCard, label: 'Приём крипты', desc: 'Через CryptoBot' },
-              { icon: Lock, label: 'Надёжная система', desc: 'Telegram-first' },
-            ].map((item, i) => (
+              { icon: Lock, label: 'Надёжная система', desc: 'Telegram-first' }].
+              map((item, i) =>
               <AnimatedSection key={i} className="text-center">
                 <motion.div variants={fadeUp} custom={i}>
                   <item.icon className="w-6 sm:w-7 h-6 sm:h-7 text-[#2563eb] mx-auto mb-2" />
@@ -271,7 +271,7 @@ export default function Landing() {
                   <div className="text-[10px] sm:text-xs text-[#94a3b8] mt-0.5">{item.desc}</div>
                 </motion.div>
               </AnimatedSection>
-            ))}
+              )}
           </div>
         </div>
       </section>
@@ -297,14 +297,14 @@ export default function Landing() {
               { step: '2', icon: Bot, title: 'Подключите бота', desc: 'Привяжите своего Telegram-бота' },
               { step: '3', icon: Palette, title: 'Настройте витрину', desc: 'Добавьте товары и оформление' },
               { step: '4', icon: CreditCard, title: 'Подключите оплату', desc: 'Настройте CryptoBot для приёма платежей' },
-              { step: '5', icon: Package, title: 'Продавайте', desc: 'Товары выдаются автоматически 24/7' },
-            ].map((item, i) => (
+              { step: '5', icon: Package, title: 'Продавайте', desc: 'Товары выдаются автоматически 24/7' }].
+              map((item, i) =>
               <AnimatedSection key={i}>
                 <motion.div
                   variants={fadeUp}
                   custom={i}
-                  className="relative bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-[#e2e8f0] shadow-sm hover:shadow-lg hover:border-[#bfdbfe] transition-all duration-300 text-center h-full min-w-[140px] sm:min-w-0 snap-start"
-                >
+                  className="relative bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-[#e2e8f0] shadow-sm hover:shadow-lg hover:border-[#bfdbfe] transition-all duration-300 text-center h-full min-w-[140px] sm:min-w-0 snap-start">
+                  
                   <div className="w-8 sm:w-10 h-8 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-[#2563eb] to-[#3b82f6] text-white font-bold text-sm sm:text-lg flex items-center justify-center mx-auto mb-2 sm:mb-4 shadow-md shadow-blue-500/20">
                     {item.step}
                   </div>
@@ -313,7 +313,7 @@ export default function Landing() {
                   <p className="text-[10px] sm:text-xs text-[#64748b] leading-relaxed">{item.desc}</p>
                 </motion.div>
               </AnimatedSection>
-            ))}
+              )}
           </div>
         </div>
       </section>
@@ -343,14 +343,14 @@ export default function Landing() {
               { icon: Palette, title: 'Свой стиль', desc: 'Цвет, название, описание — ваш магазин.' },
               { icon: Boxes, title: 'Инвентарь', desc: 'Загрузка пакетами, автотрекинг наличия.' },
               { icon: UserCheck, title: 'Профиль', desc: 'Личный кабинет, баланс, история.' },
-              { icon: TrendingUp, title: 'Масштабируемость', desc: 'Инфраструктура на нас. Вы — продаёте.' },
-            ].map((feature, i) => (
+              { icon: TrendingUp, title: 'Масштабируемость', desc: 'Инфраструктура на нас. Вы — продаёте.' }].
+              map((feature, i) =>
               <AnimatedSection key={i}>
                 <motion.div
                   variants={fadeUp}
                   custom={i % 3}
-                  className="bg-white rounded-xl sm:rounded-2xl p-3.5 sm:p-6 border border-[#e2e8f0] shadow-sm hover:shadow-xl hover:border-[#bfdbfe] hover:-translate-y-1 transition-all duration-300 h-full"
-                >
+                  className="bg-white rounded-xl sm:rounded-2xl p-3.5 sm:p-6 border border-[#e2e8f0] shadow-sm hover:shadow-xl hover:border-[#bfdbfe] hover:-translate-y-1 transition-all duration-300 h-full">
+                  
                   <div className="w-9 sm:w-11 h-9 sm:h-11 rounded-lg sm:rounded-xl bg-[#eff6ff] flex items-center justify-center mb-2.5 sm:mb-4">
                     <feature.icon className="w-4.5 sm:w-5.5 h-4.5 sm:h-5.5 text-[#2563eb]" />
                   </div>
@@ -358,7 +358,7 @@ export default function Landing() {
                   <p className="text-[10px] sm:text-sm text-[#64748b] leading-relaxed">{feature.desc}</p>
                 </motion.div>
               </AnimatedSection>
-            ))}
+              )}
           </div>
         </div>
       </section>
@@ -371,7 +371,7 @@ export default function Landing() {
               Для кого это
             </motion.h2>
             <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-sm sm:text-lg max-w-xl mx-auto">
-              TeleStore подходит всем, кто продаёт цифровые товары в Telegram
+              ShopBot Platform подходит всем, кто продаёт цифровые товары в Telegram
             </motion.p>
           </AnimatedSection>
 
@@ -382,14 +382,14 @@ export default function Landing() {
               { icon: Users, title: 'Владельцы каналов', desc: 'Монетизация аудитории' },
               { icon: Code2, title: 'Софт', desc: 'Скрипты, боты, плагины' },
               { icon: Package, title: 'Дропшипперы', desc: 'Масштаб без ручной работы' },
-              { icon: Rocket, title: 'Стартаперы', desc: 'MVP за минуты' },
-            ].map((item, i) => (
+              { icon: Rocket, title: 'Стартаперы', desc: 'MVP за минуты' }].
+              map((item, i) =>
               <AnimatedSection key={i}>
                 <motion.div
                   variants={fadeUp}
                   custom={i % 3}
-                  className="flex gap-3 sm:gap-4 bg-white rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-[#e2e8f0] shadow-sm hover:shadow-lg transition-all duration-300"
-                >
+                  className="flex gap-3 sm:gap-4 bg-white rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-[#e2e8f0] shadow-sm hover:shadow-lg transition-all duration-300">
+                  
                   <div className="w-9 sm:w-11 h-9 sm:h-11 rounded-lg sm:rounded-xl bg-[#eff6ff] flex items-center justify-center shrink-0">
                     <item.icon className="w-4 sm:w-5 h-4 sm:h-5 text-[#2563eb]" />
                   </div>
@@ -399,7 +399,7 @@ export default function Landing() {
                   </div>
                 </motion.div>
               </AnimatedSection>
-            ))}
+              )}
           </div>
         </div>
       </section>
@@ -412,7 +412,7 @@ export default function Landing() {
               Зачем автоматизировать?
             </motion.h2>
             <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-sm sm:text-lg max-w-xl mx-auto">
-              Ручные продажи в Telegram — это хаос. TeleStore делает их системой.
+              Ручные продажи в Telegram — это хаос. ShopBot Platform делает их системой.
             </motion.p>
           </AnimatedSection>
 
@@ -431,13 +431,13 @@ export default function Landing() {
                     'Терять заказы и путаться в переписках',
                     'Не спать, чтобы не пропустить покупателя',
                     'Невозможно масштабироваться',
-                    'Нет статистики и контроля',
-                  ].map((pain, i) => (
+                    'Нет статистики и контроля'].
+                    map((pain, i) =>
                     <li key={i} className="flex items-start gap-2 text-xs sm:text-sm text-[#64748b]">
                       <XCircle className="w-4 h-4 text-[#fca5a5] shrink-0 mt-0.5" />
                       {pain}
                     </li>
-                  ))}
+                    )}
                 </ul>
               </motion.div>
             </AnimatedSection>
@@ -447,7 +447,7 @@ export default function Landing() {
               <motion.div variants={fadeUp} custom={1} className="bg-white rounded-xl sm:rounded-2xl border border-[#bbf7d0]/60 p-4 sm:p-8 h-full">
                 <div className="flex items-center gap-2 mb-4 sm:mb-6">
                   <CheckCircle2 className="w-5 sm:w-6 h-5 sm:h-6 text-[#16a34a]" />
-                  <h3 className="font-bold text-sm sm:text-lg text-[#0f172a]">С TeleStore</h3>
+                  <h3 className="font-bold text-sm sm:text-lg text-[#0f172a]">С ShopBot Platform</h3>
                 </div>
                 <ul className="space-y-2.5 sm:space-y-3.5">
                   {[
@@ -456,13 +456,13 @@ export default function Landing() {
                     'Все заказы в одном месте с историей',
                     'Магазин работает 24/7 без вашего участия',
                     'Масштабируйте продажи без лимитов',
-                    'Полная статистика и аналитика',
-                  ].map((solution, i) => (
+                    'Полная статистика и аналитика'].
+                    map((solution, i) =>
                     <li key={i} className="flex items-start gap-2 text-xs sm:text-sm text-[#1e293b]">
                       <CheckCircle2 className="w-4 h-4 text-[#86efac] shrink-0 mt-0.5" />
                       {solution}
                     </li>
-                  ))}
+                    )}
                 </ul>
               </motion.div>
             </AnimatedSection>
@@ -488,39 +488,39 @@ export default function Landing() {
                 title: 'Витрина магазина',
                 desc: 'Каталог товаров с категориями, фильтрами и корзиной — работает как Telegram Mini App',
                 gradient: 'from-[#eff6ff] to-[#dbeafe]',
-                icon: ShoppingBag,
+                icon: ShoppingBag
               },
               {
                 title: 'Админ-панель в боте',
                 desc: 'Управляйте товарами, заказами, клиентами и промокодами через /admin в своём боте',
                 gradient: 'from-[#f0fdf4] to-[#dcfce7]',
-                icon: Settings,
+                icon: Settings
               },
               {
                 title: 'Профиль владельца',
                 desc: 'Подписка, баланс, настройки магазина и статистика — всё в одном месте',
                 gradient: 'from-[#fff7ed] to-[#fed7aa]',
-                icon: UserCheck,
+                icon: UserCheck
               },
               {
                 title: 'Telegram-бот покупателя',
                 desc: 'Покупатели получают товар сразу после оплаты. Автоматический чек и поддержка.',
                 gradient: 'from-[#fdf4ff] to-[#f5d0fe]',
-                icon: MessageSquare,
-              },
-            ].map((screen, i) => (
+                icon: MessageSquare
+              }].
+              map((screen, i) =>
               <AnimatedSection key={i}>
                 <motion.div
                   variants={fadeUp}
                   custom={i % 2}
-                  className={`bg-gradient-to-br ${screen.gradient} rounded-xl sm:rounded-2xl p-4 sm:p-8 border border-white/60 shadow-sm hover:shadow-xl transition-all duration-300`}
-                >
+                  className={`bg-gradient-to-br ${screen.gradient} rounded-xl sm:rounded-2xl p-4 sm:p-8 border border-white/60 shadow-sm hover:shadow-xl transition-all duration-300`}>
+                  
                   <screen.icon className="w-7 sm:w-10 h-7 sm:h-10 text-[#2563eb] mb-2 sm:mb-4" />
                   <h3 className="font-bold text-sm sm:text-lg text-[#0f172a] mb-1 sm:mb-2">{screen.title}</h3>
                   <p className="text-[10px] sm:text-sm text-[#475569] leading-relaxed">{screen.desc}</p>
                 </motion.div>
               </AnimatedSection>
-            ))}
+              )}
           </div>
         </div>
       </section>
@@ -539,16 +539,16 @@ export default function Landing() {
 
           <AnimatedSection>
             <motion.div
-              variants={fadeUp}
-              custom={0}
-              className="bg-white rounded-2xl sm:rounded-3xl border-2 border-[#2563eb]/20 shadow-xl shadow-blue-500/5 p-5 sm:p-10 relative overflow-hidden"
-            >
+                variants={fadeUp}
+                custom={0}
+                className="bg-white rounded-2xl sm:rounded-3xl border-2 border-[#2563eb]/20 shadow-xl shadow-blue-500/5 p-5 sm:p-10 relative overflow-hidden">
+                
               <div className="absolute top-0 right-0 bg-gradient-to-l from-[#2563eb] to-[#3b82f6] text-white text-xs font-bold px-4 py-1.5 rounded-bl-xl">
                 Пробный период
               </div>
 
               <div className="text-center mb-5 sm:mb-8">
-                <h3 className="font-bold text-xl sm:text-2xl text-[#0f172a] mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>TeleStore</h3>
+                <h3 className="font-bold text-xl sm:text-2xl text-[#0f172a] mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>ShopBot Platform</h3>
                 <div className="flex items-baseline justify-center gap-1">
                   <span className="text-3xl sm:text-4xl font-extrabold text-[#0f172a]">от $3</span>
                   <span className="text-[#94a3b8] text-base sm:text-lg">/мес</span>
@@ -565,22 +565,22 @@ export default function Landing() {
                   'Автовыдача 24/7',
                   'Управление через /admin',
                   'Промокоды и рассылки',
-                  'Поддержка платформы',
-                ].map((feature, i) => (
+                  'Поддержка платформы'].
+                  map((feature, i) =>
                   <div key={i} className="flex items-center gap-2 text-xs sm:text-sm text-[#1e293b]">
                     <CheckCircle2 className="w-4.5 h-4.5 text-[#2563eb] shrink-0" />
                     {feature}
                   </div>
-                ))}
+                  )}
               </div>
 
               <div className="text-center">
                 <a
-                  href={PLATFORM_BOT_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2.5 px-6 sm:px-10 py-3 sm:py-4 rounded-2xl bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white text-sm sm:text-base font-bold shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.02] transition-all duration-200"
-                >
+                    href={PLATFORM_BOT_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2.5 px-6 sm:px-10 py-3 sm:py-4 rounded-2xl bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white text-sm sm:text-base font-bold shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.02] transition-all duration-200">
+                    
                   <Send className="w-5 h-5" /> Начать бесплатно
                 </a>
                 <p className="text-xs text-[#94a3b8] mt-3">Без привязки карты · Отмена в любой момент</p>
@@ -601,37 +601,37 @@ export default function Landing() {
 
           <div className="bg-white rounded-xl sm:rounded-2xl border border-[#e2e8f0] shadow-sm p-4 sm:p-8">
             <FAQItem
-              q="Нужны ли навыки программирования?"
-              a="Нет. Весь процесс создания магазина — это пошаговый онбординг в Telegram-боте. Вам нужно только отвечать на вопросы и нажимать кнопки."
-            />
+                q="Нужны ли навыки программирования?"
+                a="Нет. Весь процесс создания магазина — это пошаговый онбординг в Telegram-боте. Вам нужно только отвечать на вопросы и нажимать кнопки." />
+              
             <FAQItem
-              q="Как быстро можно запустить магазин?"
-              a="От 5 до 15 минут. Вы проходите 7 шагов онбординга, подключаете бота и добавляете товары. После этого магазин сразу начинает работать."
-            />
+                q="Как быстро можно запустить магазин?"
+                a="От 5 до 15 минут. Вы проходите 7 шагов онбординга, подключаете бота и добавляете товары. После этого магазин сразу начинает работать." />
+              
             <FAQItem
-              q="Нужен ли свой Telegram-бот?"
-              a="Да, вам понадобится создать бота через @BotFather в Telegram. Это занимает 2 минуты. Платформа подскажет каждый шаг."
-            />
+                q="Нужен ли свой Telegram-бот?"
+                a="Да, вам понадобится создать бота через @BotFather в Telegram. Это занимает 2 минуты. Платформа подскажет каждый шаг." />
+              
             <FAQItem
-              q="Как работает оплата?"
-              a="Покупатели оплачивают через CryptoBot — это надёжный платёжный сервис в Telegram. Вам нужно создать аккаунт в @CryptoBot и подключить API-токен."
-            />
+                q="Как работает оплата?"
+                a="Покупатели оплачивают через CryptoBot — это надёжный платёжный сервис в Telegram. Вам нужно создать аккаунт в @CryptoBot и подключить API-токен." />
+              
             <FAQItem
-              q="Как происходит выдача товара?"
-              a="После оплаты система автоматически резервирует товар из инвентаря и отправляет его покупателю в Telegram. Всё происходит за секунды."
-            />
+                q="Как происходит выдача товара?"
+                a="После оплаты система автоматически резервирует товар из инвентаря и отправляет его покупателю в Telegram. Всё происходит за секунды." />
+              
             <FAQItem
-              q="Какие товары можно продавать?"
-              a="Любые цифровые товары: аккаунты, ключи, подписки, лицензии, файлы, скрипты. Всё, что можно доставить в текстовом формате."
-            />
+                q="Какие товары можно продавать?"
+                a="Любые цифровые товары: аккаунты, ключи, подписки, лицензии, файлы, скрипты. Всё, что можно доставить в текстовом формате." />
+              
             <FAQItem
-              q="Где управлять магазином?"
-              a="Через команду /admin в вашем подключённом Telegram-боте. Там доступны: товары, заказы, клиенты, промокоды, рассылки, настройки и статистика."
-            />
+                q="Где управлять магазином?"
+                a="Через команду /admin в вашем подключённом Telegram-боте. Там доступны: товары, заказы, клиенты, промокоды, рассылки, настройки и статистика." />
+              
             <FAQItem
-              q="Что делать, если нужна поддержка?"
-              a="Напишите в нашу поддержку через Telegram. Мы помогаем с настройкой, техническими вопросами и любыми проблемами."
-            />
+                q="Что делать, если нужна поддержка?"
+                a="Напишите в нашу поддержку через Telegram. Мы помогаем с настройкой, техническими вопросами и любыми проблемами." />
+              
           </div>
         </div>
       </section>
@@ -641,10 +641,10 @@ export default function Landing() {
         <div className="max-w-4xl mx-auto">
           <AnimatedSection className="text-center">
             <motion.div
-              variants={fadeUp}
-              custom={0}
-              className="bg-gradient-to-br from-[#1e3a8a] via-[#2563eb] to-[#3b82f6] rounded-2xl sm:rounded-3xl p-6 sm:p-16 relative overflow-hidden"
-            >
+                variants={fadeUp}
+                custom={0}
+                className="bg-gradient-to-br from-[#1e3a8a] via-[#2563eb] to-[#3b82f6] rounded-2xl sm:rounded-3xl p-6 sm:p-16 relative overflow-hidden">
+                
               {/* Decorative circles */}
               <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-white/5 -translate-y-1/2 translate-x-1/3" />
               <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full bg-white/5 translate-y-1/2 -translate-x-1/3" />
@@ -659,19 +659,19 @@ export default function Landing() {
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                   <a
-                    href={PLATFORM_BOT_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl bg-white text-[#2563eb] text-base font-bold shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-200 w-full sm:w-auto justify-center"
-                  >
+                      href={PLATFORM_BOT_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl bg-white text-[#2563eb] text-base font-bold shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-200 w-full sm:w-auto justify-center">
+                      
                     <Send className="w-5 h-5" /> Создать магазин
                   </a>
                   <a
-                    href={SUPPORT_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-6 py-4 rounded-2xl border-2 border-white/30 text-white text-base font-semibold hover:bg-white/10 transition-all duration-200 w-full sm:w-auto justify-center"
-                  >
+                      href={SUPPORT_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-6 py-4 rounded-2xl border-2 border-white/30 text-white text-base font-semibold hover:bg-white/10 transition-all duration-200 w-full sm:w-auto justify-center">
+                      
                     <Headphones className="w-4 h-4" /> Связаться с нами
                   </a>
                 </div>
@@ -690,7 +690,7 @@ export default function Landing() {
                 <Bot className="w-4 h-4 text-white" />
               </div>
               <span className="font-bold text-sm text-[#0f172a]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                TeleStore
+                ShopBot Platform
               </span>
             </div>
 
@@ -702,12 +702,12 @@ export default function Landing() {
             </div>
 
             <div className="text-xs text-[#cbd5e1]">
-              © {new Date().getFullYear()} TeleStore
+              © {new Date().getFullYear()} ShopBot Platform
             </div>
           </div>
         </div>
       </footer>
     </div>
-    </>
-  );
+    </>);
+
 }
