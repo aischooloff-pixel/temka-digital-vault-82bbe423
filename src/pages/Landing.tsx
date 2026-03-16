@@ -412,7 +412,7 @@ export default function Landing() {
               Зачем автоматизировать?
             </motion.h2>
             <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-sm sm:text-lg max-w-xl mx-auto">
-              Ручные продажи в Telegram — это хаос. ShopBot Platform делает их системой.
+              Ручные продажи в Telegram — это хаос. TeleStore делает их системой.
             </motion.p>
           </AnimatedSection>
 
