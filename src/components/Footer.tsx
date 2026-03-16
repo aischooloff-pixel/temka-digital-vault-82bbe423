@@ -5,7 +5,7 @@ import { Flag } from 'lucide-react';
 const Footer = () => {
   const { shopName, basePath, botUsername } = useStorefront();
   const buildPath = useStorefrontPath();
-  const displayName = shopName || 'TEMKA.STORE';
+  const displayName = shopName || 'TeleStore';
 
   const isShopStorefront = basePath.startsWith('/shop/');
 
@@ -43,16 +43,16 @@ const Footer = () => {
             <p className="text-xs text-muted-foreground/70">
               Магазин создан через{' '}
               <a
-                href="https://t.me/sazcawd2bot?start=platform"
+                href="https://t.me/Tele_Store_Robot?start=platform"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary/80 hover:text-primary transition-colors underline underline-offset-2 font-medium"
               >
-                ShopBot Platform
+                TeleStore
               </a>
             </p>
             <a
-              href={`https://t.me/sfnanstnsgmsg?text=${reportText}`}
+              href={`https://t.me/TeleStoreHelp?text=${reportText}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/50 hover:text-destructive/70 transition-colors"

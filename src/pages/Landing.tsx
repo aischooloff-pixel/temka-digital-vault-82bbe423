@@ -12,8 +12,8 @@ import {
   Sparkles, TrendingUp, Lock, MessageSquare
 } from 'lucide-react';
 
-const PLATFORM_BOT_URL = 'https://t.me/ShopBotPlatform_bot';
-const SUPPORT_URL = 'https://t.me/temka_support';
+const PLATFORM_BOT_URL = 'https://t.me/Tele_Store_Robot';
+const SUPPORT_URL = 'https://t.me/TeleStoreHelp';
 
 // ─── Animation helpers ────────────────────────
 const fadeUp: Variants = {
@@ -122,7 +122,7 @@ export default function Landing() {
               <Bot className="w-5 h-5 text-white" />
             </div>
             <span className="font-bold text-lg tracking-tight text-[#0f172a]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-              ShopBot<span className="text-[#2563eb]"> Platform</span>
+              Tele<span className="text-[#2563eb]">Store</span>
             </span>
           </div>
           <a
@@ -212,7 +212,7 @@ export default function Landing() {
                     <div className="w-3 h-3 rounded-full bg-[#28c840]" />
                   </div>
                   <div className="flex-1 h-7 bg-[#1e1e2e] rounded-md flex items-center px-3 text-xs text-[#94a3b8] font-mono">
-                    yourshop.shopbot.app
+                    yourshop.telestore.app
                   </div>
                 </div>
                 {/* Carousel */}
@@ -371,7 +371,7 @@ export default function Landing() {
               Для кого это
             </motion.h2>
             <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-sm sm:text-lg max-w-xl mx-auto">
-              ShopBot Platform подходит всем, кто продаёт цифровые товары в Telegram
+              TeleStore подходит всем, кто продаёт цифровые товары в Telegram
             </motion.p>
           </AnimatedSection>
 
@@ -412,7 +412,7 @@ export default function Landing() {
               Зачем автоматизировать?
             </motion.h2>
             <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-sm sm:text-lg max-w-xl mx-auto">
-              Ручные продажи в Telegram — это хаос. ShopBot Platform делает их системой.
+              Ручные продажи в Telegram — это хаос. TeleStore делает их системой.
             </motion.p>
           </AnimatedSection>
 
@@ -447,7 +447,7 @@ export default function Landing() {
               <motion.div variants={fadeUp} custom={1} className="bg-white rounded-xl sm:rounded-2xl border border-[#bbf7d0]/60 p-4 sm:p-8 h-full">
                 <div className="flex items-center gap-2 mb-4 sm:mb-6">
                   <CheckCircle2 className="w-5 sm:w-6 h-5 sm:h-6 text-[#16a34a]" />
-                  <h3 className="font-bold text-sm sm:text-lg text-[#0f172a]">С ShopBot Platform</h3>
+                  <h3 className="font-bold text-sm sm:text-lg text-[#0f172a]">С TeleStore</h3>
                 </div>
                 <ul className="space-y-2.5 sm:space-y-3.5">
                   {[
@@ -548,7 +548,7 @@ export default function Landing() {
               </div>
 
               <div className="text-center mb-5 sm:mb-8">
-                <h3 className="font-bold text-xl sm:text-2xl text-[#0f172a] mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>ShopBot Platform</h3>
+                <h3 className="font-bold text-xl sm:text-2xl text-[#0f172a] mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>TeleStore</h3>
                 <div className="flex items-baseline justify-center gap-1">
                   <span className="text-3xl sm:text-4xl font-extrabold text-[#0f172a]">от $3</span>
                   <span className="text-[#94a3b8] text-base sm:text-lg">/мес</span>
@@ -690,7 +690,7 @@ export default function Landing() {
                 <Bot className="w-4 h-4 text-white" />
               </div>
               <span className="font-bold text-sm text-[#0f172a]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                ShopBot Platform
+                TeleStore
               </span>
             </div>
 
@@ -702,7 +702,7 @@ export default function Landing() {
             </div>
 
             <div className="text-xs text-[#cbd5e1]">
-              © {new Date().getFullYear()} ShopBot Platform
+              © {new Date().getFullYear()} TeleStore
             </div>
           </div>
         </div>

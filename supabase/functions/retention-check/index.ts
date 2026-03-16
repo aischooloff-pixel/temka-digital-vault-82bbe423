@@ -25,7 +25,7 @@ serve(async (req) => {
     const delayMinutes = parseInt(await getVal("retention_delay_minutes", "1440")) || 1440;
     const messageText = await getVal(
       "retention_message_text",
-      "Вы зарегистрировались в ShopBot Platform, но ещё не создали магазин.\n\nЗапустите свой Telegram-магазин за несколько минут — бот, витрина и автопродажи уже готовы.",
+      "Вы зарегистрировались в TeleStore, но ещё не создали магазин.\n\nЗапустите свой Telegram-магазин за несколько минут — бот, витрина и автопродажи уже готовы.",
     );
     const buttonText = await getVal("retention_button_text", "🚀 Создать магазин");
     const botToken = Deno.env.get("PLATFORM_BOT_TOKEN");

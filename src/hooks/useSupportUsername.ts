@@ -10,7 +10,7 @@ export const useSupportUsername = () => {
         .select('value')
         .eq('key', 'support_username')
         .maybeSingle();
-      return data?.value || 'paveldurov';
+      return data?.value || 'TeleStoreHelp';
     },
     staleTime: 5 * 60 * 1000,
   });

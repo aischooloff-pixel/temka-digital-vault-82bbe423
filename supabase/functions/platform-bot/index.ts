@@ -104,9 +104,9 @@ const webAppBtn = (t: string, url: string): Btn => ({ text: t, web_app: { url } 
 const ikb = (rows: Btn[][]) => ({ inline_keyboard: rows });
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-const PLATFORM_NAME = "ShopBot Platform";
+const PLATFORM_NAME = "TeleStore";
 const WEBAPP_DOMAIN = Deno.env.get("WEBAPP_URL") || "https://temka-digital-vault.lovable.app";
-const SUPPORT_LINK_DEFAULT = "https://t.me/support";
+const SUPPORT_LINK_DEFAULT = "https://t.me/TeleStoreHelp";
 
 async function getSupportLink(): Promise<string> {
   const { data } = await db().from("shop_settings").select("value").eq("key", "platform_support_link").maybeSingle();
@@ -731,7 +731,7 @@ async function howItWorks(tg: ReturnType<typeof TG>, chatId: number, msgId: numb
     photoUrl,
     text,
     ikb([
-      [urlBtn("📚 Подробная информация", `t.me/sazcawd2bot/landing`)],
+      [urlBtn("📚 Подробная информация", `t.me/Tele_Store_Robot/landing`)],
       [btn("🏪 Создать магазин", "p:create")],
       [btn("◀️ Назад", "p:home")],
     ]),
@@ -4448,7 +4448,7 @@ async function handleAdmCallback(
     };
     const enabled = (await getSetting("retention_enabled")) === "true";
     const delayMin = parseInt(await getSetting("retention_delay_minutes") || "1440") || 1440;
-    const msgText = await getSetting("retention_message_text") || "Вы зарегистрировались в ShopBot Platform, но ещё не создали магазин.\n\nЗапустите свой Telegram-магазин за несколько минут — бот, витрина и автопродажи уже готовы.";
+    const msgText = await getSetting("retention_message_text") || "Вы зарегистрировались в TeleStore, но ещё не создали магазин.\n\nЗапустите свой Telegram-магазин за несколько минут — бот, витрина и автопродажи уже готовы.";
     const btnText = await getSetting("retention_button_text") || "🚀 Создать магазин";
     const { count: sentCount } = await db().from("platform_retention_log").select("id", { count: "exact", head: true });
     // Count eligible users (registered, no shop, not yet notified)
@@ -4503,7 +4503,7 @@ async function handleAdmCallback(
   }
   if (cmd === "ret_preview") {
     const getSetting = async (k: string) => { const { data } = await db().from("shop_settings").select("value").eq("key", k).maybeSingle(); return data?.value || null; };
-    const msgText = await getSetting("retention_message_text") || "Вы зарегистрировались в ShopBot Platform, но ещё не создали магазин.\n\nЗапустите свой Telegram-магазин за несколько минут — бот, витрина и автопродажи уже готовы.";
+    const msgText = await getSetting("retention_message_text") || "Вы зарегистрировались в TeleStore, но ещё не создали магазин.\n\nЗапустите свой Telegram-магазин за несколько минут — бот, витрина и автопродажи уже готовы.";
     const btnText = await getSetting("retention_button_text") || "🚀 Создать магазин";
     await tg.send(chatId, msgText, ikb([[btn(btnText, "adm:retention")]]));
     return tg.edit(chatId, msgId, `👆 Превью отправлено выше.`, ikb([[btn("◀️ Retention", "adm:retention")]]));

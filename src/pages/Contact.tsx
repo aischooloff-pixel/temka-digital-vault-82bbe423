@@ -7,7 +7,7 @@ const Contact = () => {
       <h1 className="font-display text-xl sm:text-2xl font-bold">Контакты</h1>
       <p className="text-sm text-muted-foreground mt-2">Свяжитесь с нами напрямую в Telegram.</p>
 
-      <a href="https://t.me/temka_support" target="_blank" rel="noopener noreferrer" className="block mt-6">
+      <a href="https://t.me/TeleStoreHelp" target="_blank" rel="noopener noreferrer" className="block mt-6">
         <Button variant="hero" size="lg" className="w-full">
           <MessageCircle className="w-4 h-4 mr-2" /> Написать в Telegram
         </Button>

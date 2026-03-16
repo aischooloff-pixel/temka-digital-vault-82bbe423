@@ -46,7 +46,7 @@ type Btn = { text: string; callback_data?: string; url?: string; web_app?: { url
 const btn = (t: string, cb: string): Btn => ({ text: t, callback_data: cb });
 const ikb = (rows: Btn[][]) => ({ inline_keyboard: rows });
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-const WEBAPP_DOMAIN = Deno.env.get("WEBAPP_URL") || "https://temka-digital-vault.lovable.app";
+const WEBAPP_DOMAIN = Deno.env.get("WEBAPP_URL") || "https://telestore.lovable.app";
 
 function paginate<T>(items: T[], page: number, perPage = 6) {
   const total = Math.max(1, Math.ceil(items.length / perPage));
