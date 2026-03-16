@@ -1312,15 +1312,18 @@ serve(async (req) => {
 
     // Parse body once upfront
     const body = await req.json();
+    console.log("seller-bot-webhook: body parsed, message text:", body.message?.text, "callback:", body.callback_query?.data);
 
     // Load shop and decrypt bot token
-    const { data: shop } = await supabase().from("shops").select("id, name, slug, bot_token_encrypted, welcome_message, support_link, status, owner_id, is_subscription_required, required_channel_id, required_channel_link").eq("id", shopId).single();
+    const { data: shop, error: shopErr } = await supabase().from("shops").select("id, name, slug, bot_token_encrypted, welcome_message, support_link, status, owner_id, is_subscription_required, required_channel_id, required_channel_link").eq("id", shopId).single();
+    console.log("seller-bot-webhook: shop loaded, status:", shop?.status, "error:", shopErr?.message);
     if (!shop) {
       console.error("seller-bot-webhook: shop not found", shopId);
       return new Response("ok");
     }
     // If shop is inactive, notify the user instead of silently ignoring
     if (shop.status !== "active") {
+      console.log("seller-bot-webhook: shop inactive, status:", shop.status);
       if (shop.bot_token_encrypted) {
         const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
         if (encKey) {
