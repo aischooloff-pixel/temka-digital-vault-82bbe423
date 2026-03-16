@@ -371,7 +371,7 @@ export default function Landing() {
               Для кого это
             </motion.h2>
             <motion.p variants={fadeUp} custom={1} className="text-[#64748b] text-sm sm:text-lg max-w-xl mx-auto">
-              ShopBot Platform подходит всем, кто продаёт цифровые товары в Telegram
+              TeleStore подходит всем, кто продаёт цифровые товары в Telegram
             </motion.p>
           </AnimatedSection>
 
