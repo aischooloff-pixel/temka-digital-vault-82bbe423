@@ -12,8 +12,8 @@ import {
   Sparkles, TrendingUp, Lock, MessageSquare } from
 'lucide-react';
 
-const PLATFORM_BOT_URL = 'https://t.me/ShopBotPlatform_bot';
-const SUPPORT_URL = 'https://t.me/temka_support';
+const PLATFORM_BOT_URL = 'https://t.me/Tele_Store_Robot';
+const SUPPORT_URL = 'https://t.me/TeleStoreHelp';
 
 // ─── Animation helpers ────────────────────────
 const fadeUp: Variants = {
