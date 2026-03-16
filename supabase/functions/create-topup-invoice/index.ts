@@ -77,7 +77,7 @@ serve(async (req) => {
       botToken = Deno.env.get("PLATFORM_BOT_TOKEN") || null;
       cryptobotToken = Deno.env.get("CRYPTOBOT_API_TOKEN") || null;
       const botInfo = botToken ? await fetch(`https://api.telegram.org/bot${botToken}/getMe`).then(r => r.json()).catch(() => null) : null;
-      paidBtnBotUsername = botInfo?.result?.username || "ShopBotPlatform_bot";
+      paidBtnBotUsername = botInfo?.result?.username || "Tele_Store_Robot";
     } else {
       botToken = Deno.env.get("TELEGRAM_BOT_TOKEN") || null;
       cryptobotToken = Deno.env.get("CRYPTOBOT_API_TOKEN") || null;
