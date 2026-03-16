@@ -478,8 +478,8 @@ export default function Landing() {
                 { icon: MonitorSmartphone, title: "Подписки", desc: "VPN, стриминг, SaaS" },
                 { icon: Users, title: "Продавцы услуг", desc: "Рассылки, папки чатов" },
                 { icon: Code2, title: "Софт", desc: "Скрипты, боты, плагины" },
-                { icon: Package, title: "Дропшипперы", desc: "Масштаб без ручной работы" },
-                { icon: Rocket, title: "Стартаперы", desc: "MVP за минуты" },
+                { icon: Package, title: "Игровые товары", desc: "Игры, подписки, донат" },
+                { icon: Rocket, title: "Магазины", desc: "Множество товаров" },
               ].map((item, i) => (
                 <AnimatedSection key={i}>
                   <motion.div
