@@ -443,7 +443,15 @@ const PlatformProfile: React.FC = () => {
           </CardContent>
         </Card>
 
-        <p className="text-center text-[10px] text-gray-300 pt-2">
+        {/* Legal links */}
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-2">
+          <a href="/platform/terms" className="text-[10px] text-gray-300 hover:text-blue-400 transition-colors">Соглашение</a>
+          <a href="/platform/rules" className="text-[10px] text-gray-300 hover:text-blue-400 transition-colors">Правила</a>
+          <a href="/platform/privacy" className="text-[10px] text-gray-300 hover:text-blue-400 transition-colors">Конфиденциальность</a>
+          <a href="/platform/subscription" className="text-[10px] text-gray-300 hover:text-blue-400 transition-colors">Подписка</a>
+          <a href="/platform/consent" className="text-[10px] text-gray-300 hover:text-blue-400 transition-colors">Согласие на ПД</a>
+        </div>
+        <p className="text-center text-[10px] text-gray-300 pt-1">
           Платформа · {new Date().getFullYear()}
         </p>
       </div>

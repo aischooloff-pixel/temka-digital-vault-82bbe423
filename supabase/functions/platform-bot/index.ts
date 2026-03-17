@@ -1268,26 +1268,23 @@ async function showLegalAgreement(
   sData: Record<string, unknown>,
   msgId?: number,
 ) {
-  const legalUrl = `${WEBAPP_DOMAIN}/platform/terms`;
-  const privacyUrl = `${WEBAPP_DOMAIN}/platform/privacy`;
-  const disclaimerUrl = `${WEBAPP_DOMAIN}/platform/disclaimer`;
+  const termsUrl = `${WEBAPP_DOMAIN}/platform/terms`;
   const rulesUrl = `${WEBAPP_DOMAIN}/platform/rules`;
-  const text = `📜 <b>Правовое соглашение</b>\n\nПеред созданием магазина ознакомьтесь:\n\n📋 <a href="${legalUrl}">Условия использования</a>\n🔒 <a href="${privacyUrl}">Политика конфиденциальности</a>\n⚠️ <a href="${disclaimerUrl}">Отказ от ответственности</a>\n📌 <a href="${rulesUrl}">Правила платформы</a>\n\nНажимая «Принимаю», вы подтверждаете согласие со всеми документами, включая правила платформы.`;
+  const privacyUrl = `${WEBAPP_DOMAIN}/platform/privacy`;
+  const subscriptionUrl = `${WEBAPP_DOMAIN}/platform/subscription`;
+  const consentUrl = `${WEBAPP_DOMAIN}/platform/consent`;
+  const text = `📜 <b>Правовое соглашение</b>\n\nПеред созданием магазина ознакомьтесь с документами:\n\n📋 <a href="${termsUrl}">Пользовательское соглашение</a>\n📌 <a href="${rulesUrl}">Правила платформы</a>\n💳 <a href="${subscriptionUrl}">Правила подписки / trial</a>\n🔒 <a href="${privacyUrl}">Политика конфиденциальности</a>\n✍️ <a href="${consentUrl}">Согласие на обработку ПД</a>\n\nДля создания магазина необходимо:\n\n☑️ <b>Чекбокс 1:</b> Принять пользовательское соглашение, правила платформы и правила подписки\n☑️ <b>Чекбокс 2:</b> Дать согласие на обработку персональных данных\n\nНажимая «Принимаю всё», вы подтверждаете оба пункта.`;
+  const kb = ikb([
+    [btn("✅ Принимаю всё", "p:accept_terms")],
+    [btn("◀️ Назад", "p:wback:7")],
+    [btn("❌ Отмена", "p:wcancel")],
+  ]);
   if (msgId) {
-    const res = await tg.edit(
-      chatId,
-      msgId,
-      text,
-      ikb([[btn("✅ Принимаю", "p:accept_terms")], [btn("◀️ Назад", "p:wback:7")], [btn("❌ Отмена", "p:wcancel")]]),
-    );
+    const res = await tg.edit(chatId, msgId, text, kb);
     await persistWizardSession(chatId, "wiz_legal", sData, resolveWizardMessageId(msgId, res));
     return res;
   }
-  const res = await tg.send(
-    chatId,
-    text,
-    ikb([[btn("✅ Принимаю", "p:accept_terms")], [btn("◀️ Назад", "p:wback:7")], [btn("❌ Отмена", "p:wcancel")]]),
-  );
+  const res = await tg.send(chatId, text, kb);
   await persistWizardSession(chatId, "wiz_legal", sData, res?.result?.message_id);
   return res;
 }
