@@ -1415,7 +1415,16 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     new Date(user.subscription_expires_at) > new Date();
   let trialMsg = "";
   if (isAlreadyActive) {
-    // User already has an active subscription — no trial needed
+    // User already has an active subscription — just record legal acceptance
+    await db()
+      .from("platform_users")
+      .update({
+        accepted_terms: true,
+        pd_consent_accepted: true,
+        accepted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("telegram_id", chatId);
     trialMsg = "";
   } else if (ss.trial_enabled && ss.auto_trial_on_shop_create && (!ss.one_trial_per_user || !user.has_used_trial)) {
     const trialExpiresAt = new Date(Date.now() + ss.trial_days * 24 * 60 * 60 * 1000).toISOString();
