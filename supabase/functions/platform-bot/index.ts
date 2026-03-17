@@ -2509,6 +2509,8 @@ async function admUserCard(tg: ReturnType<typeof TG>, chatId: number, msgId: num
     `👤 Username: ${pu.username ? `@${pu.username}` : "—"}\n` +
     `📅 Регистрация: ${new Date(pu.created_at).toLocaleDateString("ru")}\n` +
     `⭐ Premium: ${pu.is_premium ? "Да" : "Нет"}\n` +
+    `📜 Соглашение: ${pu.accepted_terms ? "✅ Принято" : "❌ Нет"}${pu.accepted_at ? ` (${new Date(pu.accepted_at).toLocaleDateString("ru")})` : ""}\n` +
+    `🔐 Согласие ПД: ${pu.pd_consent_accepted ? "✅ Да" : "❌ Нет"}\n` +
     subDetails +
     `🔒 Статус: ${blocked}\n` +
     `💰 Баланс (платформа): $${Number(pu.balance || 0).toFixed(2)}\n` +
