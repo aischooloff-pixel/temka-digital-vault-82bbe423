@@ -1273,7 +1273,7 @@ async function showLegalAgreement(
   const privacyUrl = `${WEBAPP_DOMAIN}/platform/privacy`;
   const subscriptionUrl = `${WEBAPP_DOMAIN}/platform/subscription`;
   const consentUrl = `${WEBAPP_DOMAIN}/platform/consent`;
-  const text = `📜 <b>Правовое соглашение</b>\n\nПеред созданием магазина ознакомьтесь с документами:\n\n📋 <a href="${termsUrl}">Пользовательское соглашение</a>\n📌 <a href="${rulesUrl}">Правила платформы</a>\n💳 <a href="${subscriptionUrl}">Правила подписки / trial</a>\n🔒 <a href="${privacyUrl}">Политика конфиденциальности</a>\n✍️ <a href="${consentUrl}">Согласие на обработку ПД</a>\n\nДля создания магазина необходимо:\n\n☑️ <b>Чекбокс 1:</b> Принять пользовательское соглашение, правила платформы и правила подписки\n☑️ <b>Чекбокс 2:</b> Дать согласие на обработку персональных данных\n\nНажимая «Принимаю всё», вы подтверждаете оба пункта.`;
+  const text = `📜 <b>Правовое соглашение</b>\n\nПеред созданием магазина ознакомьтесь:\n\n📋 <a href="${termsUrl}">Пользовательское соглашение</a>\n📌 <a href="${rulesUrl}">Правила платформы</a>\n💳 <a href="${subscriptionUrl}">Правила подписки</a>\n🔒 <a href="${privacyUrl}">Политика конфиденциальности</a>\n✍️ <a href="${consentUrl}">Согласие на обработку ПД</a>\n\nНажимая «Принимаю всё», вы подтверждаете согласие со всеми документами, включая обработку персональных данных.`;
   const kb = ikb([
     [btn("✅ Принимаю всё", "p:accept_terms")],
     [btn("◀️ Назад", "p:wback:7")],
