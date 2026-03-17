@@ -1483,7 +1483,8 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
   await deactivateWizardMessages(tg, chatId, finalizingData, msgId);
   await clearSession(chatId);
   const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
-  const text = `🎉 <b>Магазин создан!</b>\n\nВот твоя ссылка:\n${esc(shopUrl)}${botStatusMsg}${trialMsg}`;
+  const helpBlock = `\n\n📘 <b>Центр помощи</b>\nЕсли возникнут вопросы по настройке и работе магазина:\nhttps://telegra.ph/Centr-pomoshchi-TeleStore-03-17`;
+  const text = `🎉 <b>Магазин создан!</b>\n\nВот твоя ссылка:\n${esc(shopUrl)}${botStatusMsg}${trialMsg}${helpBlock}`;
   await tg.edit(
     chatId,
     msgId,
