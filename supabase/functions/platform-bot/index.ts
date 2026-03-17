@@ -1448,6 +1448,9 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
         .from("platform_users")
         .update({
           subscription_status: "none",
+          accepted_terms: true,
+          pd_consent_accepted: true,
+          accepted_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq("telegram_id", chatId);
