@@ -23,8 +23,9 @@ import Legal from "./pages/Legal";
 import { Delivery, Guarantees } from "./pages/InfoPages";
 import PlatformTerms from "./pages/PlatformTerms";
 import PlatformPrivacy from "./pages/PlatformPrivacy";
-import PlatformDisclaimer from "./pages/PlatformDisclaimer";
 import PlatformRules from "./pages/PlatformRules";
+import PlatformSubscription from "./pages/PlatformSubscription";
+import PlatformConsent from "./pages/PlatformConsent";
 import PlatformProfile from "./pages/PlatformProfile";
 import NotFound from "./pages/NotFound";
 import Landing from "./pages/Landing";
@@ -80,8 +81,11 @@ const App = () => (
               <Route path="/platform/profile" element={<PlatformProfile />} />
               <Route path="/platform/terms" element={<PlatformTerms />} />
               <Route path="/platform/privacy" element={<PlatformPrivacy />} />
-              <Route path="/platform/disclaimer" element={<PlatformDisclaimer />} />
               <Route path="/platform/rules" element={<PlatformRules />} />
+              <Route path="/platform/subscription" element={<PlatformSubscription />} />
+              <Route path="/platform/consent" element={<PlatformConsent />} />
+              {/* Legacy redirect */}
+              <Route path="/platform/disclaimer" element={<PlatformTerms />} />
 
               {/* Seller shop storefront */}
               <Route path="/shop/:shopId" element={<ShopLayout />}>

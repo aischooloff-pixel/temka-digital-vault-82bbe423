@@ -840,13 +840,19 @@ export default function Landing() {
 
               <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-[#94a3b8]">
                 <a href="/platform/terms" className="hover:text-[#2563eb] transition-colors">
-                  Условия
+                  Соглашение
+                </a>
+                <a href="/platform/rules" className="hover:text-[#2563eb] transition-colors">
+                  Правила
                 </a>
                 <a href="/platform/privacy" className="hover:text-[#2563eb] transition-colors">
                   Конфиденциальность
                 </a>
-                <a href="/platform/disclaimer" className="hover:text-[#2563eb] transition-colors">
-                  Отказ от ответственности
+                <a href="/platform/subscription" className="hover:text-[#2563eb] transition-colors">
+                  Подписка
+                </a>
+                <a href="/platform/consent" className="hover:text-[#2563eb] transition-colors">
+                  Согласие на ПД
                 </a>
                 <a
                   href={SUPPORT_URL}

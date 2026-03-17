@@ -484,6 +484,8 @@ export type Database = {
       }
       platform_users: {
         Row: {
+          accepted_at: string | null
+          accepted_terms: boolean
           balance: number
           billing_price_usd: number | null
           created_at: string
@@ -495,6 +497,7 @@ export type Database = {
           is_premium: boolean
           language_code: string | null
           last_name: string | null
+          pd_consent_accepted: boolean
           photo_url: string | null
           pricing_tier: string | null
           reminder_sent_at: string | null
@@ -506,6 +509,8 @@ export type Database = {
           username: string | null
         }
         Insert: {
+          accepted_at?: string | null
+          accepted_terms?: boolean
           balance?: number
           billing_price_usd?: number | null
           created_at?: string
@@ -517,6 +522,7 @@ export type Database = {
           is_premium?: boolean
           language_code?: string | null
           last_name?: string | null
+          pd_consent_accepted?: boolean
           photo_url?: string | null
           pricing_tier?: string | null
           reminder_sent_at?: string | null
@@ -528,6 +534,8 @@ export type Database = {
           username?: string | null
         }
         Update: {
+          accepted_at?: string | null
+          accepted_terms?: boolean
           balance?: number
           billing_price_usd?: number | null
           created_at?: string
@@ -539,6 +547,7 @@ export type Database = {
           is_premium?: boolean
           language_code?: string | null
           last_name?: string | null
+          pd_consent_accepted?: boolean
           photo_url?: string | null
           pricing_tier?: string | null
           reminder_sent_at?: string | null
