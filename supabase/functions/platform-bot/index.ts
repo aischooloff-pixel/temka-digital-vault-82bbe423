@@ -1457,6 +1457,20 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
       trialMsg = `\n\n💳 <b>Для работы магазина необходима подписка</b>\n💰 Стоимость: $${priceInfo.price}/мес\n\nОформите подписку через меню «💳 Подписка» в профиле.`;
     }
   }
+  // ─── Log legal acceptance ───
+  await db().from("admin_logs").insert({
+    admin_telegram_id: chatId,
+    action: "legal_accepted",
+    entity_type: "platform_user",
+    entity_id: String(chatId),
+    details: {
+      accepted_terms: true,
+      pd_consent_accepted: true,
+      accepted_at: new Date().toISOString(),
+      shop_name: name,
+      shop_id: shop.id,
+    },
+  });
   await deactivateWizardMessages(tg, chatId, finalizingData, msgId);
   await clearSession(chatId);
   const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
