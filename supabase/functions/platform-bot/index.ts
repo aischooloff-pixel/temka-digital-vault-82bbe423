@@ -878,7 +878,7 @@ async function shopSettings(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
       ? `✅ включена (${shop.required_channel_link || shop.required_channel_id})`
       : "⚠️ включена, канал не указан";
   }
-  const text = `⚙️ <b>Настройки: ${esc(shop.name)}</b>\n\n📛 Название: ${esc(shop.name)}\n🎨 Цвет: ${shop.color}\n📌 Заголовок: ${shop.hero_title || "—"}\n📝 Описание: ${shop.hero_description ? esc(shop.hero_description.slice(0, 60)) + "…" : "—"}\n👋 Приветствие: ${shop.welcome_message ? esc(shop.welcome_message.slice(0, 50)) + "…" : "—"}\n🔗 Поддержка: ${shop.support_link || "—"}\n🤖 Бот: ${botStatus}\n💰 CryptoBot: ${shop.cryptobot_token_encrypted ? "✅ подключён" : "❌ не подключён"}\n📢 ОП: ${opStatus}\n\n⚠️ <i>Полное управление магазином (товары, заказы, клиенты) осуществляется через</i> /admin <i>в подключённом вами боте.</i>`;
+  const text = `⚙️ <b>Настройки: ${esc(shop.name)}</b>\n\n📛 Название: ${esc(shop.name)}\n🎨 Цвет: ${shop.color}\n📌 Заголовок: ${shop.hero_title || "—"}\n📝 Описание: ${shop.hero_description ? esc(shop.hero_description.slice(0, 60)) + "…" : "—"}\n👋 Приветствие: ${shop.welcome_message ? esc(shop.welcome_message.slice(0, 50)) + "…" : "—"}\n🔗 Поддержка: ${shop.support_link || "—"}\n🤖 Бот: ${botStatus}\n💰 CryptoBot: ${shop.cryptobot_token_encrypted ? "✅ подключён" : "❌ не подключён"}\n📢 ОП: ${opStatus}\n\n⚠️ <i>Полное управление магазином (товары, заказы, клиенты) осуществляется через</i> /admin <i>в подключённом вами боте.</i>\n\n📘 <b>Центр помощи</b>\nhttps://telegra.ph/Centr-pomoshchi-TeleStore-03-17`;
   return tg.edit(
     chatId,
     msgId,
@@ -1483,7 +1483,8 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
   await deactivateWizardMessages(tg, chatId, finalizingData, msgId);
   await clearSession(chatId);
   const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
-  const text = `🎉 <b>Магазин создан!</b>\n\nВот твоя ссылка:\n${esc(shopUrl)}${botStatusMsg}${trialMsg}`;
+  const helpBlock = `\n\n📘 <b>Центр помощи</b>\nЕсли возникнут вопросы по настройке и работе магазина:\nhttps://telegra.ph/Centr-pomoshchi-TeleStore-03-17`;
+  const text = `🎉 <b>Магазин создан!</b>\n\nВот твоя ссылка:\n${esc(shopUrl)}${botStatusMsg}${trialMsg}${helpBlock}`;
   await tg.edit(
     chatId,
     msgId,
