@@ -81,8 +81,11 @@ const App = () => (
               <Route path="/platform/profile" element={<PlatformProfile />} />
               <Route path="/platform/terms" element={<PlatformTerms />} />
               <Route path="/platform/privacy" element={<PlatformPrivacy />} />
-              <Route path="/platform/disclaimer" element={<PlatformDisclaimer />} />
               <Route path="/platform/rules" element={<PlatformRules />} />
+              <Route path="/platform/subscription" element={<PlatformSubscription />} />
+              <Route path="/platform/consent" element={<PlatformConsent />} />
+              {/* Legacy redirect */}
+              <Route path="/platform/disclaimer" element={<PlatformTerms />} />
 
               {/* Seller shop storefront */}
               <Route path="/shop/:shopId" element={<ShopLayout />}>
