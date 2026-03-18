@@ -955,7 +955,9 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
 
   const tierLabel = priceInfo.tier === "early_3" ? "🎉 Early Bird" : "Стандартный";
   let statusBlock = "";
-  if (user.subscription_status === "trial") {
+  if (user.subscription_status === "active") {
+    statusBlock = `\n\n✅ <b>Подписка активна</b>\nВы можете продлить её заранее — дни будут добавлены к текущему сроку.`;
+  } else if (user.subscription_status === "trial") {
     statusBlock = `\n\n✅ <b>Подписка активна</b>\n🆓 Сейчас действует бесплатный пробный период.\nПосле окончания потребуется продление.`;
   } else if (user.subscription_status === "none") {
     statusBlock = `\n\n⏳ <b>Подписка не активна</b>\nОформите подписку для работы магазина.`;
@@ -970,15 +972,18 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
   const text = `💳 <b>Подписка</b>\n\n📊 Статус: <b>${status}</b>${daysLeftText}${statusBlock}\n\n💰 Ваша цена: <b>$${priceInfo.price}/мес</b> ${tierLabel}\n🏷 Тариф: ${tierLabel}\n\n<b>Включает:</b>\n• ${ss.max_shops_per_user} магазин\n• Приём платежей через CryptoBot\n• Собственный Telegram-бот\n• Авто-доставка цифровых товаров\n• ${ss.trial_enabled ? `${ss.trial_days} дней пробного периода` : "Пробный период недоступен"}`;
 
   const rows: Btn[][] = [];
-  const needsPayment = ["expired", "trial", "grace_period", "cancelled", "none"].includes(user.subscription_status);
-  const canRenew =
-    needsPayment ||
-    (user.subscription_status === "active" &&
-      user.subscription_expires_at &&
-      subscriptionDaysLeft(user.subscription_expires_at) <= 7);
-
-  if (canRenew) {
-    rows.push([btn(`💳 Оплатить $${priceInfo.price}`, "p:pay_sub")]);
+  // Always show renewal options (active users can extend in advance)
+  const isBlocked = user.subscription_status === "blocked";
+  if (!isBlocked) {
+    // Month selection buttons
+    rows.push([
+      btn(`1 мес — $${priceInfo.price.toFixed(2)}`, "p:pay_sub:1"),
+      btn(`3 мес — $${(priceInfo.price * 3).toFixed(2)}`, "p:pay_sub:3"),
+    ]);
+    rows.push([
+      btn(`6 мес — $${(priceInfo.price * 6).toFixed(2)}`, "p:pay_sub:6"),
+      btn(`12 мес — $${(priceInfo.price * 12).toFixed(2)}`, "p:pay_sub:12"),
+    ]);
     rows.push([btn("🎫 Ввести промокод", "p:sub_promo")]);
   }
 
