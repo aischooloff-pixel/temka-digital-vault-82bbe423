@@ -62,8 +62,14 @@ serve(async (req) => {
     }
 
     if (action === "check-promo-usage") {
-      const { telegramId, code } = body;
+      const { telegramId, code, shopId: promoShopId } = body;
       if (!telegramId || !code) return jsonRes({ count: 0 });
+      if (promoShopId) {
+        // Shop-scoped promo usage check
+        const { count } = await supabase.from("shop_orders").select("id", { count: "exact", head: true })
+          .eq("buyer_telegram_id", telegramId).eq("shop_id", promoShopId).ilike("promo_code", code);
+        return jsonRes({ count: count || 0 });
+      }
       const { count } = await supabase.from("orders").select("id", { count: "exact", head: true })
         .eq("telegram_id", telegramId).eq("promo_code", code);
       return jsonRes({ count: count || 0 });
