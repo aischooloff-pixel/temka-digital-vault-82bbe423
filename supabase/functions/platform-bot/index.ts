@@ -2100,7 +2100,6 @@ async function handleCallback(
     if (promoData) {
       promoCode = promoData.promo_code as string;
       promoId = promoData.promo_id as string;
-      // Recalculate discount for total price
       const discType = promoData.discount_type as string;
       const discValue = Number(promoData.discount_value || 0);
       if (discType === "percent") {
