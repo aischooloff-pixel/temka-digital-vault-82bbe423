@@ -1398,7 +1398,8 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     return tg.edit(chatId, msgId, `❌ Ошибка: ${error?.message || "unknown"}`, ikb([[btn("◀️ Меню", "p:home")]]));
   }
   let botStatusMsg = "";
-  if (sData.bot_token && sData.bot_valid) {
+  if (sData.bot_token && sData.bot_valid && shopStatus === "active") {
+    // Only set up webhook if shop is active
     const whResult = await setupSellerWebhook(sData.bot_token as string, shop.id);
     await db()
       .from("shops")
@@ -1407,13 +1408,11 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     botStatusMsg = whResult.ok
       ? `\n\n🤖 Бот @${botUsername} подключён и готов к работе!\n\n✅ В боте уже создана Mini App и кнопки — всё настроено автоматически. Просто переходите в @${botUsername} и начинайте продавать!`
       : `\n\n⚠️ Бот @${botUsername} сохранён, но webhook не установлен: ${whResult.error}`;
+  } else if (sData.bot_token && sData.bot_valid && shopStatus === "paused") {
+    botStatusMsg = `\n\n🤖 Бот @${botUsername} сохранён. Webhook будет активирован после оформления подписки.`;
   }
   // ─── Activate trial if enabled and not used ───
   // Don't replace an already active/paid subscription with trial
-  const isAlreadyActive =
-    user.subscription_status === "active" &&
-    user.subscription_expires_at &&
-    new Date(user.subscription_expires_at) > new Date();
   let trialMsg = "";
   if (isAlreadyActive) {
     // User already has an active subscription — just record legal acceptance
