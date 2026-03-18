@@ -3627,10 +3627,13 @@ async function handleAdmCallback(
     return tg.edit(chatId, msgId, text, ikb(rows));
   }
   if (cmd === "usub_act") {
-    // Activate subscription for 30 days
+    // Activate subscription for 30 days — preserve remaining days
     const tgId = parseInt(parts[2]);
     const priceInfo = await getSubscriptionPrice(tgId);
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: puAct } = await db().from("platform_users").select("subscription_expires_at").eq("telegram_id", tgId).maybeSingle();
+    const currentExpiry = puAct?.subscription_expires_at ? new Date(puAct.subscription_expires_at).getTime() : 0;
+    const baseDate = Math.max(currentExpiry, Date.now());
+    const expiresAt = new Date(baseDate + 30 * 24 * 60 * 60 * 1000).toISOString();
     await db()
       .from("platform_users")
       .update({
