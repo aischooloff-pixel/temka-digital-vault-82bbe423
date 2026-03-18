@@ -2140,14 +2140,8 @@ async function handleCallback(
       .single();
     if (payError || !payment)
       return tg.edit(chatId, msgId, `❌ Ошибка: ${payError?.message || "unknown"}`, ikb([[btn("◀️ Назад", "p:sub")]]));
-    if (promoId && promoCode) {
-      await db().rpc("increment_platform_promo_usage", {
-        p_promo_id: promoId,
-        p_telegram_id: telegramId,
-        p_payment_id: payment.id,
-        p_discount_amount: discountAmount,
-      });
-    }
+    // NOTE: Promo usage is only incremented after confirmed payment (not at invoice creation)
+
 
     // If fully covered by promo + balance
     if (toPay === 0) {
