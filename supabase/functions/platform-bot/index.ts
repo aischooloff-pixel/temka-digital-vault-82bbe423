@@ -5409,7 +5409,7 @@ async function handleAdmText(
     if (!testResult.ok) {
       return tg.send(
         chatId,
-        `❌ <b>Ошибка HTML</b>\n\nTelegram не принял ваш текст:\n<code>${esc(testResult.description || "unknown error")}</code>\n\nПроверьте теги и попробуйте снова.`,
+        `❌ <b>Ошибка HTML</b>\n\nTelegram не принял ваш текст:\n<code>${escHtml(testResult.description || "unknown error")}</code>\n\nПроверьте теги и попробуйте снова.`,
         ikb([[btn("✏️ Попробовать снова", "adm:welc_settext")], [btn("◀️ Назад", "adm:welcmgr")]]),
       );
     }
