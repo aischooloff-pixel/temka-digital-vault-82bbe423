@@ -90,6 +90,10 @@ serve(async (req) => {
       .eq("telegram_id", telegramId).maybeSingle();
     if (!pUser) return jsonRes({ error: "Пользователь не найден" }, 404);
 
+    // Check if pricing/subscriptions are enabled
+    const { data: pricingRow } = await supabase.from("shop_settings").select("value").eq("key", "sub_pricing_enabled").maybeSingle();
+    if (pricingRow?.value === "false") return jsonRes({ error: "Оформление подписки временно недоступно" }, 400);
+
     // Don't allow if already active with >7 days left
     if (pUser.subscription_status === "active" && pUser.subscription_expires_at) {
       const daysLeft = Math.ceil((new Date(pUser.subscription_expires_at).getTime() - Date.now()) / 86400000);
