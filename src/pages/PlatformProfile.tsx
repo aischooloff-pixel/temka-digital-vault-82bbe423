@@ -144,7 +144,7 @@ const PlatformProfile: React.FC = () => {
     };
   }, []);
 
-  const handleSubscriptionPay = async (useBalance: boolean, promoCode?: string) => {
+  const handleSubscriptionPay = async (useBalance: boolean, promoCode?: string, months?: number) => {
     if (!isInTelegram || !initData) {
       toast.info('Откройте платформу через Telegram');
       return;
@@ -152,7 +152,7 @@ const PlatformProfile: React.FC = () => {
     setSubLoading(true);
     try {
       const { data: res, error: err } = await supabase.functions.invoke('create-subscription-invoice', {
-        body: { initData, useBalance, promoCode },
+        body: { initData, useBalance, promoCode, months: months || 1 },
       });
       if (err) throw err;
       if (res?.error) throw new Error(res.error);
