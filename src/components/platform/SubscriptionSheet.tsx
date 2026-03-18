@@ -25,7 +25,7 @@ interface Props {
   balance: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onPayWithInvoice: (useBalance: boolean, promoCode?: string) => Promise<void>;
+  onPayWithInvoice: (useBalance: boolean, promoCode?: string, months?: number) => Promise<void>;
   loading?: boolean;
 }
 
@@ -38,6 +38,13 @@ const statusConfig: Record<string, { label: string; badgeVariant: 'default' | 's
   blocked: { label: 'Заблокирована', badgeVariant: 'destructive' },
   none: { label: 'Не активна', badgeVariant: 'secondary' },
 };
+
+const MONTH_OPTIONS = [
+  { value: 1, label: '1 мес' },
+  { value: 3, label: '3 мес' },
+  { value: 6, label: '6 мес' },
+  { value: 12, label: '12 мес' },
+];
 
 function daysUntil(dateStr: string | null): number | null {
   if (!dateStr) return null;
@@ -53,19 +60,26 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
   const { initData } = useTelegram();
   const cfg = statusConfig[subscription.status] || statusConfig.expired;
   const daysLeft = daysUntil(subscription.expires_at);
-  const needsRenewal = ['expired', 'trial', 'grace_period', 'cancelled', 'none'].includes(subscription.status);
-  const canRenew = needsRenewal || (subscription.status === 'active' && daysLeft !== null && daysLeft <= 7);
+  const isActive = subscription.status === 'active';
+  const needsPayment = ['expired', 'trial', 'grace_period', 'cancelled', 'none'].includes(subscription.status);
+  const canRenew = true; // Always allow renewal (active users can extend)
   const tierLabels: Record<string, string> = { early_3: '🎉 Early Bird', standard_5: 'Стандартный' };
-  const price = subscription.billing_price_usd || 0;
+  const monthlyPrice = subscription.billing_price_usd || 0;
 
+  const [selectedMonths, setSelectedMonths] = useState(1);
   const [useBalance, setUseBalance] = useState(true);
   const [promoCode, setPromoCode] = useState('');
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoResult, setPromoResult] = useState<{ valid: boolean; code: string; discount_type: string; discount_value: number; discountAmount: number } | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
 
-  const discountAmount = promoResult?.discountAmount || 0;
-  const afterDiscount = Math.max(0, price - discountAmount);
+  const totalPrice = Math.round(monthlyPrice * selectedMonths * 100) / 100;
+  const discountAmount = promoResult?.discountAmount
+    ? (promoResult.discount_type === 'percent'
+        ? Math.round(totalPrice * promoResult.discount_value / 100 * 100) / 100
+        : Math.min(promoResult.discount_value, totalPrice))
+    : 0;
+  const afterDiscount = Math.max(0, totalPrice - discountAmount);
   const balanceToUse = useBalance ? Math.min(balance, afterDiscount) : 0;
   const toPay = Math.max(0, afterDiscount - balanceToUse);
   const canPayFull = toPay === 0;
@@ -82,7 +96,6 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
       if (error) {
         let errMsg = 'Ошибка проверки промокода';
         try {
-          // FunctionsHttpError has .context (Response object)
           if (error && typeof error === 'object' && 'context' in error) {
             const resp = (error as any).context;
             if (resp && typeof resp.json === 'function') {
@@ -103,9 +116,9 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
       }
       let da = 0;
       if (res.discount_type === 'percent') {
-        da = Math.round(price * res.discount_value / 100 * 100) / 100;
+        da = Math.round(totalPrice * res.discount_value / 100 * 100) / 100;
       } else {
-        da = Math.min(res.discount_value, price);
+        da = Math.min(res.discount_value, totalPrice);
       }
       setPromoResult({ valid: true, code: res.code, discount_type: res.discount_type, discount_value: res.discount_value, discountAmount: da });
       toast.success(`Промокод применён: -$${da.toFixed(2)}`);
@@ -123,8 +136,10 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
   };
 
   const handlePay = () => {
-    onPayWithInvoice(useBalance, promoResult?.code || undefined);
+    onPayWithInvoice(useBalance, promoResult?.code || undefined, selectedMonths);
   };
+
+  const buttonLabel = isActive ? 'Продлить' : (subscription.status === 'trial' ? 'Оформить' : 'Продлить');
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -146,10 +161,10 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
           <Separator />
 
           {/* Price */}
-          {price > 0 && (
+          {monthlyPrice > 0 && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Стоимость</span>
-              <span className="text-lg font-bold">${price}/мес</span>
+              <span className="text-lg font-bold">${monthlyPrice}/мес</span>
             </div>
           )}
 
@@ -245,9 +260,57 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
               </p>
             </div>
           )}
+          {subscription.status === 'active' && (
+            <div className="bg-emerald-50 rounded-xl p-3 text-center">
+              <p className="text-xs text-emerald-700 font-medium">
+                ✅ Подписка активна. Вы можете продлить её заранее — дни будут добавлены к текущему сроку.
+              </p>
+            </div>
+          )}
+
+          {/* Month selector */}
+          {canRenew && monthlyPrice > 0 && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground font-medium">Срок продления:</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {MONTH_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => {
+                        setSelectedMonths(opt.value);
+                        // Recalculate promo if applied
+                        if (promoResult) {
+                          const newTotal = Math.round(monthlyPrice * opt.value * 100) / 100;
+                          let da = 0;
+                          if (promoResult.discount_type === 'percent') {
+                            da = Math.round(newTotal * promoResult.discount_value / 100 * 100) / 100;
+                          } else {
+                            da = Math.min(promoResult.discount_value, newTotal);
+                          }
+                          setPromoResult({ ...promoResult, discountAmount: da });
+                        }
+                      }}
+                      className={`py-2 px-1 rounded-xl text-center text-sm font-medium transition-all ${
+                        selectedMonths === opt.value
+                          ? 'bg-blue-500 text-white shadow-sm'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      <div>{opt.label}</div>
+                      <div className={`text-[10px] mt-0.5 ${selectedMonths === opt.value ? 'text-blue-100' : 'text-gray-400'}`}>
+                        ${(monthlyPrice * opt.value).toFixed(2)}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Promo code section */}
-          {canRenew && price > 0 && (
+          {canRenew && monthlyPrice > 0 && (
             <>
               <Separator />
               <div className="space-y-2">
@@ -261,7 +324,7 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
                         <Check className="w-3 h-3" /> {promoResult.code}
                       </p>
                       <p className="text-xs text-emerald-600">
-                        Скидка: -${promoResult.discountAmount.toFixed(2)}
+                        Скидка: -${discountAmount.toFixed(2)}
                       </p>
                     </div>
                     <button onClick={clearPromo} className="p-1 rounded-full hover:bg-emerald-100">
@@ -296,7 +359,7 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
           )}
 
           {/* Balance payment option */}
-          {canRenew && price > 0 && balance > 0 && (
+          {canRenew && monthlyPrice > 0 && balance > 0 && (
             <>
               <Separator />
               <div className="bg-blue-50 rounded-xl p-3 space-y-2">
@@ -339,8 +402,8 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
             <div className="bg-emerald-50 rounded-xl p-3">
               <div className="text-xs space-y-0.5">
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Стоимость:</span>
-                  <span>${price.toFixed(2)}</span>
+                  <span>Стоимость ({selectedMonths} мес):</span>
+                  <span>${totalPrice.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-emerald-600">
                   <span>Скидка:</span>
@@ -356,7 +419,7 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
         </div>
 
         <div className="p-4 pt-2 space-y-2">
-          {canRenew && price > 0 && (
+          {canRenew && monthlyPrice > 0 && (
             <Button
               onClick={handlePay}
               disabled={loading}
@@ -365,9 +428,9 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
               {loading ? (
                 <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Создание счёта...</>
               ) : canPayFull ? (
-                `💳 Оплатить${useBalance && balanceToUse > 0 ? ' с баланса' : ''} — $${afterDiscount.toFixed(2)}`
+                `💳 ${buttonLabel}${useBalance && balanceToUse > 0 ? ' с баланса' : ''} — $${afterDiscount.toFixed(2)}`
               ) : (
-                `💳 ${subscription.status === 'trial' ? 'Оформить' : 'Продлить'} — $${toPay.toFixed(2)}`
+                `💳 ${buttonLabel} (${selectedMonths} мес) — $${toPay.toFixed(2)}`
               )}
             </Button>
           )}
