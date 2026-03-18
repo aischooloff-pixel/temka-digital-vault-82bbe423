@@ -1450,7 +1450,7 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
       await tg.send(chatId, trialNotification);
     }
   } else if (!ss.trial_enabled || (ss.one_trial_per_user && user.has_used_trial)) {
-    // Trial is disabled or user already used it — set status to 'none' so they must pay
+    // Trial is disabled or user already used it — shop stays paused, user must pay
     if (user.subscription_status !== "active") {
       const priceInfo = await getSubscriptionPrice(chatId);
       await db()
@@ -1463,7 +1463,7 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
           updated_at: new Date().toISOString(),
         })
         .eq("telegram_id", chatId);
-      trialMsg = `\n\n💳 <b>Для работы магазина необходима подписка</b>\n💰 Стоимость: $${priceInfo.price}/мес\n\nОформите подписку через меню «💳 Подписка» в профиле.`;
+      trialMsg = `\n\n⚠️ <b>Магазин создан, но приостановлен</b>\n\nДля запуска магазина необходима подписка.\n💰 Стоимость: $${priceInfo.price}/мес\n\nОформите подписку через меню «💳 Подписка» в профиле.\nПосле оплаты магазин и бот будут активированы автоматически.`;
     }
   }
   // ─── Log legal acceptance ───
