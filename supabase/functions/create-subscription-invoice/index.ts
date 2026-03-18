@@ -143,12 +143,9 @@ serve(async (req) => {
     }).select("id").single();
     if (payError || !payment) return jsonRes({ error: `Ошибка создания платежа: ${payError?.message || "unknown"}` }, 500);
 
-    // Increment promo usage
-    if (promoId && validatedPromoCode) {
-      await supabase.rpc("increment_platform_promo_usage", {
-        p_promo_id: promoId, p_telegram_id: telegramId, p_payment_id: payment.id, p_discount_amount: discountAmount,
-      });
-    }
+    // NOTE: Promo usage is NOT incremented here. It's only incremented after confirmed payment.
+    // For immediate payments (finalAmount===0), we increment below.
+    // For invoice payments, the webhook/check-payment handles it.
 
     // If fully covered by discount + balance
     if (finalAmount === 0) {
