@@ -366,10 +366,17 @@ const PlatformProfile: React.FC = () => {
               </div>
             )}
 
+            {subscription.status === 'active' && (
+              <div className="bg-emerald-100/50 rounded-xl p-3 text-center">
+                <p className="text-xs text-emerald-700 font-medium">
+                  ✅ Подписка активна. Нажмите, чтобы продлить заранее.
+                </p>
+              </div>
+            )}
             {subscription.status === 'trial' && (
               <div className="bg-blue-100/50 rounded-xl p-3 text-center">
                 <p className="text-xs text-blue-700 font-medium">
-                  ✅ Подписка активна. Бесплатный период {daysLeft !== null ? `— осталось ${daysLeft > 0 ? `${daysLeft} дн.` : 'истекает сегодня'}` : ''}.
+                  ✅ Бесплатный период {daysLeft !== null ? `— осталось ${daysLeft > 0 ? `${daysLeft} дн.` : 'истекает сегодня'}` : ''}. Нажмите для оформления.
                 </p>
               </div>
             )}
@@ -377,6 +384,13 @@ const PlatformProfile: React.FC = () => {
               <div className="bg-red-100/50 rounded-xl p-3 text-center">
                 <p className="text-xs text-red-700 font-medium">
                   ⚠️ Подписка истекла. Нажмите для продления.
+                </p>
+              </div>
+            )}
+            {subscription.status === 'grace_period' && (
+              <div className="bg-amber-100/50 rounded-xl p-3 text-center">
+                <p className="text-xs text-amber-700 font-medium">
+                  ⏰ Льготный период. Нажмите, чтобы продлить подписку.
                 </p>
               </div>
             )}
