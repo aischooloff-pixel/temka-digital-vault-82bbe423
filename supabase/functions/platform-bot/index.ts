@@ -5766,8 +5766,8 @@ serve(async (req) => {
         const supportLink = await getSupportLink();
         await tg.send(
           chatId,
-          `🆘 Свяжитесь с поддержкой:\n${supportLink}`,
-          ikb([[urlBtn("🆘 Написать в поддержку", supportLink)]]),
+          `💬 <b>Мы всегда на связи!</b>\n\nЕсли что-то пошло не так, есть вопрос или просто нужен совет — напишите нам.\nМы отвечаем быстро и помогаем разобраться 🤝\n\n⚡ Среднее время ответа: 5–30 минут`,
+          ikb([[urlBtn("✉️ Написать нам", supportLink)]]),
         );
         return new Response("ok");
       }
