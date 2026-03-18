@@ -2201,6 +2201,15 @@ async function handleCallback(
         }
       }
       await db().from("subscription_payments").update({ status: "paid" }).eq("id", payment.id);
+      // Increment promo usage after confirmed payment
+      if (promoId && promoCode) {
+        await db().rpc("increment_platform_promo_usage", {
+          p_promo_id: promoId,
+          p_telegram_id: telegramId,
+          p_payment_id: payment.id,
+          p_discount_amount: discountAmount,
+        });
+      }
       await clearSession(chatId);
       let msg = `✅ <b>Подписка ${wasActive ? 'продлена' : 'активирована'}!</b>\n\n📅 Действует до: ${new Date(expiresAt).toLocaleDateString("ru")}\n💰 Стоимость: $${SUBSCRIPTION_PRICE.toFixed(2)} (${monthsLabel})`;
       if (discountAmount > 0)
