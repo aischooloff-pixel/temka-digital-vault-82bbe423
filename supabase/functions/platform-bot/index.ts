@@ -4761,7 +4761,7 @@ async function handleAdmCallback(
     let text = `👋 <b>Управление приветствием</b>\n\n`;
     text += `Статус: ${hasCustom ? "✅ Пользовательское" : "📝 По умолчанию"}\n`;
     text += `Медиа: ${mediaLabel}\n`;
-    if (config.text) text += `\n<b>Текст:</b>\n${config.text.slice(0, 300)}${config.text.length > 300 ? "…" : ""}`;
+    if (config.text) text += `\n<b>Текст:</b>\n<code>${esc(config.text.slice(0, 300))}${config.text.length > 300 ? "…" : ""}</code>`;
     return tg.edit(
       chatId,
       msgId,
