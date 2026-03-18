@@ -293,18 +293,18 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data.valid_until && now > data.valid_until) { setPromoError('Промокод истёк'); return; }
       if (data.max_uses !== null && data.used_count >= data.max_uses) { setPromoError('Лимит использований исчерпан'); return; }
 
-      // Check per-user usage limit
+      // Check per-user usage limit via edge function (RLS blocks direct query)
       if (data.max_uses_per_user !== null && telegramId) {
-        const { count } = await supabase.from('shop_orders')
-          .select('id', { count: 'exact', head: true })
-          .eq('shop_id', shop.id)
-          .eq('buyer_telegram_id', telegramId)
-          .eq('promo_code', trimmed);
-        if ((count || 0) >= data.max_uses_per_user) {
-          setPromoError('Вы уже использовали этот промокод');
-          setPromoResult(null);
-          return;
-        }
+        try {
+          const { data: usageRes } = await supabase.functions.invoke('get-my-data', {
+            body: { action: 'check-promo-usage', telegramId, code: trimmed, shopId: shop.id },
+          });
+          if ((usageRes?.count || 0) >= data.max_uses_per_user) {
+            setPromoError('Вы уже использовали этот промокод');
+            setPromoResult(null);
+            return;
+          }
+        } catch {}
       }
 
       setPromoResult({
