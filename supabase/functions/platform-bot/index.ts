@@ -2072,8 +2072,14 @@ async function handleCallback(
   if (cmd === "delshop") return deleteShopConfirm(tg, chatId, msgId, parts[2]);
   if (cmd === "confirmdelete") return deleteShopExecute(tg, chatId, msgId, parts[2]);
   if (cmd === "pay_sub") {
+    const months = Math.max(1, parseInt(parts[2]) || 1);
+    const allowedMonths = [1, 3, 6, 12];
+    const validMonths = allowedMonths.includes(months) ? months : 1;
+    const totalDays = validMonths * 30;
+
     const priceInfo = await getSubscriptionPrice(chatId);
-    const SUBSCRIPTION_PRICE = priceInfo.price;
+    const MONTHLY_PRICE = priceInfo.price;
+    const SUBSCRIPTION_PRICE = Math.round(MONTHLY_PRICE * validMonths * 100) / 100;
     const telegramId = chatId;
     const session = await getSession(chatId);
     const promoData = session?.state === "sub_promo_applied" ? (session.data as Record<string, unknown>) : null;
@@ -2083,21 +2089,32 @@ async function handleCallback(
     if (promoData) {
       promoCode = promoData.promo_code as string;
       promoId = promoData.promo_id as string;
-      discountAmount = Number(promoData.discount_amount || 0);
+      // Recalculate discount for total price
+      const discType = promoData.discount_type as string;
+      const discValue = Number(promoData.discount_value || 0);
+      if (discType === "percent") {
+        discountAmount = Math.round(SUBSCRIPTION_PRICE * discValue / 100 * 100) / 100;
+      } else {
+        discountAmount = Math.min(discValue, SUBSCRIPTION_PRICE);
+      }
     }
     const finalAmount = Math.max(0, SUBSCRIPTION_PRICE - discountAmount);
 
     // Check user balance for partial/full payment
     const { data: user } = await db()
       .from("platform_users")
-      .select("id, balance, billing_price_usd, first_paid_at")
+      .select("id, balance, billing_price_usd, first_paid_at, subscription_status, subscription_expires_at")
       .eq("telegram_id", telegramId)
       .maybeSingle();
     if (!user) return tg.edit(chatId, msgId, "❌ Пользователь не найден.", ikb([[btn("◀️ Назад", "p:sub")]]));
 
+    if (user.subscription_status === "blocked") return tg.edit(chatId, msgId, "❌ Подписка заблокирована.", ikb([[btn("◀️ Назад", "p:sub")]]));
+
     const userBalance = Number(user.balance) || 0;
     const balanceUsed = Math.min(userBalance, finalAmount);
     const toPay = Math.max(0, finalAmount - balanceUsed);
+
+    const monthsLabel = validMonths === 1 ? "1 мес" : `${validMonths} мес`;
 
     const { data: payment, error: payError } = await db()
       .from("subscription_payments")
@@ -2138,17 +2155,21 @@ async function handleCallback(
               amount: -balanceUsed,
               balance_after: newBal,
               type: "subscription",
-              comment: `Подписка ${PLATFORM_NAME} (1 мес)`,
+              comment: `Подписка ${PLATFORM_NAME} (${monthsLabel})`,
             });
         }
       }
-      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      // Preserve remaining days
+      const currentExpiry = user.subscription_expires_at ? new Date(user.subscription_expires_at).getTime() : 0;
+      const baseDate = Math.max(currentExpiry, Date.now());
+      const expiresAt = new Date(baseDate + totalDays * 24 * 60 * 60 * 1000).toISOString();
+      const wasActive = user.subscription_status === "active";
       await db()
         .from("platform_users")
         .update({
           subscription_status: "active",
           subscription_expires_at: expiresAt,
-          billing_price_usd: SUBSCRIPTION_PRICE,
+          billing_price_usd: MONTHLY_PRICE,
           pricing_tier: priceInfo.tier,
           first_paid_at: user.first_paid_at || new Date().toISOString(),
           reminder_sent_at: null,
@@ -2177,7 +2198,7 @@ async function handleCallback(
       }
       await db().from("subscription_payments").update({ status: "paid" }).eq("id", payment.id);
       await clearSession(chatId);
-      let msg = `✅ <b>Подписка активирована!</b>\n\n📅 Действует до: ${new Date(expiresAt).toLocaleDateString("ru")}\n💰 Стоимость: $${SUBSCRIPTION_PRICE.toFixed(2)}`;
+      let msg = `✅ <b>Подписка ${wasActive ? 'продлена' : 'активирована'}!</b>\n\n📅 Действует до: ${new Date(expiresAt).toLocaleDateString("ru")}\n💰 Стоимость: $${SUBSCRIPTION_PRICE.toFixed(2)} (${monthsLabel})`;
       if (discountAmount > 0)
         msg += `\n🎫 Промокод: <code>${esc(promoCode || "")}</code>\n🏷 Скидка: -$${discountAmount.toFixed(2)}`;
       if (balanceUsed > 0) msg += `\n💳 С баланса: -$${balanceUsed.toFixed(2)}`;
@@ -2201,7 +2222,7 @@ async function handleCallback(
           currency_type: "fiat",
           fiat: "USD",
           amount: toPay.toFixed(2),
-          description: `Подписка ${PLATFORM_NAME} (1 мес)${promoCode ? ` [промо: ${promoCode}]` : ""}`,
+          description: `Подписка ${PLATFORM_NAME} (${monthsLabel})${promoCode ? ` [промо: ${promoCode}]` : ""}`,
           payload: JSON.stringify({
             type: "subscription",
             paymentId: payment.id,
@@ -2209,6 +2230,7 @@ async function handleCallback(
             balanceUsed,
             subscriptionPrice: SUBSCRIPTION_PRICE,
             tier: priceInfo.tier,
+            months: validMonths,
           }),
           paid_btn_name: "callback",
           paid_btn_url: `https://t.me/${botInfo.result?.username || "bot"}`,
@@ -2229,7 +2251,7 @@ async function handleCallback(
         .update({ invoice_id: String(invoice.invoice_id), status: "awaiting" })
         .eq("id", payment.id);
       await clearSession(chatId);
-      let text = `💳 <b>Оплата подписки</b>\n\n💰 Стоимость: $${SUBSCRIPTION_PRICE.toFixed(2)}`;
+      let text = `💳 <b>Оплата подписки</b>\n\n💰 Стоимость: $${SUBSCRIPTION_PRICE.toFixed(2)} (${monthsLabel})`;
       if (discountAmount > 0)
         text += `\n🎫 Промокод: <code>${esc(promoCode || "")}</code>\n🏷 Скидка: -$${discountAmount.toFixed(2)}`;
       if (balanceUsed > 0) text += `\n💳 С баланса: -$${balanceUsed.toFixed(2)}`;
