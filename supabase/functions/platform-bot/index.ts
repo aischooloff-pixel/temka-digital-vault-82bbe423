@@ -1622,25 +1622,36 @@ async function handleText(
       );
     }
     const priceInfo = await getSubscriptionPrice(chatId);
-    let discountAmount = 0;
     let discountText = "";
     if (r.discount_type === "percent") {
-      discountAmount = Math.round(((priceInfo.price * r.discount_value) / 100) * 100) / 100;
-      discountText = `${r.discount_value}% (-$${discountAmount.toFixed(2)})`;
+      const discountAmount = Math.round(((priceInfo.price * r.discount_value) / 100) * 100) / 100;
+      discountText = `${r.discount_value}% (-$${discountAmount.toFixed(2)}/мес)`;
     } else {
-      discountAmount = Math.min(r.discount_value, priceInfo.price);
-      discountText = `-$${discountAmount.toFixed(2)}`;
+      const discountAmount = Math.min(r.discount_value, priceInfo.price);
+      discountText = `-$${discountAmount.toFixed(2)}/мес`;
     }
-    const finalAmount = Math.max(0, priceInfo.price - discountAmount);
     await setSession(chatId, "sub_promo_applied", {
       promo_code: r.code,
       promo_id: r.id,
-      discount_amount: discountAmount,
+      discount_type: r.discount_type,
+      discount_value: r.discount_value,
     });
+    // Show month selection with discounted prices
+    const calcPrice = (m: number) => {
+      const total = Math.round(priceInfo.price * m * 100) / 100;
+      let disc = 0;
+      if (r.discount_type === "percent") disc = Math.round(total * r.discount_value / 100 * 100) / 100;
+      else disc = Math.min(r.discount_value, total);
+      return Math.max(0, total - disc);
+    };
     return tg.send(
       chatId,
-      `✅ <b>Промокод ${esc(r.code)} применён!</b>\n\n🏷 Скидка: <b>${discountText}</b>\n💰 Стоимость: $${priceInfo.price}/мес\n💵 К оплате: <b>$${finalAmount.toFixed(2)}/мес</b>\n\nНажмите «Оплатить» для продолжения:`,
-      ikb([[btn(`💳 Оплатить $${finalAmount.toFixed(2)}`, "p:pay_sub")], [btn("◀️ Без промокода", "p:sub")]]),
+      `✅ <b>Промокод ${esc(r.code)} применён!</b>\n\n🏷 Скидка: <b>${discountText}</b>\n💰 Базовая цена: $${priceInfo.price}/мес\n\nВыберите срок подписки:`,
+      ikb([
+        [btn(`1 мес — $${calcPrice(1).toFixed(2)}`, "p:pay_sub:1"), btn(`3 мес — $${calcPrice(3).toFixed(2)}`, "p:pay_sub:3")],
+        [btn(`6 мес — $${calcPrice(6).toFixed(2)}`, "p:pay_sub:6"), btn(`12 мес — $${calcPrice(12).toFixed(2)}`, "p:pay_sub:12")],
+        [btn("◀️ Без промокода", "p:sub")],
+      ]),
     );
   }
   // ─── ADM FSM states ─────────────────────
