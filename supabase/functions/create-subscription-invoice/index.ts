@@ -9,6 +9,7 @@ const corsHeaders = {
 
 const CRYPTOBOT_API_URL = "https://pay.crypt.bot/api";
 const PLATFORM_NAME = "TeleStore";
+const ALLOWED_MONTHS = [1, 3, 6, 12];
 
 const jsonRes = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -62,12 +63,19 @@ async function getSubscriptionPrice(supabase: any, telegramId: number): Promise<
   return paidCount < ss.early_slots_limit ? { price: ss.early_price_usd, tier: "early_3" } : { price: ss.standard_price_usd, tier: "standard_5" };
 }
 
+function monthsLabel(m: number): string {
+  if (m === 1) return "1 мес";
+  return `${m} мес`;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { initData, useBalance, promoCode } = await req.json();
+    const { initData, useBalance, promoCode, months: rawMonths } = await req.json();
     if (!initData) return jsonRes({ error: "Откройте приложение через Telegram" }, 401);
+
+    const months = ALLOWED_MONTHS.includes(Number(rawMonths)) ? Number(rawMonths) : 1;
 
     const botToken = Deno.env.get("PLATFORM_BOT_TOKEN");
     if (!botToken) return jsonRes({ error: "Бот не настроен" }, 500);
@@ -86,7 +94,7 @@ serve(async (req) => {
     await supabase.from("rate_limits").insert({ identifier: String(telegramId), action: "sub_invoice" });
 
     // Get platform user
-    const { data: pUser } = await supabase.from("platform_users").select("id, subscription_status, subscription_expires_at, balance, billing_price_usd, pricing_tier")
+    const { data: pUser } = await supabase.from("platform_users").select("id, subscription_status, subscription_expires_at, balance, billing_price_usd, pricing_tier, first_paid_at")
       .eq("telegram_id", telegramId).maybeSingle();
     if (!pUser) return jsonRes({ error: "Пользователь не найден" }, 404);
 
@@ -94,15 +102,14 @@ serve(async (req) => {
     const { data: pricingRow } = await supabase.from("shop_settings").select("value").eq("key", "sub_pricing_enabled").maybeSingle();
     if (pricingRow?.value === "false") return jsonRes({ error: "Оформление подписки временно недоступно" }, 400);
 
-    // Don't allow if already active with >7 days left
-    if (pUser.subscription_status === "active" && pUser.subscription_expires_at) {
-      const daysLeft = Math.ceil((new Date(pUser.subscription_expires_at).getTime() - Date.now()) / 86400000);
-      if (daysLeft > 7) return jsonRes({ error: "Подписка ещё активна. Продление доступно за 7 дней до окончания." }, 400);
-    }
+    // Blocked users cannot renew
+    if (pUser.subscription_status === "blocked") return jsonRes({ error: "Подписка заблокирована. Обратитесь в поддержку." }, 400);
 
-    // Calculate price
+    // Calculate price (per month * months)
     const priceInfo = await getSubscriptionPrice(supabase, telegramId);
-    const subscriptionPrice = priceInfo.price;
+    const monthlyPrice = priceInfo.price;
+    const subscriptionPrice = Math.round(monthlyPrice * months * 100) / 100;
+    const totalDays = months * 30;
 
     // Validate promo
     let discountAmount = 0;
@@ -144,8 +151,6 @@ serve(async (req) => {
     if (payError || !payment) return jsonRes({ error: `Ошибка создания платежа: ${payError?.message || "unknown"}` }, 500);
 
     // NOTE: Promo usage is NOT incremented here. It's only incremented after confirmed payment.
-    // For immediate payments (finalAmount===0), we increment below.
-    // For invoice payments, the webhook/check-payment handles it.
 
     // If fully covered by discount + balance
     if (finalAmount === 0) {
@@ -155,7 +160,7 @@ serve(async (req) => {
         if (!balErr) {
           await supabase.from("platform_balance_history").insert({
             telegram_id: telegramId, amount: -balanceUsed, balance_after: newBal,
-            type: "subscription", comment: `Подписка ${PLATFORM_NAME} (1 мес)`,
+            type: "subscription", comment: `Подписка ${PLATFORM_NAME} (${monthsLabel(months)})`,
           });
         }
       }
@@ -163,11 +168,11 @@ serve(async (req) => {
       // Activate subscription — preserve remaining days
       const currentExpiry = pUser.subscription_expires_at ? new Date(pUser.subscription_expires_at).getTime() : 0;
       const baseDate = Math.max(currentExpiry, Date.now());
-      const expiresAt = new Date(baseDate + 30 * 24 * 60 * 60 * 1000).toISOString();
+      const expiresAt = new Date(baseDate + totalDays * 24 * 60 * 60 * 1000).toISOString();
       await supabase.from("platform_users").update({
         subscription_status: "active", subscription_expires_at: expiresAt,
-        billing_price_usd: subscriptionPrice, pricing_tier: priceInfo.tier,
-        first_paid_at: pUser.billing_price_usd == null ? new Date().toISOString() : undefined,
+        billing_price_usd: monthlyPrice, pricing_tier: priceInfo.tier,
+        first_paid_at: pUser.first_paid_at || new Date().toISOString(),
         reminder_sent_at: null, expiry_notified_at: null, updated_at: new Date().toISOString(),
       }).eq("telegram_id", telegramId);
 
@@ -190,7 +195,7 @@ serve(async (req) => {
       // Notify
       const platformBotToken = Deno.env.get("PLATFORM_BOT_TOKEN");
       if (platformBotToken) {
-        let msg = `✅ <b>Подписка активирована!</b>\n\n📅 Действует до: ${new Date(expiresAt).toLocaleDateString("ru")}\n💰 Стоимость: $${subscriptionPrice.toFixed(2)}`;
+        let msg = `✅ <b>Подписка ${pUser.subscription_status === 'active' ? 'продлена' : 'активирована'}!</b>\n\n📅 Действует до: ${new Date(expiresAt).toLocaleDateString("ru")}\n💰 Стоимость: $${subscriptionPrice.toFixed(2)} (${monthsLabel(months)})`;
         if (discountAmount > 0) msg += `\n🎫 Скидка: -$${discountAmount.toFixed(2)}`;
         if (balanceUsed > 0) msg += `\n💳 С баланса: -$${balanceUsed.toFixed(2)}`;
         try {
@@ -208,6 +213,7 @@ serve(async (req) => {
         balanceUsed,
         discountAmount,
         finalAmount: 0,
+        months,
       });
     }
 
@@ -223,7 +229,7 @@ serve(async (req) => {
       body: JSON.stringify({
         currency_type: "fiat", fiat: "USD",
         amount: finalAmount.toFixed(2),
-        description: `Подписка ${PLATFORM_NAME} (1 мес)${validatedPromoCode ? ` [промо: ${validatedPromoCode}]` : ""}`,
+        description: `Подписка ${PLATFORM_NAME} (${monthsLabel(months)})${validatedPromoCode ? ` [промо: ${validatedPromoCode}]` : ""}`,
         payload: JSON.stringify({
           type: "subscription",
           paymentId: payment.id,
@@ -231,6 +237,7 @@ serve(async (req) => {
           balanceUsed,
           subscriptionPrice,
           tier: priceInfo.tier,
+          months,
         }),
         paid_btn_name: "callback",
         paid_btn_url: `https://t.me/${botInfo.result?.username || "bot"}`,
@@ -254,6 +261,7 @@ serve(async (req) => {
       balanceUsed,
       discountAmount,
       subscriptionPrice,
+      months,
     });
   } catch (error) {
     console.error("[create-subscription-invoice] error:", error);
