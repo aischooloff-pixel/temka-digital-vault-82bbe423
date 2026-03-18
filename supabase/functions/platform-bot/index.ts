@@ -5137,7 +5137,11 @@ async function handleAdmText(
     const days = parseInt(val);
     if (!days || days <= 0 || days > 365) return tg.send(chatId, "❌ Введите число от 1 до 365:");
     await clearSession(chatId);
-    const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+    // Preserve remaining days: base = max(current_expiry, now)
+    const { data: puFree } = await db().from("platform_users").select("subscription_expires_at").eq("telegram_id", targetTgId).maybeSingle();
+    const currentExpiryFree = puFree?.subscription_expires_at ? new Date(puFree.subscription_expires_at).getTime() : 0;
+    const baseDateFree = Math.max(currentExpiryFree, Date.now());
+    const expiresAt = new Date(baseDateFree + days * 24 * 60 * 60 * 1000).toISOString();
     await db()
       .from("platform_users")
       .update({
