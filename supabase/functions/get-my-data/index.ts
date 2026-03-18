@@ -17,6 +17,9 @@ function verifyAndExtractUser(initData: string, botToken: string): { id: number 
   const dcs = entries.map(([k, v]) => `${k}=${v}`).join("\n");
   const secretKey = createHmac("sha256", "WebAppData").update(botToken).digest();
   if (createHmac("sha256", secretKey).update(dcs).digest("hex") !== hash) return null;
+  // TTL: 600s for data reads (10 minutes)
+  const authDate = params.get("auth_date");
+  if (authDate && Math.floor(Date.now() / 1000) - Number(authDate) > 600) return null;
   try { return JSON.parse(params.get("user") || ""); } catch { return null; }
 }
 
