@@ -75,6 +75,25 @@ serve(async (req) => {
     if (!items?.length || !orderNumber) return jsonRes({ error: "Missing required fields" }, 400);
     if (!tokens.cryptobotToken) return jsonRes({ error: "Платежи не настроены. Владельцу магазина необходимо подключить CryptoBot токен." }, 500);
 
+    // Validate shop operational state for shop orders
+    if (isShop) {
+      const { data: shopData } = await supabase.from("shops").select("status").eq("id", shopId).maybeSingle();
+      if (!shopData || shopData.status !== "active") {
+        return jsonRes({ error: "Магазин временно недоступен для приёма заказов" }, 400);
+      }
+      // Check owner subscription
+      const { data: shopFull } = await supabase.from("shops").select("owner_id").eq("id", shopId).maybeSingle();
+      if (shopFull?.owner_id) {
+        const { data: owner } = await supabase.from("platform_users").select("subscription_status, subscription_expires_at").eq("id", shopFull.owner_id).maybeSingle();
+        if (owner && !["active", "trial", "grace_period"].includes(owner.subscription_status)) {
+          return jsonRes({ error: "Магазин временно недоступен для приёма заказов" }, 400);
+        }
+        if (owner?.subscription_expires_at && new Date(owner.subscription_expires_at) < new Date() && owner.subscription_status !== "grace_period") {
+          return jsonRes({ error: "Магазин временно недоступен для приёма заказов" }, 400);
+        }
+      }
+    }
+
     // Rate limiting
     await supabase.from("rate_limits").delete().lt("created_at", new Date(Date.now() - 3600000).toISOString());
     const { count: recentRequests } = await supabase
@@ -181,6 +200,10 @@ serve(async (req) => {
           }
         }
       }
+    }
+    // If promoCode was provided but not validated, return error (don't silently ignore)
+    if (promoCode && !validatedPromoCode) {
+      return jsonRes({ error: "Промокод больше недоступен, проверьте заказ" }, 400);
     }
 
     const totalAfterDiscount = Math.max(0, serverTotal - discountAmount);

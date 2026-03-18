@@ -23,6 +23,8 @@ function verifyAndExtractUser(initData: string, botToken: string): { id: number 
   const dcs = entries.map(([k, v]) => `${k}=${v}`).join("\n");
   const secretKey = createHmac("sha256", "WebAppData").update(botToken).digest();
   if (createHmac("sha256", secretKey).update(dcs).digest("hex") !== hash) return null;
+  const authDate = params.get("auth_date");
+  if (authDate && Math.floor(Date.now() / 1000) - Number(authDate) > 300) return null;
   try { return JSON.parse(params.get("user") || ""); } catch { return null; }
 }
 
@@ -88,6 +90,10 @@ serve(async (req) => {
       .eq("telegram_id", telegramId).maybeSingle();
     if (!pUser) return jsonRes({ error: "Пользователь не найден" }, 404);
 
+    // Check if pricing/subscriptions are enabled
+    const { data: pricingRow } = await supabase.from("shop_settings").select("value").eq("key", "sub_pricing_enabled").maybeSingle();
+    if (pricingRow?.value === "false") return jsonRes({ error: "Оформление подписки временно недоступно" }, 400);
+
     // Don't allow if already active with >7 days left
     if (pUser.subscription_status === "active" && pUser.subscription_expires_at) {
       const daysLeft = Math.ceil((new Date(pUser.subscription_expires_at).getTime() - Date.now()) / 86400000);
@@ -137,12 +143,9 @@ serve(async (req) => {
     }).select("id").single();
     if (payError || !payment) return jsonRes({ error: `Ошибка создания платежа: ${payError?.message || "unknown"}` }, 500);
 
-    // Increment promo usage
-    if (promoId && validatedPromoCode) {
-      await supabase.rpc("increment_platform_promo_usage", {
-        p_promo_id: promoId, p_telegram_id: telegramId, p_payment_id: payment.id, p_discount_amount: discountAmount,
-      });
-    }
+    // NOTE: Promo usage is NOT incremented here. It's only incremented after confirmed payment.
+    // For immediate payments (finalAmount===0), we increment below.
+    // For invoice payments, the webhook/check-payment handles it.
 
     // If fully covered by discount + balance
     if (finalAmount === 0) {
@@ -157,14 +160,23 @@ serve(async (req) => {
         }
       }
 
-      // Activate subscription
-      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      // Activate subscription — preserve remaining days
+      const currentExpiry = pUser.subscription_expires_at ? new Date(pUser.subscription_expires_at).getTime() : 0;
+      const baseDate = Math.max(currentExpiry, Date.now());
+      const expiresAt = new Date(baseDate + 30 * 24 * 60 * 60 * 1000).toISOString();
       await supabase.from("platform_users").update({
         subscription_status: "active", subscription_expires_at: expiresAt,
         billing_price_usd: subscriptionPrice, pricing_tier: priceInfo.tier,
         first_paid_at: pUser.billing_price_usd == null ? new Date().toISOString() : undefined,
         reminder_sent_at: null, expiry_notified_at: null, updated_at: new Date().toISOString(),
       }).eq("telegram_id", telegramId);
+
+      // Increment promo usage after confirmed payment
+      if (promoId && validatedPromoCode) {
+        await supabase.rpc("increment_platform_promo_usage", {
+          p_promo_id: promoId, p_telegram_id: telegramId, p_payment_id: payment.id, p_discount_amount: discountAmount,
+        });
+      }
 
       // Reactivate paused shops
       const { data: shops } = await supabase.from("shops").select("id").eq("owner_id", pUser.id).eq("status", "paused");
