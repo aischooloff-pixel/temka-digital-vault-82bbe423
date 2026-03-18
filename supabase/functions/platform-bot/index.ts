@@ -2148,24 +2148,6 @@ async function handleCallback(
       return tg.edit(chatId, msgId, `❌ Ошибка: ${payError?.message || "unknown"}`, ikb([[btn("◀️ Назад", "p:sub")]]));
     // NOTE: Promo usage is only incremented after confirmed payment (not at invoice creation)
 
-async function showRenewOptions(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
-  const priceInfo = await getSubscriptionPrice(chatId);
-  const text = `🔄 <b>Продление подписки</b>\n\n💰 Ваша цена: <b>$${priceInfo.price}/мес</b>\n\nВыберите срок продления — дни будут добавлены к текущему сроку:`;
-  const rows: Btn[][] = [
-    [
-      btn(`1 мес — $${priceInfo.price.toFixed(2)}`, "p:pay_sub:1"),
-      btn(`3 мес — $${(priceInfo.price * 3).toFixed(2)}`, "p:pay_sub:3"),
-    ],
-    [
-      btn(`6 мес — $${(priceInfo.price * 6).toFixed(2)}`, "p:pay_sub:6"),
-      btn(`12 мес — $${(priceInfo.price * 12).toFixed(2)}`, "p:pay_sub:12"),
-    ],
-    [btn("🎫 Ввести промокод", "p:sub_promo")],
-    [btn("◀️ Назад", "p:sub")],
-  ];
-  return tg.edit(chatId, msgId, text, ikb(rows));
-}
-
 
     // If fully covered by promo + balance
     if (toPay === 0) {
