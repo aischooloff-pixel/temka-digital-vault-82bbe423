@@ -238,6 +238,8 @@ async function handleSubscriptionPayment(supabase: any, orderData: any, invoiceI
   const balanceUsed = Number(orderData.balanceUsed || 0);
   const subscriptionPrice = Number(orderData.subscriptionPrice || 0);
   const tier = orderData.tier || "standard_5";
+  const months = Number(orderData.months) || 1;
+  const totalDays = months * 30;
 
   if (!telegramUserId || !paymentId) throw new Error(`[subscription] invalid payload invoice=${invoiceId}`);
 
@@ -262,14 +264,16 @@ async function handleSubscriptionPayment(supabase: any, orderData: any, invoiceI
   }
 
   // Activate subscription — preserve remaining days
-  const { data: pUser } = await supabase.from("platform_users").select("first_paid_at, id, subscription_expires_at").eq("telegram_id", telegramUserId).maybeSingle();
+  const { data: pUser } = await supabase.from("platform_users").select("first_paid_at, id, subscription_status, subscription_expires_at").eq("telegram_id", telegramUserId).maybeSingle();
   const currentExpiry = pUser?.subscription_expires_at ? new Date(pUser.subscription_expires_at).getTime() : 0;
   const baseDate = Math.max(currentExpiry, Date.now());
-  const expiresAt = new Date(baseDate + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const expiresAt = new Date(baseDate + totalDays * 24 * 60 * 60 * 1000).toISOString();
+  const wasActive = pUser?.subscription_status === 'active';
   
   await supabase.from("platform_users").update({
     subscription_status: "active", subscription_expires_at: expiresAt,
-    billing_price_usd: subscriptionPrice, pricing_tier: tier,
+    billing_price_usd: months === 1 ? subscriptionPrice : Math.round(subscriptionPrice / months * 100) / 100,
+    pricing_tier: tier,
     first_paid_at: pUser?.first_paid_at || new Date().toISOString(),
     reminder_sent_at: null, expiry_notified_at: null, updated_at: new Date().toISOString(),
   }).eq("telegram_id", telegramUserId);
@@ -297,9 +301,10 @@ async function handleSubscriptionPayment(supabase: any, orderData: any, invoiceI
   await supabase.from("subscription_payments").update({ status: "paid" }).eq("id", paymentId);
 
   // Notify
+  const monthsLabel = months === 1 ? "1 мес" : `${months} мес`;
   const botToken = Deno.env.get("PLATFORM_BOT_TOKEN");
   if (botToken) {
-    let msg = `✅ <b>Подписка активирована!</b>\n\n📅 Действует до: ${new Date(expiresAt).toLocaleDateString("ru")}\n💰 Стоимость: $${subscriptionPrice.toFixed(2)}`;
+    let msg = `✅ <b>Подписка ${wasActive ? 'продлена' : 'активирована'}!</b>\n\n📅 Действует до: ${new Date(expiresAt).toLocaleDateString("ru")}\n💰 Стоимость: $${subscriptionPrice.toFixed(2)} (${monthsLabel})`;
     if (balanceUsed > 0) msg += `\n💳 С баланса: -$${balanceUsed.toFixed(2)}`;
     try {
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
