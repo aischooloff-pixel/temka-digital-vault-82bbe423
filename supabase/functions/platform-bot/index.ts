@@ -972,19 +972,24 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
   const text = `💳 <b>Подписка</b>\n\n📊 Статус: <b>${status}</b>${daysLeftText}${statusBlock}\n\n💰 Ваша цена: <b>$${priceInfo.price}/мес</b> ${tierLabel}\n🏷 Тариф: ${tierLabel}\n\n<b>Включает:</b>\n• ${ss.max_shops_per_user} магазин\n• Приём платежей через CryptoBot\n• Собственный Telegram-бот\n• Авто-доставка цифровых товаров\n• ${ss.trial_enabled ? `${ss.trial_days} дней пробного периода` : "Пробный период недоступен"}`;
 
   const rows: Btn[][] = [];
-  // Always show renewal options (active users can extend in advance)
   const isBlocked = user.subscription_status === "blocked";
   if (!isBlocked) {
-    // Month selection buttons
-    rows.push([
-      btn(`1 мес — $${priceInfo.price.toFixed(2)}`, "p:pay_sub:1"),
-      btn(`3 мес — $${(priceInfo.price * 3).toFixed(2)}`, "p:pay_sub:3"),
-    ]);
-    rows.push([
-      btn(`6 мес — $${(priceInfo.price * 6).toFixed(2)}`, "p:pay_sub:6"),
-      btn(`12 мес — $${(priceInfo.price * 12).toFixed(2)}`, "p:pay_sub:12"),
-    ]);
-    rows.push([btn("🎫 Ввести промокод", "p:sub_promo")]);
+    const isActive = user.subscription_status === "active" || user.subscription_status === "trial";
+    if (isActive) {
+      // For active users — single button that opens duration selection
+      rows.push([btn("🔄 Продлить подписку", "p:sub_renew")]);
+    } else {
+      // For inactive users — show duration buttons directly
+      rows.push([
+        btn(`1 мес — $${priceInfo.price.toFixed(2)}`, "p:pay_sub:1"),
+        btn(`3 мес — $${(priceInfo.price * 3).toFixed(2)}`, "p:pay_sub:3"),
+      ]);
+      rows.push([
+        btn(`6 мес — $${(priceInfo.price * 6).toFixed(2)}`, "p:pay_sub:6"),
+        btn(`12 мес — $${(priceInfo.price * 12).toFixed(2)}`, "p:pay_sub:12"),
+      ]);
+      rows.push([btn("🎫 Ввести промокод", "p:sub_promo")]);
+    }
   }
 
   if (user.subscription_status === "active" || user.subscription_status === "trial") {
