@@ -1207,7 +1207,7 @@ serve(async (req) => {
         `👋 Привет, ${firstName}!\n\nДобро пожаловать в наш магазин цифровых товаров!\n\n🛍 Аккаунты, ключи ПО и подписки\n⚡ Мгновенная доставка\n₿ Оплата через CryptoBot\n🛡 Гарантия и поддержка\n\nНажмите кнопку ниже 👇`,
         { inline_keyboard: [
           [{ text: "🛒 Открыть магазин", web_app: { url: webAppUrl } }],
-          [{ text: "📋 Каталог", web_app: { url: `${webAppUrl}/catalog` } }, { text: "👤 Профиль", web_app: { url: `${webAppUrl}/account` } }],
+          [{ text: "📋 Каталог", web_app: { url: `${webAppUrl}/catalog` } }, { text: "👤 Профиль", web_app: { url: `${webAppUrl}/platform/profile` } }],
           [{ text: "💬 Поддержка", url: `https://t.me/${support}` }],
         ] }
       );

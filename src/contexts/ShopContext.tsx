@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import type { PromoResult } from '@/contexts/StoreContext';
+import { useTelegram } from '@/contexts/TelegramContext';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface ShopData {
@@ -118,6 +119,7 @@ function hexToHSL(hex: string): string {
 
 export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { shopId } = useParams<{ shopId: string }>();
+  const { user, initData } = useTelegram();
   const [shop, setShop] = useState<ShopData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -292,6 +294,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data.valid_from && now < data.valid_from) { setPromoError('Промокод ещё не активен'); return; }
       if (data.valid_until && now > data.valid_until) { setPromoError('Промокод истёк'); return; }
       if (data.max_uses !== null && data.used_count >= data.max_uses) { setPromoError('Лимит использований исчерпан'); return; }
+      if (initData && (telegramId || user?.id) && data.max_uses_per_user) {
+        const { data: usageData } = await supabase.functions.invoke('get-my-data', {
+          body: { initData, action: 'check-shop-promo-usage', shopId: shop.id, code: trimmed },
+        });
+        const count = usageData?.count || 0;
+        if (count >= data.max_uses_per_user) {
+          setPromoError('Вы уже использовали этот промокод максимальное число раз');
+          return;
+        }
+      }
       setPromoResult({
         id: data.id,
         code: trimmed,
@@ -304,7 +316,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setPromoLoading(false);
     }
-  }, [shop?.id]);
+  }, [initData, shop?.id, user?.id]);
 
   const clearPromo = useCallback(() => {
     setPromoResult(null);

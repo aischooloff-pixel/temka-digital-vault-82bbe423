@@ -22,6 +22,11 @@ interface SubscriptionData {
 
 interface Props {
   subscription: SubscriptionData;
+  settings?: {
+    trial_days: number;
+    trial_enabled: boolean;
+    max_shops: number;
+  };
   balance: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -49,7 +54,15 @@ function formatDate(dateStr: string | null): string {
   return new Date(dateStr).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWithInvoice, loading }: Props) => {
+function formatShopLabel(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${count} магазин`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${count} магазина`;
+  return `${count} магазинов`;
+}
+
+const SubscriptionSheet = ({ subscription, settings, balance, open, onOpenChange, onPayWithInvoice, loading }: Props) => {
   const { initData } = useTelegram();
   const cfg = statusConfig[subscription.status] || statusConfig.expired;
   const daysLeft = daysUntil(subscription.expires_at);
@@ -57,6 +70,13 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
   const canRenew = needsRenewal || (subscription.status === 'active' && daysLeft !== null && daysLeft <= 7);
   const tierLabels: Record<string, string> = { early_3: '🎉 Early Bird', standard_5: 'Стандартный' };
   const price = subscription.billing_price_usd || 0;
+  const maxShops = settings?.max_shops ?? 1;
+  const includedItems = [
+    `${formatShopLabel(maxShops)} с собственным ботом`,
+    'Приём платежей через CryptoBot',
+    'Авто-доставка цифровых товаров',
+    settings?.trial_enabled === false ? 'Пробный период недоступен' : `${settings?.trial_days ?? 7} дней пробного периода`,
+  ];
 
   const [useBalance, setUseBalance] = useState(true);
   const [promoCode, setPromoCode] = useState('');
@@ -166,8 +186,8 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
 
           <Separator />
 
-          {/* Expiration — hide for cancelled/blocked/none */}
-          {subscription.expires_at && !['cancelled', 'blocked', 'none'].includes(subscription.status) && (
+          {/* Expiration — hide only for blocked/none */}
+          {subscription.expires_at && !['blocked', 'none'].includes(subscription.status) && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" /> Действует до
@@ -176,7 +196,7 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
             </div>
           )}
 
-          {daysLeft !== null && !['cancelled', 'blocked', 'none'].includes(subscription.status) && (
+          {daysLeft !== null && !['blocked', 'none'].includes(subscription.status) && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5" /> Осталось
@@ -200,7 +220,7 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
           <div>
             <p className="text-xs text-muted-foreground font-medium mb-2">Включено в подписку:</p>
             <div className="space-y-1.5">
-              {['1 магазин с собственным ботом', 'Приём платежей через CryptoBot', 'Авто-доставка цифровых товаров', 'Бесплатный пробный период'].map((item, i) => (
+              {includedItems.map((item, i) => (
                 <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Sparkles className="w-3 h-3 text-blue-400 shrink-0" />
                   {item}
@@ -227,7 +247,7 @@ const SubscriptionSheet = ({ subscription, balance, open, onOpenChange, onPayWit
           {subscription.status === 'cancelled' && (
             <div className="bg-orange-50 rounded-xl p-3 text-center">
               <p className="text-xs text-orange-700 font-medium">
-                🚫 Подписка отменена. Магазины приостановлены. Оформите подписку заново.
+                🚫 Автопродление отключено. Магазины продолжат работать до окончания уже оплаченного периода.
               </p>
             </div>
           )}

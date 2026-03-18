@@ -121,6 +121,17 @@ async function getSupportLink(): Promise<string> {
   const { data } = await db().from("shop_settings").select("value").eq("key", "platform_support_link").maybeSingle();
   return data?.value || Deno.env.get("PLATFORM_SUPPORT_LINK") || SUPPORT_LINK_DEFAULT;
 }
+
+async function getPlatformDocLink(settingKey: string, envKey: string, fallback: string): Promise<string> {
+  const { data } = await db().from("shop_settings").select("value").eq("key", settingKey).maybeSingle();
+  return data?.value || Deno.env.get(envKey) || fallback;
+}
+
+function extendExpiryFromCurrent(currentExpiry: string | null, durationDays: number): string {
+  const currentExpiryTs = currentExpiry ? new Date(currentExpiry).getTime() : 0;
+  const baseTs = Math.max(currentExpiryTs, Date.now());
+  return new Date(baseTs + durationDays * 24 * 60 * 60 * 1000).toISOString();
+}
 // ─── Subscription Settings (dynamic from DB) ──
 interface SubSettings {
   standard_price_usd: number;
@@ -266,7 +277,8 @@ async function checkAndEnforceSubscription(telegramId: number): Promise<{ status
   if (!user) return { status: "none", expired: false };
   const status = user.subscription_status;
   if (status === "none") return { status: "none", expired: false };
-  if (status === "blocked" || status === "cancelled") return { status, expired: true };
+  if (status === "blocked") return { status, expired: true };
+  if (status === "cancelled" && !user.subscription_expires_at) return { status, expired: true };
   // If user has 'trial' status but no expiry date, check global trial policy
   if (status === "trial" && !user.subscription_expires_at) {
     const ss = await getSubSettings();
@@ -284,7 +296,7 @@ async function checkAndEnforceSubscription(telegramId: number): Promise<{ status
   if (!user.subscription_expires_at) return { status, expired: false };
   const daysLeft = subscriptionDaysLeft(user.subscription_expires_at);
   const ss = await getSubSettings();
-  if (daysLeft <= 0 && (status === "trial" || status === "active")) {
+  if (daysLeft <= 0 && (status === "trial" || status === "active" || status === "cancelled")) {
     // Check grace period
     if (ss.grace_period_enabled && status === "active") {
       const graceDaysLeft = daysLeft + ss.grace_period_days; // daysLeft is negative
@@ -328,7 +340,9 @@ async function checkAndEnforceSubscription(telegramId: number): Promise<{ status
         const token = Deno.env.get("PLATFORM_BOT_TOKEN");
         if (token) {
           const shopNames = (shops || []).map((s) => s.name).join(", ") || "—";
-          const msg = `❌ <b>Подписка закончилась</b>\n\nВаша подписка на <b>${PLATFORM_NAME}</b> истекла.\n\n🏪 Магазины переведены в ограниченный режим:\n${shopNames}\n\n🤖 Боты магазинов деактивированы.\n\nДля возобновления работы продлите подписку.`;
+          const msg = status === "cancelled"
+            ? `❌ <b>Срок подписки завершился</b>\n\nАвтопродление на <b>${PLATFORM_NAME}</b> было отключено ранее, и оплаченный период закончился.\n\n🏪 Магазины переведены в ограниченный режим:\n${shopNames}\n\n🤖 Боты магазинов деактивированы.\n\nДля возобновления работы оформите продление.`
+            : `❌ <b>Подписка закончилась</b>\n\nВаша подписка на <b>${PLATFORM_NAME}</b> истекла.\n\n🏪 Магазины переведены в ограниченный режим:\n${shopNames}\n\n🤖 Боты магазинов деактивированы.\n\nДля возобновления работы продлите подписку.`;
           try {
             await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
               method: "POST",
@@ -732,7 +746,14 @@ async function sendWelcome(tg: ReturnType<typeof TG>, chatId: number, firstName:
 // ═══════════════════════════════════════════════
 async function howItWorks(tg: ReturnType<typeof TG>, chatId: number, msgId: number) {
   const ss = await getSubSettings();
-  const text = `📖 <b>Как это работает?</b>\n\n1️⃣ <b>Создай магазин</b> — пройди простой онбординг из 7 шагов\n\n2️⃣ <b>Добавь товары</b> — загрузи инвентарь прямо в бота\n\n3️⃣ <b>Подключи оплату</b> — CryptoBot принимает крипту автоматически\n\n4️⃣ <b>Поделись ссылкой</b> — клиенты покупают через mini-app\n\n5️⃣ <b>Автовыдача 24/7</b> — товар доставляется мгновенно после оплаты\n\n🔗 <b>Пример магазина:</b> @TeleStoreTestBot\n❓ <b>FAQ / Частые вопросы:</b> <a href="https://telegra.ph/FAQ--TeleStore-03-17">открыть</a>\n🚀 <b>В чём преимущество Mini App:</b> <a href="https://telegra.ph/V-chem-preimushchestvo-magazina-Mini-App-03-17">читать</a>\n\n💰 Стоимость: от <b>$${ss.early_price_usd}/мес</b> — ${ss.max_shops_per_user} магазин на пользователя\n🆓 ${ss.trial_enabled ? `${ss.trial_days} дней бесплатного пробного периода` : "Пробный период недоступен"}`;
+  const exampleShop = await getPlatformDocLink("platform_example_shop", "PLATFORM_EXAMPLE_SHOP", "@TeleStoreTestBot");
+  const faqLink = await getPlatformDocLink("platform_faq_link", "PLATFORM_FAQ_LINK", "https://telegra.ph/FAQ--TeleStore-03-17");
+  const miniAppLink = await getPlatformDocLink(
+    "platform_miniapp_help_link",
+    "PLATFORM_MINIAPP_HELP_LINK",
+    "https://telegra.ph/V-chem-preimushchestvo-magazina-Mini-App-03-17",
+  );
+  const text = `📖 <b>Как это работает?</b>\n\n1️⃣ <b>Создай магазин</b> — пройди простой онбординг из 7 шагов\n\n2️⃣ <b>Добавь товары</b> — загрузи инвентарь прямо в бота\n\n3️⃣ <b>Подключи оплату</b> — CryptoBot принимает крипту автоматически\n\n4️⃣ <b>Поделись ссылкой</b> — клиенты покупают через mini-app\n\n5️⃣ <b>Автовыдача 24/7</b> — товар доставляется мгновенно после оплаты\n\n🔗 <b>Пример магазина:</b> ${esc(exampleShop)}\n❓ <b>FAQ / Частые вопросы:</b> <a href="${faqLink}">открыть</a>\n🚀 <b>В чём преимущество Mini App:</b> <a href="${miniAppLink}">читать</a>\n\n💰 Стоимость: от <b>$${ss.early_price_usd}/мес</b> — ${ss.max_shops_per_user} магазин на пользователя\n🆓 ${ss.trial_enabled ? `${ss.trial_days} дней бесплатного пробного периода` : "Пробный период недоступен"}`;
   const photoUrl = `${Deno.env.get("SUPABASE_URL")}/storage/v1/object/public/product-images/platform/how-it-works.png`;
   console.log("howItWorks called, chatId:", chatId, "photoUrl:", photoUrl);
   try { await tg.deleteMessage(chatId, msgId); } catch { /* ignore */ }
@@ -776,7 +797,7 @@ async function showProfile(tg: ReturnType<typeof TG>, chatId: number, msgId?: nu
   const subLabel = subStatusLabel(user.subscription_status);
   const priceInfo = await getSubscriptionPrice(chatId);
   let subExtra = "";
-  if (user.subscription_expires_at && !["cancelled", "blocked", "none"].includes(user.subscription_status)) {
+  if (user.subscription_expires_at && !["blocked", "none"].includes(user.subscription_status)) {
     const daysLeft = subscriptionDaysLeftDisplay(user.subscription_expires_at);
     if (daysLeft > 0) {
       subExtra = `\n⏳ Осталось: <b>${daysLeft}</b> ${daysLeft === 1 ? "день" : daysLeft < 5 ? "дня" : "дней"}`;
@@ -841,10 +862,15 @@ async function shopView(tg: ReturnType<typeof TG>, chatId: number, msgId: number
     .eq("shop_id", shopId);
   const shopUrl = `${WEBAPP_DOMAIN}/shop/${shop.id}`;
   const statusEmoji = shop.status === "active" ? "🟢" : "🔴";
+  const helpCenterLink = await getPlatformDocLink(
+    "platform_help_center_link",
+    "PLATFORM_HELP_CENTER_LINK",
+    "https://telegra.ph/Centr-pomoshchi-TeleStore-03-17",
+  );
   const botLine = shop.bot_username
     ? `\n🤖 Бот: @${shop.bot_username}\n\n✅ Mini App и кнопки в боте уже настроены — переходите в @${shop.bot_username} и продавайте!`
     : "";
-  const helpBlock = `\n\n📘 <b>Центр помощи</b>\nЕсли возникнут вопросы по настройке и работе магазина:\nhttps://telegra.ph/Centr-pomoshchi-TeleStore-03-17`;
+  const helpBlock = `\n\n📘 <b>Центр помощи</b>\nЕсли возникнут вопросы по настройке и работе магазина:\n${helpCenterLink}`;
   const text = `🏪 <b>${esc(shop.name)}</b>\n\n📊 Статус: ${shop.status === "active" ? "активен" : "остановлен"} ${statusEmoji}\n🔗 ${esc(shopUrl)}\n📦 Товаров: ${productCount || 0}\n🛍 Продаж: ${orderCount || 0}${botLine}${helpBlock}`;
   return tg.edit(
     chatId,
@@ -942,8 +968,8 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
   const priceInfo = await getSubscriptionPrice(chatId);
   const status = subStatusLabel(user.subscription_status);
   let daysLeftText = "";
-  // Don't show days left / expiry for cancelled or blocked statuses
-  if (user.subscription_expires_at && !["cancelled", "blocked", "none"].includes(user.subscription_status)) {
+  // Don't show days left / expiry only for blocked or none statuses
+  if (user.subscription_expires_at && !["blocked", "none"].includes(user.subscription_status)) {
     const dLeft = subscriptionDaysLeftDisplay(user.subscription_expires_at);
     if (dLeft > 0) {
       daysLeftText = `\n⏳ Осталось: <b>${dLeft}</b> ${dLeft === 1 ? "день" : dLeft < 5 ? "дня" : "дней"}`;
@@ -960,7 +986,7 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
   } else if (user.subscription_status === "none") {
     statusBlock = `\n\n⏳ <b>Подписка не активна</b>\nОформите подписку для работы магазина.`;
   } else if (user.subscription_status === "cancelled") {
-    statusBlock = `\n\n🚫 <b>Подписка отменена</b>\nМагазины приостановлены. Оформите подписку заново для возобновления.`;
+    statusBlock = `\n\n🚫 <b>Автопродление отключено</b>\nПодписка и магазины будут работать до окончания уже оплаченного периода.`;
   } else if (user.subscription_status === "expired") {
     statusBlock = `\n\n⚠️ <b>Подписка истекла</b>\nМагазины приостановлены. Продлите подписку для возобновления.`;
   } else if (user.subscription_status === "grace_period") {
@@ -982,7 +1008,7 @@ async function showSubscription(tg: ReturnType<typeof TG>, chatId: number, msgId
     rows.push([btn("🎫 Ввести промокод", "p:sub_promo")]);
   }
 
-  if (user.subscription_status === "active" || user.subscription_status === "trial") {
+  if (["active", "trial", "cancelled"].includes(user.subscription_status)) {
     rows.push([webAppBtn("🌐 Профиль и подписка", `${WEBAPP_DOMAIN}/platform/profile`)]);
   }
 
@@ -1918,13 +1944,18 @@ async function handleCallback(
   }
   if (cmd === "setbot") {
     const shopId = parts[2];
+    const botFatherGuideLink = await getPlatformDocLink(
+      "platform_botfather_guide_link",
+      "PLATFORM_BOTFATHER_GUIDE_LINK",
+      "https://core.telegram.org/bots/tutorial",
+    );
     await setSession(chatId, "set_bot_token", { shop_id: shopId });
     return tg.edit(
       chatId,
       msgId,
       "🤖 <b>Подключение бота</b>\n\nОтправь токен своего бота от @BotFather:\n\n⚠️ Токен будет проверен через Telegram API, зашифрован и сохранён.\n✅ Webhook будет установлен автоматически.",
       ikb([
-        [urlBtn("📖 Как получить токен", "https://core.telegram.org/bots/tutorial")],
+        [urlBtn("📖 Как получить токен", botFatherGuideLink)],
         [btn("❌ Отмена", `p:settings:${shopId}`)],
       ]),
     );
@@ -2108,14 +2139,6 @@ async function handleCallback(
       .single();
     if (payError || !payment)
       return tg.edit(chatId, msgId, `❌ Ошибка: ${payError?.message || "unknown"}`, ikb([[btn("◀️ Назад", "p:sub")]]));
-    if (promoId && promoCode) {
-      await db().rpc("increment_platform_promo_usage", {
-        p_promo_id: promoId,
-        p_telegram_id: telegramId,
-        p_payment_id: payment.id,
-        p_discount_amount: discountAmount,
-      });
-    }
 
     // If fully covered by promo + balance
     if (toPay === 0) {
@@ -2137,7 +2160,12 @@ async function handleCallback(
             });
         }
       }
-      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: currentUser } = await db()
+        .from("platform_users")
+        .select("subscription_expires_at")
+        .eq("telegram_id", telegramId)
+        .maybeSingle();
+      const expiresAt = extendExpiryFromCurrent(currentUser?.subscription_expires_at || null, 30);
       await db()
         .from("platform_users")
         .update({
@@ -2151,6 +2179,14 @@ async function handleCallback(
           updated_at: new Date().toISOString(),
         })
         .eq("telegram_id", telegramId);
+      if (promoId && promoCode) {
+        await db().rpc("increment_platform_promo_usage", {
+          p_promo_id: promoId,
+          p_telegram_id: telegramId,
+          p_payment_id: payment.id,
+          p_discount_amount: discountAmount,
+        });
+      }
       // Reactivate paused shops
       const { data: shops } = await db()
         .from("shops")
@@ -3590,7 +3626,12 @@ async function handleAdmCallback(
     // Activate subscription for 30 days
     const tgId = parseInt(parts[2]);
     const priceInfo = await getSubscriptionPrice(tgId);
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: currentUser } = await db()
+      .from("platform_users")
+      .select("subscription_expires_at")
+      .eq("telegram_id", tgId)
+      .maybeSingle();
+    const expiresAt = extendExpiryFromCurrent(currentUser?.subscription_expires_at || null, 30);
     await db()
       .from("platform_users")
       .update({
@@ -3663,37 +3704,24 @@ async function handleAdmCallback(
   }
   if (cmd === "usub_cancel") {
     const tgId = parseInt(parts[2]);
+    const nowIso = new Date().toISOString();
     await db()
       .from("platform_users")
       .update({
         subscription_status: "cancelled",
-        updated_at: new Date().toISOString(),
+        updated_at: nowIso,
       })
       .eq("telegram_id", tgId);
-    // Pause shops
-    const { data: pu } = await db().from("platform_users").select("id").eq("telegram_id", tgId).maybeSingle();
-    if (pu) {
-      const { data: shops } = await db()
-        .from("shops")
-        .select("id, bot_token_encrypted, name")
-        .eq("owner_id", pu.id)
-        .eq("status", "active");
-      const encKey = Deno.env.get("TOKEN_ENCRYPTION_KEY");
-      for (const shop of shops || []) {
-        await db().from("shops").update({ status: "paused", updated_at: new Date().toISOString() }).eq("id", shop.id);
-        if (shop.bot_token_encrypted && encKey) {
-          try {
-            const { data: rawToken } = await db().rpc("decrypt_token", {
-              p_encrypted: shop.bot_token_encrypted,
-              p_key: encKey,
-            });
-            if (rawToken) await removeSellerWebhook(rawToken);
-          } catch {}
-        }
-      }
-    }
     await admLog(adminTgId, "cancel_subscription", "user", String(tgId));
     // Notify user
+    const { data: cancelledUser } = await db()
+      .from("platform_users")
+      .select("subscription_expires_at")
+      .eq("telegram_id", tgId)
+      .maybeSingle();
+    const activeUntilText = cancelledUser?.subscription_expires_at
+      ? `\n\n📅 Доступ сохранится до: ${new Date(cancelledUser.subscription_expires_at).toLocaleDateString("ru")}`
+      : "";
     const token = Deno.env.get("PLATFORM_BOT_TOKEN");
     if (token) {
       try {
@@ -3702,7 +3730,7 @@ async function handleAdmCallback(
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             chat_id: tgId,
-            text: `❌ <b>Подписка отменена</b>\n\nВаша подписка на <b>${PLATFORM_NAME}</b> была отменена администратором.\n\n🏪 Магазины приостановлены.\n🤖 Боты деактивированы.`,
+            text: `❌ <b>Автопродление отключено</b>\n\nПодписка на <b>${PLATFORM_NAME}</b> была отменена администратором.${activeUntilText}\n\n✅ Текущий оплаченный период сохранён. После его окончания магазины будут приостановлены автоматически.`,
             parse_mode: "HTML",
           }),
         });
@@ -3711,7 +3739,7 @@ async function handleAdmCallback(
     return tg.edit(
       chatId,
       msgId,
-      `❌ Подписка отменена. Магазины приостановлены.`,
+      `❌ Автопродление отключено.${activeUntilText}\n\nТекущий оплаченный период сохранён.`,
       ikb([[btn("◀️ К подписке", `adm:usub:${tgId}`), btn("◀️ К пользователю", `adm:ucard:${tgId}`)]]),
     );
   }

@@ -264,6 +264,19 @@ serve(async (req) => {
         return jsonRes({ valid: true, code: r.code, discount_type: r.discount_type, discount_value: r.discount_value });
       }
 
+      case "check-shop-promo-usage": {
+        const { code } = body;
+        if (!shopId || !code) return jsonRes({ count: 0 });
+        const { count } = await supabase
+          .from("shop_orders")
+          .select("id", { count: "exact", head: true })
+          .eq("shop_id", shopId)
+          .eq("buyer_telegram_id", telegramId)
+          .ilike("promo_code", code)
+          .in("payment_status", ["paid", "awaiting"]);
+        return jsonRes({ count: count || 0 });
+      }
+
       default:
         return jsonRes({ error: "Unknown action" }, 400);
     }

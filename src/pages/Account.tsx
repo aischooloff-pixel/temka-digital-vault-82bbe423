@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import cryptobotLogo from '@/assets/cryptobot-logo.jpeg';
 import { Package, CheckCircle2, Clock, MessageCircle, ChevronRight, AlertCircle, XCircle, Wallet, ArrowDownCircle, ArrowUpCircle, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useStorefront, useStorefrontPath } from '@/contexts/StorefrontContext';
 import { useShopOptional } from '@/contexts/ShopContext';
 import { useTelegram } from '@/contexts/TelegramContext';
@@ -56,9 +56,11 @@ const Account = () => {
   const buildPath = useStorefrontPath();
   const { user, isInTelegram, openTelegramLink, haptic, initData } = useTelegram();
   const shopCtx = useShopOptional();
+  const navigate = useNavigate();
 
   // Use shop UUID from ShopContext (not slug from URL)
   const shopId = shopCtx?.shop?.id;
+  const isRootPlatformFlow = !shopId && !basePath;
   const { data: orders, isLoading: ordersLoading } = useOrders(shopId);
   const { data: balanceHistory, isLoading: balanceLoading } = useBalanceHistory(shopId);
   const { data: stats, isLoading: statsLoading } = useUserStats(shopId);
@@ -90,11 +92,24 @@ const Account = () => {
   );
 
   useEffect(() => {
+    if (!isRootPlatformFlow) return;
+    navigate('/platform/profile', { replace: true });
+  }, [isRootPlatformFlow, navigate]);
+
+  useEffect(() => {
     try {
       const pendingId = localStorage.getItem(pendingTopupStorageKey);
       if (pendingId) setPendingTopupInvoiceId(pendingId);
     } catch {}
   }, [pendingTopupStorageKey]);
+
+  if (isRootPlatformFlow) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const clearPendingTopup = useCallback(() => {
     setPendingTopupInvoiceId(null);

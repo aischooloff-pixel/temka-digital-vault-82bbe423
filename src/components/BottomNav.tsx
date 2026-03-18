@@ -4,14 +4,15 @@ import { useStorefront, useStorefrontPath } from '@/contexts/StorefrontContext';
 
 const BottomNav = () => {
   const location = useLocation();
-  const { cartCount } = useStorefront();
+  const { cartCount, basePath } = useStorefront();
   const buildPath = useStorefrontPath();
+  const profilePath = basePath ? buildPath('/account') : '/platform/profile';
 
   const navItems = [
     { path: buildPath('/'), icon: Home, label: 'Главная', exact: true },
     { path: buildPath('/catalog'), icon: Search, label: 'Каталог' },
     { path: buildPath('/cart'), icon: ShoppingCart, label: 'Корзина' },
-    { path: buildPath('/account'), icon: User, label: 'Профиль' },
+    { path: profilePath, icon: User, label: 'Профиль' },
   ];
 
   return (

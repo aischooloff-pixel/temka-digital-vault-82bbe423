@@ -50,6 +50,11 @@ interface ProfileData {
   };
   balance: number;
   shops: ShopData[];
+  settings: {
+    trial_days: number;
+    trial_enabled: boolean;
+    max_shops: number;
+  };
 }
 
 const statusConfig: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
@@ -380,6 +385,13 @@ const PlatformProfile: React.FC = () => {
                 </p>
               </div>
             )}
+            {subscription.status === 'cancelled' && (
+              <div className="bg-orange-100/60 rounded-xl p-3 text-center">
+                <p className="text-xs text-orange-700 font-medium">
+                  🚫 Автопродление отключено. Доступ сохранится до конца уже оплаченного периода.
+                </p>
+              </div>
+            )}
             {subscription.status === 'none' && (
               <div className="bg-gray-100/50 rounded-xl p-3 text-center">
                 <p className="text-xs text-gray-600 font-medium">
@@ -459,6 +471,7 @@ const PlatformProfile: React.FC = () => {
       {/* Sheets */}
       <SubscriptionSheet
         subscription={subscription}
+        settings={data.settings}
         balance={data.balance}
         open={subSheetOpen}
         onOpenChange={setSubSheetOpen}

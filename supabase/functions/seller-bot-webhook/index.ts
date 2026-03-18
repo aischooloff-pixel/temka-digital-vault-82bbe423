@@ -47,6 +47,7 @@ const btn = (t: string, cb: string): Btn => ({ text: t, callback_data: cb });
 const ikb = (rows: Btn[][]) => ({ inline_keyboard: rows });
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const WEBAPP_DOMAIN = Deno.env.get("WEBAPP_URL") || "https://telestore.lovable.app";
+const CRYPTOBOT_SETUP_LINK = Deno.env.get("PLATFORM_CRYPTOBOT_SETUP_LINK") || "https://telegra.ph/Nastrojka-oplaty--3-minuty-03-16";
 
 function paginate<T>(items: T[], page: number, perPage = 6) {
   const total = Math.max(1, Math.ceil(items.length / perPage));
@@ -1193,7 +1194,7 @@ async function handleCallback(tg: ReturnType<typeof TG>, cid: number, mid: numbe
         cid,
         "💰 <b>Подключение CryptoBot</b>\n\nОтправь API-токен от @CryptoBot:\n\n⏱ <b>Настройка займёт всего 3 минуты.</b>\n\n⚠️ Токен будет зашифрован.",
         ikb([
-          [{ text: "📖 Инструкция — 3 минуты", url: "https://telegra.ph/Nastrojka-oplaty--3-minuty-03-16" }],
+          [{ text: "📖 Инструкция — 3 минуты", url: CRYPTOBOT_SETUP_LINK }],
           [btn("❌ Отмена", "s:se")],
         ]),
       );

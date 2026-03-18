@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useStorefrontPath } from '@/contexts/StorefrontContext';
+import { useStorefront, useStorefrontPath } from '@/contexts/StorefrontContext';
 import { CheckCircle2, Package, MessageCircle, ShoppingCart, Clock, Loader2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useOrders } from '@/hooks/useOrders';
@@ -11,6 +11,7 @@ import { useTelegram } from '@/contexts/TelegramContext';
 
 const OrderSuccess = () => {
   const buildPath = useStorefrontPath();
+  const { basePath } = useStorefront();
   const [searchParams] = useSearchParams();
   const orderNumber = searchParams.get('order');
   const { data: orders } = useOrders();
@@ -86,6 +87,8 @@ const OrderSuccess = () => {
 
   const isPaid = paymentConfirmed || order?.payment_status === 'paid';
   const isDelivered = order?.status === 'delivered' || order?.status === 'completed';
+  const profilePath = basePath ? buildPath('/account') : '/platform/profile';
+  const profileLabel = basePath ? 'Мои заказы' : 'Профиль платформы';
 
   return (
     <div className="container-main mx-auto px-4 py-12 sm:py-16 text-center max-w-md">
@@ -192,7 +195,7 @@ const OrderSuccess = () => {
           {expired && (
              <Link to={buildPath('/catalog')}><Button variant="hero" size="sm" className="w-full"><ShoppingCart className="w-4 h-4 mr-1" /> Оформить заново</Button></Link>
           )}
-          <Link to={buildPath('/account')}><Button variant="outline" size="sm" className="w-full"><Package className="w-4 h-4 mr-1" /> Мои заказы</Button></Link>
+          <Link to={profilePath}><Button variant="outline" size="sm" className="w-full"><Package className="w-4 h-4 mr-1" /> {profileLabel}</Button></Link>
           <a href={`https://t.me/${supportUsername}`} target="_blank" rel="noopener noreferrer"><Button variant="outline" size="sm" className="w-full"><MessageCircle className="w-4 h-4 mr-1" /> Поддержка в Telegram</Button></a>
           {!expired && (
             <Link to={buildPath('/catalog')}><Button variant="hero" size="sm" className="w-full"><ShoppingCart className="w-4 h-4 mr-1" /> Продолжить покупки</Button></Link>
