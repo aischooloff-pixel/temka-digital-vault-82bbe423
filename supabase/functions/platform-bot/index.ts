@@ -5776,7 +5776,14 @@ serve(async (req) => {
       const data = cb.data;
       if (chatId && msgId && data) {
         if (data.startsWith("adm:")) {
-          await handleAdmCallback(tg, chatId, msgId, data, cb.id, cb.from.id);
+          try {
+            await handleAdmCallback(tg, chatId, msgId, data, cb.id, cb.from.id);
+          } catch (e) {
+            console.error("handleAdmCallback error:", data, e);
+            try {
+              await tg.send(chatId, `❌ Ошибка: ${String(e?.message || e).slice(0, 200)}`);
+            } catch {}
+          }
         } else if (data.startsWith("p:")) {
           // Blocked user guard for platform callbacks (except subscription check)
           if (data !== "p:checksub" && (await isUserBlocked(cb.from.id))) {
