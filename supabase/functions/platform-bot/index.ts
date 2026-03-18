@@ -1374,13 +1374,25 @@ async function finalizeShop(tg: ReturnType<typeof TG>, chatId: number, msgId: nu
     botId = (sData.bot_id as number) || null;
     botUsername = (sData.bot_username as string) || null;
   }
+  // ─── Determine shop status based on subscription ───
+  const isAlreadyActive =
+    user.subscription_status === "active" &&
+    user.subscription_expires_at &&
+    new Date(user.subscription_expires_at) > new Date();
+  const willGetTrial =
+    !isAlreadyActive &&
+    ss.trial_enabled &&
+    ss.auto_trial_on_shop_create &&
+    (!ss.one_trial_per_user || !user.has_used_trial);
+  const shopStatus = (isAlreadyActive || willGetTrial) ? "active" : "paused";
+
   const { data: shop, error } = await db()
     .from("shops")
     .insert({
       name,
       slug,
       owner_id: user.id,
-      status: "active",
+      status: shopStatus,
       color: (sData.color as string) || "#2B7FFF",
       hero_title: (sData.hero_title as string) || "",
       hero_description: (sData.hero_desc as string) || "",
