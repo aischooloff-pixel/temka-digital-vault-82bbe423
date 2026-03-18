@@ -170,6 +170,10 @@ serve(async (req) => {
         }
       }
     }
+    // If promoCode was provided but not validated, return error
+    if (promoCode && !validatedPromoCode) {
+      return jsonRes({ error: "Промокод больше недоступен, проверьте заказ" }, 400);
+    }
 
     const totalAfterDiscount = Math.max(0, serverTotal - discountAmount);
     if (balance < totalAfterDiscount) return jsonRes({ error: "Insufficient balance" }, 400);

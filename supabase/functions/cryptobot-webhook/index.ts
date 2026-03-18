@@ -261,9 +261,11 @@ async function handleSubscriptionPayment(supabase: any, orderData: any, invoiceI
     }
   }
 
-  // Activate subscription
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-  const { data: pUser } = await supabase.from("platform_users").select("first_paid_at, id").eq("telegram_id", telegramUserId).maybeSingle();
+  // Activate subscription — preserve remaining days
+  const { data: pUser } = await supabase.from("platform_users").select("first_paid_at, id, subscription_expires_at").eq("telegram_id", telegramUserId).maybeSingle();
+  const currentExpiry = pUser?.subscription_expires_at ? new Date(pUser.subscription_expires_at).getTime() : 0;
+  const baseDate = Math.max(currentExpiry, Date.now());
+  const expiresAt = new Date(baseDate + 30 * 24 * 60 * 60 * 1000).toISOString();
   
   await supabase.from("platform_users").update({
     subscription_status: "active", subscription_expires_at: expiresAt,
@@ -271,6 +273,17 @@ async function handleSubscriptionPayment(supabase: any, orderData: any, invoiceI
     first_paid_at: pUser?.first_paid_at || new Date().toISOString(),
     reminder_sent_at: null, expiry_notified_at: null, updated_at: new Date().toISOString(),
   }).eq("telegram_id", telegramUserId);
+
+  // Increment promo usage for subscription promos
+  const { data: subPayment } = await supabase.from("subscription_payments").select("promo_code, discount_amount, id").eq("id", paymentId).maybeSingle();
+  if (subPayment?.promo_code) {
+    const { data: promoRow } = await supabase.from("platform_subscription_promos").select("id").ilike("code", subPayment.promo_code).maybeSingle();
+    if (promoRow) {
+      await supabase.rpc("increment_platform_promo_usage", {
+        p_promo_id: promoRow.id, p_telegram_id: telegramUserId, p_payment_id: paymentId, p_discount_amount: Number(subPayment.discount_amount || 0),
+      });
+    }
+  }
 
   // Reactivate paused shops
   if (pUser?.id) {

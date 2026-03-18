@@ -201,6 +201,10 @@ serve(async (req) => {
         }
       }
     }
+    // If promoCode was provided but not validated, return error (don't silently ignore)
+    if (promoCode && !validatedPromoCode) {
+      return jsonRes({ error: "Промокод больше недоступен, проверьте заказ" }, 400);
+    }
 
     const totalAfterDiscount = Math.max(0, serverTotal - discountAmount);
 

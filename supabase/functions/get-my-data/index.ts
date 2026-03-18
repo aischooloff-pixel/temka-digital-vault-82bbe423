@@ -220,6 +220,11 @@ serve(async (req) => {
           }
         }
 
+        // Fetch subscription settings for context
+        const trialDays = settingsMap.sub_trial_days ? parseInt(settingsMap.sub_trial_days) : 7;
+        const trialEnabled = settingsMap.sub_trial_enabled ? settingsMap.sub_trial_enabled === "true" : true;
+        const maxShops = settingsMap.sub_max_shops_per_user ? parseInt(settingsMap.sub_max_shops_per_user) : 1;
+
         return jsonRes({
           user: {
             id: pUser.id, telegram_id: pUser.telegram_id, first_name: pUser.first_name,
@@ -234,6 +239,7 @@ serve(async (req) => {
           },
           balance: Number(pUser.balance) || 0,
           shops: shopsWithStats,
+          settings: { trial_days: trialDays, trial_enabled: trialEnabled, max_shops: maxShops },
         });
       }
 

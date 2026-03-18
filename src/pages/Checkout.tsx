@@ -87,12 +87,10 @@ const Checkout = () => {
         if (data?.error) throw new Error(data.error);
 
         if (isInTelegram && data?.payUrl) {
-          clearCart();
           openTelegramLink(data.payUrl);
           navigate(`${buildPath('/order-success')}?order=${data.orderNumber || orderNumber}`);
         } else if (data?.payUrl) {
           window.open(data.payUrl, '_blank');
-          clearCart();
           navigate(`${buildPath('/order-success')}?order=${data.orderNumber || orderNumber}`);
         } else {
           throw new Error('Не удалось создать инвойс');
