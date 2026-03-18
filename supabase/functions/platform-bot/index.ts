@@ -1,6 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+/** Escape HTML special chars so user content doesn't break Telegram parse_mode:HTML */
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 // ─── Webhook Setup (GET) ──────────────────────
 async function setupWebhook(): Promise<Response> {
   const token = Deno.env.get("PLATFORM_BOT_TOKEN");
@@ -4756,7 +4761,7 @@ async function handleAdmCallback(
     let text = `👋 <b>Управление приветствием</b>\n\n`;
     text += `Статус: ${hasCustom ? "✅ Пользовательское" : "📝 По умолчанию"}\n`;
     text += `Медиа: ${mediaLabel}\n`;
-    if (config.text) text += `\n<b>Текст:</b>\n${config.text.slice(0, 300)}${config.text.length > 300 ? "…" : ""}`;
+    if (config.text) text += `\n<b>Текст:</b>\n<code>${esc(config.text.slice(0, 300))}${config.text.length > 300 ? "…" : ""}</code>`;
     return tg.edit(
       chatId,
       msgId,
