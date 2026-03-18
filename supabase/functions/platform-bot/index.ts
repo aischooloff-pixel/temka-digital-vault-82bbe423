@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 /** Escape HTML special chars so user content doesn't break Telegram parse_mode:HTML */
-function esc(s: string): string {
+function escHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
@@ -4761,7 +4761,7 @@ async function handleAdmCallback(
     let text = `👋 <b>Управление приветствием</b>\n\n`;
     text += `Статус: ${hasCustom ? "✅ Пользовательское" : "📝 По умолчанию"}\n`;
     text += `Медиа: ${mediaLabel}\n`;
-    if (config.text) text += `\n<b>Текст:</b>\n<code>${esc(config.text.slice(0, 300))}${config.text.length > 300 ? "…" : ""}</code>`;
+    if (config.text) text += `\n<b>Текст:</b>\n<code>${escHtml(config.text.slice(0, 300))}${config.text.length > 300 ? "…" : ""}</code>`;
     return tg.edit(
       chatId,
       msgId,
@@ -5409,7 +5409,7 @@ async function handleAdmText(
     if (!testResult.ok) {
       return tg.send(
         chatId,
-        `❌ <b>Ошибка HTML</b>\n\nTelegram не принял ваш текст:\n<code>${esc(testResult.description || "unknown error")}</code>\n\nПроверьте теги и попробуйте снова.`,
+        `❌ <b>Ошибка HTML</b>\n\nTelegram не принял ваш текст:\n<code>${escHtml(testResult.description || "unknown error")}</code>\n\nПроверьте теги и попробуйте снова.`,
         ikb([[btn("✏️ Попробовать снова", "adm:welc_settext")], [btn("◀️ Назад", "adm:welcmgr")]]),
       );
     }
