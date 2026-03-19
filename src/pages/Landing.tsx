@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import storefrontScreenshot from "@/assets/storefront-screenshot.png";
+import telestoreLogo from "@/assets/telestore-logo-icon.png";
 import screenshotCatalog from "@/assets/screenshot-catalog.png";
 import screenshotCart from "@/assets/screenshot-cart.png";
 import screenshotProfile from "@/assets/screenshot-profile.png";
@@ -145,9 +146,7 @@ export default function Landing() {
         <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/80 border-b border-[#e2e8f0]/60">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#2563eb] to-[#3b82f6] flex items-center justify-center shadow-md shadow-blue-500/20">
-                <Bot className="w-5 h-5 text-white" />
-              </div>
+              <img src={telestoreLogo} alt="TeleStore" className="w-9 h-9 rounded-xl shadow-md shadow-blue-500/20 object-cover" />
               <span
                 className="font-bold text-lg tracking-tight text-[#0f172a]"
                 style={{ fontFamily: "'Space Grotesk', sans-serif" }}
