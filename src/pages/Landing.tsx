@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import storefrontScreenshot from "@/assets/storefront-screenshot.png";
+import telestoreLogo from "@/assets/telestore-logo-icon.png";
 import screenshotCatalog from "@/assets/screenshot-catalog.png";
 import screenshotCart from "@/assets/screenshot-cart.png";
 import screenshotProfile from "@/assets/screenshot-profile.png";
